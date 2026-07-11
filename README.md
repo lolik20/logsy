@@ -20,35 +20,44 @@ email-алерты при падении.
 
 ## Стек
 
-Next.js 14 (App Router) · React · TypeScript · Prisma (SQLite по умолчанию) ·
+Next.js 14 (App Router) · React · TypeScript · Prisma (PostgreSQL) ·
 Auth.js (NextAuth v5) · nodemailer · node-cron · Tailwind CSS · zod.
 
 ## Быстрый старт
 
 ```bash
-cp .env.example .env      # при необходимости отредактируйте
+cp .env.example .env      # укажите DATABASE_URL к вашему PostgreSQL
 npm install
-npm run db:push           # создаст SQLite-схему (prisma/dev.db)
+npm run db:push           # создаст таблицы в PostgreSQL
 npm run dev               # http://localhost:3000
 ```
+
+`DATABASE_URL` имеет вид
+`postgresql://user:password@host:5432/logsy?schema=public`.
 
 Регистрация: на `/register` укажите email. Без настроенного SMTP пароль будет
 **выведен в консоль сервера** (dev-режим) — скопируйте его и войдите на `/login`.
 
-### Запуск проверок (воркер)
+### Запуск проверок
 
-В отдельном терминале:
+Проверки запускаются **автоматически внутри сервера Next.js** через хук
+инструментации (`src/instrumentation.ts`). Как только сервер поднят
+(`npm run dev` или `npm run build && npm start`), планировщик (node-cron)
+каждую минуту обходит активные мониторы, у которых подошёл срок по их интервалу
+(`1m/1h/1d`), пишет результаты и отправляет алерты. Отдельную команду запускать
+не нужно.
+
+> Важно: инструментация работает в долгоживущем Node-процессе (`next start` на
+> своём сервере/VPS). На serverless-хостинге (напр. Vercel) фоновые задачи не
+> живут между запросами — там используйте внешний cron на эндпоинт ниже.
+
+Дополнительные способы (не обязательны):
 
 ```bash
+# отдельный процесс-воркер (альтернатива инструментации)
 npm run worker
-```
 
-Воркер каждую минуту проверяет активные мониторы, у которых подошёл срок по
-их интервалу, пишет результаты и отправляет алерты.
-
-Альтернатива без отдельного процесса — дёргать эндпоинт по внешнему cron:
-
-```bash
+# внешний cron дёргает эндпоинт
 curl -X POST "http://localhost:3000/api/cron/run?token=$CRON_SECRET"
 ```
 
@@ -58,7 +67,7 @@ curl -X POST "http://localhost:3000/api/cron/run?token=$CRON_SECRET"
 
 | Переменная | Назначение |
 |---|---|
-| `DATABASE_URL` | Строка подключения (SQLite по умолчанию) |
+| `DATABASE_URL` | Строка подключения к PostgreSQL |
 | `AUTH_SECRET` | Секрет Auth.js (`openssl rand -base64 32`) |
 | `AUTH_YANDEX_ID` / `AUTH_YANDEX_SECRET` | Yandex ID OAuth (иначе кнопка скрыта) |
 | `SMTP_*` | SMTP для писем (иначе письма пишутся в консоль) |
