@@ -1,0 +1,157 @@
+// Prisma schema для Logsy — сервиса мониторинга uptime.
+// БД по умолчанию — SQLite. Для перехода на PostgreSQL смените provider на
+// "postgresql" и укажите соответствующий DATABASE_URL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ------- Пользователи и авторизация (совместимо с Auth.js Prisma adapter) -------
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+
+  accounts      Account[]
+  sessions      Session[]
+  projects      Project[]
+  contacts      Contact[]
+  subscription  Subscription?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ------------------------------- Домен приложения -------------------------------
+
+model Project {
+  id        String    @id @default(cuid())
+  userId    String
+  name      String
+  domain    String
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monitors  Monitor[]
+
+  @@index([userId])
+}
+
+model Monitor {
+  id             String        @id @default(cuid())
+  projectId      String
+  name           String
+  url            String
+  method         String        @default("GET") // GET | POST | PUT | DELETE
+  interval       String        @default("1m")  // 1m | 1h | 1d
+  expectedStatus Int           @default(200)
+  timeoutMs      Int           @default(10000)
+  isActive       Boolean       @default(true)
+  lastStatus     String        @default("PENDING") // UP | DOWN | PENDING
+  lastCheckedAt  DateTime?
+  createdAt      DateTime      @default(now())
+
+  project        Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  results        CheckResult[]
+  alerts         Alert[]
+
+  @@index([projectId])
+  @@index([isActive])
+}
+
+model CheckResult {
+  id             String   @id @default(cuid())
+  monitorId      String
+  ok             Boolean
+  statusCode     Int?
+  responseTimeMs Int?
+  error          String?
+  createdAt      DateTime @default(now())
+
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId, createdAt])
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   @default("EMAIL")
+  value     String
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alerts Alert[]
+
+  @@index([userId])
+}
+
+model Alert {
+  id        String   @id @default(cuid())
+  monitorId String
+  contactId String
+  message   String
+  kind      String   @default("DOWN") // DOWN | RECOVERY
+  sentAt    DateTime @default(now())
+
+  monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId])
+}
+
+model Subscription {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  plan             String    @default("FREE") // FREE | PAID
+  sitesLimit       Int       @default(1)
+  priceRub         Int       @default(300)
+  status           String    @default("inactive") // active | inactive
+  currentPeriodEnd DateTime?
+  createdAt        DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
