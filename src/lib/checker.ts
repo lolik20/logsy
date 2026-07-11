@@ -77,10 +77,8 @@ async function probe(monitor: MonitorRow): Promise<ProbeResult> {
       // Забираем тело ответа сервера (усечённое), чтобы показать реальный
       // текст ошибки, а не только код статуса.
       const body = await readBody(res);
-      // Если был редирект — показываем, куда в итоге пришли.
-      const via = res.redirected ? ` (после редиректа → ${res.url})` : "";
       error =
-        `Ожидался статус ${monitor.expectedStatus}, получен ${res.status}${via}` +
+        `Ожидался статус ${monitor.expectedStatus}, получен ${res.status}` +
         (body ? `. Ответ сервера: ${body}` : "");
     }
 
