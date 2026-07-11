@@ -23,7 +23,13 @@ export default async function ProjectPage({
   const project = await prisma.project.findUnique({
     where: { id: params.id },
     include: {
-      monitors: { orderBy: { createdAt: "desc" } },
+      monitors: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          // Последняя проверка — чтобы показать текст ошибки от сервера.
+          results: { orderBy: { createdAt: "desc" }, take: 1 },
+        },
+      },
     },
   });
 
@@ -53,39 +59,49 @@ export default async function ProjectPage({
             Добавьте монитор: URL, метод и периодичность проверки.
           </p>
         )}
-        {project.monitors.map((m) => (
-          <Link
-            key={m.id}
-            href={`/dashboard/monitors/${m.id}`}
-            className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 hover:border-brand dark:border-slate-800 dark:bg-slate-900"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{m.name}</span>
-                <StatusBadge status={m.lastStatus} />
+        {project.monitors.map((m) => {
+          const lastError = m.results[0]?.error ?? null;
+          return (
+            <Link
+              key={m.id}
+              href={`/dashboard/monitors/${m.id}`}
+              className="block rounded-xl border border-slate-200 bg-white p-4 hover:border-brand dark:border-slate-800 dark:bg-slate-900"
+            >
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{m.name}</span>
+                    <StatusBadge status={m.lastStatus} />
+                  </div>
+                  <div className="mt-1 truncate text-sm text-slate-500">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono dark:bg-slate-800">
+                      {m.method}
+                    </span>{" "}
+                    {m.url}
+                  </div>
+                </div>
+                <div className="ml-3 shrink-0 text-right text-xs text-slate-400">
+                  {intervalLabel[m.interval]}
+                  {m.lastCheckedAt && (
+                    <div>
+                      {new Date(m.lastCheckedAt).toLocaleString("ru-RU", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        day: "2-digit",
+                        month: "2-digit",
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="mt-1 truncate text-sm text-slate-500">
-                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono dark:bg-slate-800">
-                  {m.method}
-                </span>{" "}
-                {m.url}
-              </div>
-            </div>
-            <div className="ml-3 shrink-0 text-right text-xs text-slate-400">
-              {intervalLabel[m.interval]}
-              {m.lastCheckedAt && (
-                <div>
-                  {new Date(m.lastCheckedAt).toLocaleString("ru-RU", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    day: "2-digit",
-                    month: "2-digit",
-                  })}
+              {m.lastStatus === "DOWN" && lastError && (
+                <div className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                  <span className="font-medium">Ошибка:</span> {lastError}
                 </div>
               )}
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
