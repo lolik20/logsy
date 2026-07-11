@@ -63,7 +63,9 @@ async function probe(monitor: MonitorRow): Promise<ProbeResult> {
   try {
     const res = await fetch(monitor.url, {
       method: monitor.method,
-      redirect: "manual",
+      // Идём по редиректам (301/302/307/308), как обычный веб-клиент, и
+      // проверяем статус конечной страницы — иначе редирект считался бы ошибкой.
+      redirect: "follow",
       signal: controller.signal,
       headers: { "user-agent": "LogsyMonitor/1.0" },
     });
@@ -75,8 +77,10 @@ async function probe(monitor: MonitorRow): Promise<ProbeResult> {
       // Забираем тело ответа сервера (усечённое), чтобы показать реальный
       // текст ошибки, а не только код статуса.
       const body = await readBody(res);
+      // Если был редирект — показываем, куда в итоге пришли.
+      const via = res.redirected ? ` (после редиректа → ${res.url})` : "";
       error =
-        `Ожидался статус ${monitor.expectedStatus}, получен ${res.status}` +
+        `Ожидался статус ${monitor.expectedStatus}, получен ${res.status}${via}` +
         (body ? `. Ответ сервера: ${body}` : "");
     }
 
