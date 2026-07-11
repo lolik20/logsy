@@ -90,6 +90,9 @@ model Monitor {
   interval       String        @default("1m")  // 1m | 1h | 1d
   expectedStatus Int           @default(200)
   timeoutMs      Int           @default(10000)
+  headers        String?       // JSON-объект заголовков { "Name": "Value" }
+  bodyType       String        @default("NONE") // NONE | JSON | XML | FORM
+  body           String?       // тело запроса (для POST/PUT/DELETE)
   isActive       Boolean       @default(true)
   lastStatus     String        @default("PENDING") // UP | DOWN | PENDING
   lastCheckedAt  DateTime?
