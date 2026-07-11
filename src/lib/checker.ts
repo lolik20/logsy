@@ -16,9 +16,56 @@ type MonitorRow = {
   interval: string;
   expectedStatus: number;
   timeoutMs: number;
+  headers: string | null;
+  bodyType: string;
+  body: string | null;
   lastStatus: string;
   lastCheckedAt: Date | null;
 };
+
+const CONTENT_TYPE: Record<string, string> = {
+  JSON: "application/json",
+  XML: "application/xml",
+  FORM: "application/x-www-form-urlencoded",
+};
+
+/** Собирает заголовки и тело запроса из настроек монитора. */
+function buildRequestInit(monitor: MonitorRow): {
+  headers: Record<string, string>;
+  body?: string;
+} {
+  const headers: Record<string, string> = { "user-agent": "LogsyMonitor/1.0" };
+
+  // Пользовательские заголовки (JSON-объект в поле headers).
+  if (monitor.headers) {
+    try {
+      const parsed = JSON.parse(monitor.headers) as Record<string, unknown>;
+      for (const [k, v] of Object.entries(parsed)) {
+        if (k.trim()) headers[k.trim()] = String(v);
+      }
+    } catch {
+      // некорректный JSON заголовков — пропускаем
+    }
+  }
+
+  // Тело отправляем только для методов, которые его допускают.
+  const methodAllowsBody = !["GET", "HEAD"].includes(monitor.method.toUpperCase());
+  if (
+    methodAllowsBody &&
+    monitor.bodyType !== "NONE" &&
+    monitor.body &&
+    monitor.body.length > 0
+  ) {
+    const ct = CONTENT_TYPE[monitor.bodyType];
+    const hasContentType = Object.keys(headers).some(
+      (h) => h.toLowerCase() === "content-type",
+    );
+    if (ct && !hasContentType) headers["content-type"] = ct;
+    return { headers, body: monitor.body };
+  }
+
+  return { headers };
+}
 
 /** Нужно ли проверять монитор прямо сейчас (по его интервалу). */
 export function isDue(monitor: {
@@ -61,13 +108,15 @@ async function probe(monitor: MonitorRow): Promise<ProbeResult> {
   const start = Date.now();
 
   try {
+    const { headers, body } = buildRequestInit(monitor);
     const res = await fetch(monitor.url, {
       method: monitor.method,
       // Идём по редиректам (301/302/307/308), как обычный веб-клиент, и
       // проверяем статус конечной страницы — иначе редирект считался бы ошибкой.
       redirect: "follow",
       signal: controller.signal,
-      headers: { "user-agent": "LogsyMonitor/1.0" },
+      headers,
+      body,
     });
     const responseTimeMs = Date.now() - start;
     const ok = res.status === monitor.expectedStatus;
@@ -77,10 +126,8 @@ async function probe(monitor: MonitorRow): Promise<ProbeResult> {
       // Забираем тело ответа сервера (усечённое), чтобы показать реальный
       // текст ошибки, а не только код статуса.
       const body = await readBody(res);
-      // Если был редирект — показываем, куда в итоге пришли.
-      const via = res.redirected ? ` (после редиректа → ${res.url})` : "";
       error =
-        `Ожидался статус ${monitor.expectedStatus}, получен ${res.status}${via}` +
+        `Ожидался статус ${monitor.expectedStatus}, получен ${res.status}` +
         (body ? `. Ответ сервера: ${body}` : "");
     }
 

@@ -50,7 +50,7 @@ export default async function ProjectPage({
         </div>
       </div>
 
-      <MonitorManager projectId={project.id} />
+      <MonitorManager projectId={project.id} projectDomain={project.domain} />
 
       <h2 className="mb-3 mt-8 text-lg font-semibold">Мониторы</h2>
       <div className="grid gap-3">

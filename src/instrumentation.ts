@@ -8,10 +8,16 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  const { startScheduler } = await import("@/lib/scheduler");
-  const { runDueChecks } = await import("@/lib/checker");
+  // Планировщик не должен ронять старт сервера: любые ошибки (недоступна БД и
+  // т.п.) только логируем. Первый прогон запускаем без await (fire-and-forget),
+  // чтобы сервер поднимался мгновенно и отвечал на запросы сразу.
+  try {
+    const { startScheduler } = await import("@/lib/scheduler");
+    const { runDueChecks } = await import("@/lib/checker");
 
-  // Прогон сразу при старте, затем — каждую минуту по расписанию.
-  await runDueChecks().catch((e) => console.error("[Logsy] Первый прогон:", e));
-  startScheduler();
+    startScheduler();
+    runDueChecks().catch((e) => console.error("[Logsy] Первый прогон:", e));
+  } catch (e) {
+    console.error("[Logsy] Не удалось запустить планировщик:", e);
+  }
 }

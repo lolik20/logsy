@@ -11,6 +11,9 @@ const schema = z.object({
   interval: z.enum(["1m", "1h", "1d"]),
   expectedStatus: z.coerce.number().int().min(100).max(599).default(200),
   timeoutMs: z.coerce.number().int().min(1000).max(60000).default(10000),
+  headers: z.record(z.string()).optional(),
+  bodyType: z.enum(["NONE", "JSON", "XML", "FORM"]).default("NONE"),
+  body: z.string().max(20000).optional(),
 });
 
 export async function POST(req: Request) {
@@ -32,6 +35,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
   }
 
+  // Оставляем только непустые заголовки; сохраняем как JSON-строку.
+  const cleanHeaders = Object.fromEntries(
+    Object.entries(parsed.data.headers ?? {}).filter(
+      ([k, v]) => k.trim() !== "" && v !== undefined,
+    ),
+  );
+  const headers =
+    Object.keys(cleanHeaders).length > 0 ? JSON.stringify(cleanHeaders) : null;
+
   const monitor = await prisma.monitor.create({
     data: {
       projectId: parsed.data.projectId,
@@ -41,6 +53,9 @@ export async function POST(req: Request) {
       interval: parsed.data.interval,
       expectedStatus: parsed.data.expectedStatus,
       timeoutMs: parsed.data.timeoutMs,
+      headers,
+      bodyType: parsed.data.bodyType,
+      body: parsed.data.body?.trim() ? parsed.data.body : null,
     },
   });
 

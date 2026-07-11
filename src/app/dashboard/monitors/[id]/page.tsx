@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MonitorActions } from "@/components/MonitorActions";
+import { MonitorEdit } from "@/components/MonitorEdit";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,21 @@ export default async function MonitorPage({
         <MonitorActions monitorId={monitor.id} isActive={monitor.isActive} />
       </div>
 
+      <div className="mt-4">
+        <MonitorEdit
+          id={monitor.id}
+          name={monitor.name}
+          url={monitor.url}
+          method={monitor.method}
+          interval={monitor.interval}
+          expectedStatus={monitor.expectedStatus}
+          timeoutMs={monitor.timeoutMs}
+          headers={monitor.headers}
+          bodyType={monitor.bodyType}
+          body={monitor.body}
+        />
+      </div>
+
       {monitor.lastStatus === "DOWN" && monitor.results[0]?.error && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/30 dark:text-red-300">
           <span className="font-semibold">Последняя ошибка:</span>{" "}
@@ -74,6 +90,38 @@ export default async function MonitorPage({
         />
         <Stat label="Проверок" value={String(total)} />
       </div>
+
+      {(monitor.headers || (monitor.bodyType !== "NONE" && monitor.body)) && (
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <h2 className="mb-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
+            Параметры запроса
+          </h2>
+          {monitor.headers && (
+            <div className="mb-3">
+              <div className="mb-1 text-xs text-slate-500">Заголовки</div>
+              <div className="space-y-1">
+                {Object.entries(
+                  JSON.parse(monitor.headers) as Record<string, string>,
+                ).map(([k, v]) => (
+                  <div key={k} className="font-mono text-xs">
+                    <span className="text-slate-500">{k}:</span> {v}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {monitor.bodyType !== "NONE" && monitor.body && (
+            <div>
+              <div className="mb-1 text-xs text-slate-500">
+                Тело запроса ({monitor.bodyType})
+              </div>
+              <pre className="overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800">
+                {monitor.body}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
 
       <h2 className="mb-3 mt-8 text-lg font-semibold">История проверок</h2>
       <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">

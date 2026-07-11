@@ -15,7 +15,6 @@ const BODY_TYPES: { value: string; label: string }[] = [
   { value: "XML", label: "XML" },
   { value: "FORM", label: "Form-data" },
 ];
-
 const BODY_PLACEHOLDER: Record<string, string> = {
   JSON: '{\n  "key": "value"\n}',
   XML: "<request>\n  <key>value</key>\n</request>",
@@ -25,49 +24,55 @@ const BODY_PLACEHOLDER: Record<string, string> = {
 
 type HeaderRow = { key: string; value: string };
 
-// Собирает полный URL из домена проекта и пути, введённого пользователем.
-// Если пользователь ввёл полный URL (со схемой) — берём как есть.
-export function composeUrl(domain: string, input: string): string {
-  const v = input.trim();
-  if (/^https?:\/\//i.test(v)) return v;
-  const path = v === "" ? "" : v.startsWith("/") ? v : "/" + v;
-  return `https://${domain}${path}`;
+export interface MonitorEditProps {
+  id: string;
+  name: string;
+  url: string;
+  method: string;
+  interval: string;
+  expectedStatus: number;
+  timeoutMs: number;
+  headers: string | null;
+  bodyType: string;
+  body: string | null;
 }
 
-export function MonitorManager({
-  projectId,
-  projectDomain,
-}: {
-  projectId: string;
-  projectDomain: string;
-}) {
+function headersToRows(headers: string | null): HeaderRow[] {
+  if (!headers) return [{ key: "", value: "" }];
+  try {
+    const obj = JSON.parse(headers) as Record<string, string>;
+    const rows = Object.entries(obj).map(([key, value]) => ({
+      key,
+      value: String(value),
+    }));
+    return rows.length > 0 ? rows : [{ key: "", value: "" }];
+  } catch {
+    return [{ key: "", value: "" }];
+  }
+}
+
+export function MonitorEdit(props: MonitorEditProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [path, setPath] = useState("/");
-  const [method, setMethod] = useState<(typeof METHODS)[number]>("GET");
-  const [interval, setInterval] = useState("1m");
-  const [expectedStatus, setExpectedStatus] = useState("200");
-  const [headerRows, setHeaderRows] = useState<HeaderRow[]>([
-    { key: "", value: "" },
-  ]);
-  const [bodyType, setBodyType] = useState("NONE");
-  const [body, setBody] = useState("");
+  const [name, setName] = useState(props.name);
+  const [url, setUrl] = useState(props.url);
+  const [method, setMethod] = useState<(typeof METHODS)[number]>(
+    props.method as (typeof METHODS)[number],
+  );
+  const [interval, setInterval] = useState(props.interval);
+  const [expectedStatus, setExpectedStatus] = useState(
+    String(props.expectedStatus),
+  );
+  const [timeoutMs, setTimeoutMs] = useState(String(props.timeoutMs));
+  const [headerRows, setHeaderRows] = useState<HeaderRow[]>(
+    headersToRows(props.headers),
+  );
+  const [bodyType, setBodyType] = useState(props.bodyType);
+  const [body, setBody] = useState(props.body ?? "");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const methodAllowsBody = method !== "GET";
-
-  function reset() {
-    setName("");
-    setPath("/");
-    setMethod("GET");
-    setInterval("1m");
-    setExpectedStatus("200");
-    setHeaderRows([{ key: "", value: "" }]);
-    setBodyType("NONE");
-    setBody("");
-  }
 
   function updateHeader(i: number, field: keyof HeaderRow, val: string) {
     setHeaderRows((rows) =>
@@ -85,16 +90,16 @@ export function MonitorManager({
       if (r.key.trim()) headers[r.key.trim()] = r.value;
     }
 
-    const res = await fetch("/api/monitors", {
-      method: "POST",
+    const res = await fetch(`/api/monitors/${props.id}`, {
+      method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        projectId,
         name,
-        url: composeUrl(projectDomain, path),
+        url,
         method,
         interval,
         expectedStatus: Number(expectedStatus),
+        timeoutMs: Number(timeoutMs),
         headers,
         bodyType: methodAllowsBody ? bodyType : "NONE",
         body: methodAllowsBody ? body : "",
@@ -103,56 +108,49 @@ export function MonitorManager({
     setLoading(false);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(data.error || "Не удалось создать монитор");
+      setError(data.error || "Не удалось сохранить");
       return;
     }
-    reset();
     setOpen(false);
     router.refresh();
-  }
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
-      >
-        + Добавить монитор
-      </button>
-    );
   }
 
   const inputCls =
     "rounded-lg border border-slate-300 bg-transparent px-3 py-2 outline-none focus:border-brand dark:border-slate-700";
 
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:border-brand hover:text-brand dark:border-slate-700"
+      >
+        Изменить
+      </button>
+    );
+  }
+
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+      className="mt-6 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
     >
-      <h3 className="mb-4 font-semibold">Новый монитор</h3>
+      <h3 className="mb-4 font-semibold">Редактирование монитора</h3>
       <div className="grid gap-3 sm:grid-cols-2">
         <input
           required
-          placeholder="Название (напр. Главная страница)"
+          placeholder="Название"
           value={name}
           onChange={(e) => setName(e.target.value)}
           className={inputCls}
         />
-        <label className="flex flex-col gap-1 text-sm sm:col-span-1">
-          <span className="text-slate-500">URL запроса</span>
-          <div className="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-brand dark:border-slate-700">
-            <span className="flex items-center whitespace-nowrap bg-slate-100 px-3 text-sm text-slate-500 dark:bg-slate-800">
-              https://{projectDomain}
-            </span>
-            <input
-              placeholder="/путь для проверки"
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              className="min-w-0 flex-1 bg-transparent px-3 py-2 outline-none"
-            />
-          </div>
-        </label>
+        <input
+          required
+          type="url"
+          placeholder="URL для проверки"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          className={inputCls}
+        />
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-slate-500">HTTP-метод</span>
           <select
@@ -192,9 +190,20 @@ export function MonitorManager({
             className={inputCls}
           />
         </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-slate-500">Таймаут, мс</span>
+          <input
+            type="number"
+            min={1000}
+            max={60000}
+            value={timeoutMs}
+            onChange={(e) => setTimeoutMs(e.target.value)}
+            className={inputCls}
+          />
+        </label>
       </div>
 
-      {/* Заголовки запроса */}
+      {/* Заголовки */}
       <div className="mt-5">
         <div className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-300">
           Заголовки запроса
@@ -203,13 +212,13 @@ export function MonitorManager({
           {headerRows.map((row, i) => (
             <div key={i} className="flex gap-2">
               <input
-                placeholder="Название (напр. Authorization)"
+                placeholder="Название"
                 value={row.key}
                 onChange={(e) => updateHeader(i, "key", e.target.value)}
                 className={`${inputCls} flex-1`}
               />
               <input
-                placeholder="Значение (напр. Bearer …)"
+                placeholder="Значение"
                 value={row.value}
                 onChange={(e) => updateHeader(i, "value", e.target.value)}
                 className={`${inputCls} flex-1`}
@@ -240,7 +249,7 @@ export function MonitorManager({
         </button>
       </div>
 
-      {/* Тело запроса — только для методов, которые его допускают */}
+      {/* Тело */}
       {methodAllowsBody && (
         <div className="mt-5">
           <div className="mb-2 flex items-center gap-3">
@@ -268,17 +277,6 @@ export function MonitorManager({
               className={`${inputCls} w-full font-mono text-sm`}
             />
           )}
-          {bodyType !== "NONE" && (
-            <p className="mt-1 text-xs text-slate-400">
-              Content-Type проставится автоматически (
-              {bodyType === "JSON"
-                ? "application/json"
-                : bodyType === "XML"
-                  ? "application/xml"
-                  : "application/x-www-form-urlencoded"}
-              ), если не задан вручную в заголовках.
-            </p>
-          )}
         </div>
       )}
 
@@ -289,14 +287,11 @@ export function MonitorManager({
           disabled={loading}
           className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
         >
-          {loading ? "Создаём…" : "Создать"}
+          {loading ? "Сохраняем…" : "Сохранить"}
         </button>
         <button
           type="button"
-          onClick={() => {
-            reset();
-            setOpen(false);
-          }}
+          onClick={() => setOpen(false)}
           className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-700"
         >
           Отмена
