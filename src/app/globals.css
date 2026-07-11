@@ -14,10 +14,21 @@ body {
 
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
+  background-image: radial-gradient(
+    1200px 600px at 50% -200px,
+    #eef4ff 0%,
+    #f8fafc 60%
+  );
+  background-attachment: fixed;
 }
 
 @media (prefers-color-scheme: dark) {
   body {
     @apply bg-slate-950 text-slate-100;
+    background-image: radial-gradient(
+      1200px 600px at 50% -200px,
+      #0b1b3a 0%,
+      #020617 60%
+    );
   }
 }
