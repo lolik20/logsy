@@ -23,15 +23,44 @@ const features = [
     icon: "📊",
   },
   {
-    title: "Вход через Яндекс ID",
-    text: "Авторизация через Яндекс ID или по почте — пароль придёт вам на email.",
+    title: "Проверка оплаты и авторизации",
+    text: "Мониторьте не только главную, но и критичные сценарии: оплату, вход, API — с телом запроса и заголовками.",
     icon: "🔐",
   },
   {
-    title: "Российский сервис",
-    text: "Оплата в рублях, поддержка на русском, данные под рукой. Сделано для РФ рынка.",
+    title: "Российская локация",
+    text: "Проверки из России, оплата в рублях, поддержка на русском. Данные остаются в РФ.",
     icon: "🇷🇺",
   },
+];
+
+const problems = [
+  {
+    title: "Не работает оплата на сайте",
+    text: "Платёжный шлюз молча отвалился — заказы не проходят, а вы теряете деньги и не знаете об этом.",
+    icon: "💳",
+  },
+  {
+    title: "Отвалилась авторизация",
+    text: "Пользователи не могут войти в личный кабинет. Об этом вы узнаёте последними — из жалоб.",
+    icon: "🔒",
+  },
+  {
+    title: "Клиенты уходят",
+    text: "Каждая минута простоя — это потерянные клиенты, деньги и репутация. Молча и безвозвратно.",
+    icon: "📉",
+  },
+];
+
+// Сравнение с зарубежным конкурентом.
+const comparison: { label: string; logsy: boolean; hetrix: boolean }[] = [
+  { label: "Российская локация проверок", logsy: true, hetrix: false },
+  { label: "Оплата в рублях", logsy: true, hetrix: false },
+  { label: "Поддержка на русском", logsy: true, hetrix: false },
+  { label: "Данные хранятся в РФ (152-ФЗ)", logsy: true, hetrix: false },
+  { label: "Мониторинг API: методы, тело, заголовки", logsy: true, hetrix: true },
+  { label: "Алерты на почту", logsy: true, hetrix: true },
+  { label: "Проверки каждую минуту", logsy: true, hetrix: true },
 ];
 
 export default async function LandingPage() {
@@ -145,6 +174,84 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* Проблемы */}
+      <section className="relative z-10 mx-auto max-w-6xl px-6 py-16">
+        <div className="text-center">
+          <span className="inline-block rounded-full bg-red-50 px-4 py-1.5 text-sm font-medium text-red-600 dark:bg-red-950/40 dark:text-red-400">
+            Знакомо?
+          </span>
+          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
+            Сайт «лежит», а вы узнаёте последними
+          </h2>
+        </div>
+        <div className="mt-10 grid gap-6 sm:grid-cols-3">
+          {problems.map((p) => (
+            <div
+              key={p.title}
+              className="rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-2xl dark:bg-red-950/40">
+                {p.icon}
+              </div>
+              <h3 className="mt-4 text-lg font-semibold">{p.title}</h3>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                {p.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Решение как сервис */}
+      <section className="relative z-10 mx-auto max-w-6xl px-6 py-8">
+        <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-sky-500 p-[1.5px] shadow-card">
+          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl sm:p-12 dark:bg-slate-900/80">
+            <div className="grid items-center gap-8 md:grid-cols-2">
+              <div>
+                <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand dark:bg-brand/10">
+                  Решение — Logsy как сервис
+                </span>
+                <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
+                  Мы следим за вашим бизнесом 24/7
+                </h2>
+                <p className="mt-4 text-slate-600 dark:text-slate-300">
+                  Logsy круглосуточно проверяет критичные сценарии — оплату,
+                  авторизацию, ключевые API — из российской локации и мгновенно
+                  шлёт письмо, как только что-то сломалось. Вы чините проблему
+                  раньше, чем её заметят клиенты.
+                </p>
+                <Link
+                  href="/register"
+                  className="mt-6 inline-block rounded-xl bg-gradient-to-r from-brand to-brand-light px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
+                >
+                  Подключить мониторинг
+                </Link>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { t: "Оплата на сайте", s: "проверяем каждую минуту" },
+                  { t: "Вход и авторизация", s: "API входа под контролем" },
+                  { t: "Уведомление на почту", s: "мгновенно при сбое" },
+                ].map((row) => (
+                  <div
+                    key={row.t}
+                    className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/70 p-4 backdrop-blur-md dark:border-white/10 dark:bg-white/5"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-950/50">
+                      ✓
+                    </span>
+                    <div>
+                      <div className="text-sm font-semibold">{row.t}</div>
+                      <div className="text-xs text-slate-500">{row.s}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Фичи */}
       <section className="relative z-10 mx-auto max-w-6xl px-6 py-12">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -160,6 +267,54 @@ export default async function LandingPage() {
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
                 {f.text}
               </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Сравнение с конкурентом */}
+      <section className="relative z-10 mx-auto max-w-4xl px-6 py-16">
+        <div className="text-center">
+          <h2 className="text-3xl font-bold sm:text-4xl">Logsy или HetrixTools?</h2>
+          <p className="mt-3 text-slate-600 dark:text-slate-400">
+            Зарубежные сервисы удобны, но у них нет российской локации и оплаты в
+            рублях.
+          </p>
+        </div>
+        <div className="mt-10 overflow-hidden rounded-3xl border border-white/50 bg-white/60 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50">
+          <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 border-b border-slate-200/70 px-5 py-4 text-sm font-semibold sm:gap-x-8 sm:px-8 dark:border-slate-700/70">
+            <div className="text-slate-500">Возможность</div>
+            <div className="w-24 text-center text-brand">Logsy</div>
+            <div className="w-24 text-center text-slate-400">HetrixTools</div>
+          </div>
+          {comparison.map((row, i) => (
+            <div
+              key={row.label}
+              className={`grid grid-cols-[1fr_auto_auto] items-center gap-x-4 px-5 py-3.5 text-sm sm:gap-x-8 sm:px-8 ${
+                i % 2 === 1 ? "bg-white/40 dark:bg-white/5" : ""
+              }`}
+            >
+              <div className="font-medium">{row.label}</div>
+              <div className="flex w-24 justify-center">
+                {row.logsy ? (
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-sm text-green-600 dark:bg-green-950/50">
+                    ✓
+                  </span>
+                ) : (
+                  <span className="text-slate-300">—</span>
+                )}
+              </div>
+              <div className="flex w-24 justify-center">
+                {row.hetrix ? (
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-sm text-slate-500 dark:bg-slate-800">
+                    ✓
+                  </span>
+                ) : (
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-50 text-sm text-red-500 dark:bg-red-950/40">
+                    ✕
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
