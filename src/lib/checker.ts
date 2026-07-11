@@ -38,6 +38,22 @@ interface ProbeResult {
   error: string | null;
 }
 
+const MAX_BODY_CHARS = 500;
+
+/** Читает тело ответа и возвращает усечённый однострочный сниппет. */
+async function readBody(res: Response): Promise<string> {
+  try {
+    const text = await res.text();
+    const normalized = text.replace(/\s+/g, " ").trim();
+    if (!normalized) return "";
+    return normalized.length > MAX_BODY_CHARS
+      ? normalized.slice(0, MAX_BODY_CHARS) + "…"
+      : normalized;
+  } catch {
+    return "";
+  }
+}
+
 /** Делает один HTTP-запрос к URL монитора и возвращает результат. */
 async function probe(monitor: MonitorRow): Promise<ProbeResult> {
   const controller = new AbortController();
@@ -53,14 +69,18 @@ async function probe(monitor: MonitorRow): Promise<ProbeResult> {
     });
     const responseTimeMs = Date.now() - start;
     const ok = res.status === monitor.expectedStatus;
-    return {
-      ok,
-      statusCode: res.status,
-      responseTimeMs,
-      error: ok
-        ? null
-        : `Ожидался статус ${monitor.expectedStatus}, получен ${res.status}`,
-    };
+
+    let error: string | null = null;
+    if (!ok) {
+      // Забираем тело ответа сервера (усечённое), чтобы показать реальный
+      // текст ошибки, а не только код статуса.
+      const body = await readBody(res);
+      error =
+        `Ожидался статус ${monitor.expectedStatus}, получен ${res.status}` +
+        (body ? `. Ответ сервера: ${body}` : "");
+    }
+
+    return { ok, statusCode: res.status, responseTimeMs, error };
   } catch (err) {
     const responseTimeMs = Date.now() - start;
     const message =

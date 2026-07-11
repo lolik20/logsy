@@ -58,6 +58,13 @@ export default async function MonitorPage({
         <MonitorActions monitorId={monitor.id} isActive={monitor.isActive} />
       </div>
 
+      {monitor.lastStatus === "DOWN" && monitor.results[0]?.error && (
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/30 dark:text-red-300">
+          <span className="font-semibold">Последняя ошибка:</span>{" "}
+          {monitor.results[0].error}
+        </div>
+      )}
+
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Stat label="Периодичность" value={intervalLabel[monitor.interval]} />
         <Stat label="Ожидаемый код" value={String(monitor.expectedStatus)} />
