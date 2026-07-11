@@ -1,13 +1,15 @@
 // Prisma schema для Logsy — сервиса мониторинга uptime.
-// БД по умолчанию — SQLite. Для перехода на PostgreSQL смените provider на
-// "postgresql" и укажите соответствующий DATABASE_URL.
+// БД — PostgreSQL. DATABASE_URL задаётся в .env
+// (напр. postgresql://user:pass@host:5432/logsy?schema=public).
+// Для локальной разработки на SQLite смените provider на "sqlite" и
+// используйте URL вида file:./dev.db.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
