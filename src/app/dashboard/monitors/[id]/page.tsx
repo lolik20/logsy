@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MonitorActions } from "@/components/MonitorActions";
+import { MonitorEdit } from "@/components/MonitorEdit";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,21 @@ export default async function MonitorPage({
           </div>
         </div>
         <MonitorActions monitorId={monitor.id} isActive={monitor.isActive} />
+      </div>
+
+      <div className="mt-4">
+        <MonitorEdit
+          id={monitor.id}
+          name={monitor.name}
+          url={monitor.url}
+          method={monitor.method}
+          interval={monitor.interval}
+          expectedStatus={monitor.expectedStatus}
+          timeoutMs={monitor.timeoutMs}
+          headers={monitor.headers}
+          bodyType={monitor.bodyType}
+          body={monitor.body}
+        />
       </div>
 
       {monitor.lastStatus === "DOWN" && monitor.results[0]?.error && (

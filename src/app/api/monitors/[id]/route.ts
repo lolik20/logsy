@@ -15,7 +15,14 @@ async function ownedMonitor(userId: string, id: string) {
 const patchSchema = z.object({
   isActive: z.boolean().optional(),
   name: z.string().min(1).max(120).optional(),
+  url: z.string().url("Некорректный URL").optional(),
+  method: z.enum(["GET", "POST", "PUT", "DELETE"]).optional(),
   interval: z.enum(["1m", "1h", "1d"]).optional(),
+  expectedStatus: z.coerce.number().int().min(100).max(599).optional(),
+  timeoutMs: z.coerce.number().int().min(1000).max(60000).optional(),
+  headers: z.record(z.string()).optional(),
+  bodyType: z.enum(["NONE", "JSON", "XML", "FORM"]).optional(),
+  body: z.string().max(20000).optional(),
 });
 
 export async function PATCH(
@@ -30,12 +37,31 @@ export async function PATCH(
 
   const parsed = patchSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Некорректные данные" },
+      { status: 400 },
+    );
+  }
+
+  const { headers, body, name, ...rest } = parsed.data;
+
+  // headers приходят объектом — сохраняем как JSON-строку (или null, если пусто).
+  let headersValue: string | null | undefined = undefined;
+  if (headers !== undefined) {
+    const clean = Object.fromEntries(
+      Object.entries(headers).filter(([k]) => k.trim() !== ""),
+    );
+    headersValue = Object.keys(clean).length > 0 ? JSON.stringify(clean) : null;
   }
 
   const updated = await prisma.monitor.update({
     where: { id: params.id },
-    data: parsed.data,
+    data: {
+      ...rest,
+      ...(name !== undefined ? { name: name.trim() } : {}),
+      ...(headersValue !== undefined ? { headers: headersValue } : {}),
+      ...(body !== undefined ? { body: body.trim() ? body : null } : {}),
+    },
   });
   return NextResponse.json({ monitor: updated });
 }
