@@ -30,7 +30,7 @@ export interface MailMessage {
 
 /**
  * Отправляет письмо через SMTP. Если SMTP не сконфигурирован (нет SMTP_HOST),
- * письмо выводится в консоль сервера — это dev-режим «из коробки».
+ * письмо выводится в консоль сервера.
  */
 export async function sendMail(message: MailMessage): Promise<void> {
   const from = process.env.SMTP_FROM || "Logsy <no-reply@logsy.ru>";
