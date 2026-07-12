@@ -24,7 +24,9 @@ export default async function DashboardLayout({
         subscription={subscription}
       />
       <div className="min-w-0 flex-1">
-        <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
+        <main className="mx-auto max-w-5xl px-4 pb-8 pt-20 sm:px-6 md:py-8">
+          {children}
+        </main>
       </div>
     </div>
   );
