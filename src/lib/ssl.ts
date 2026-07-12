@@ -1,4 +1,4 @@
-import tls from "node:tls";
+import tls from "tls";
 
 /** Порог (в днях), начиная с которого сертификат считаем «скоро истекающим». */
 export const SSL_WARN_DAYS = 7;
