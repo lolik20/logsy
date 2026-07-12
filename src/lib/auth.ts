@@ -26,7 +26,7 @@ const providers: NextAuthConfig["providers"] = [
       const ok = await verifyPassword(password, user.passwordHash);
       if (!ok) return null;
 
-      return { id: user.id, email: user.email, name: user.name };
+      return { id: user.id, email: user.email, name: user.name, role: user.role };
     },
   }),
   // Быстрая авторизация по одноразовой ссылке из письма (без ввода пароля).
@@ -44,10 +44,39 @@ const providers: NextAuthConfig["providers"] = [
       const user = await prisma.user.findUnique({ where: { email } });
       if (!user) return null;
 
-      return { id: user.id, email: user.email, name: user.name };
+      return { id: user.id, email: user.email, name: user.name, role: user.role };
     },
   }),
 ];
+
+// Email-адреса, которым при входе автоматически выдаётся роль ADMIN.
+// Задаётся через переменную окружения ADMIN_EMAILS (список через запятую).
+// Удобно для «загрузки» первого администратора без ручного изменения БД.
+const adminEmails = new Set(
+  (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+/**
+ * Возвращает актуальную роль пользователя. Если email указан в ADMIN_EMAILS,
+ * а в БД роль ещё не ADMIN — повышает её (одноразово при входе).
+ */
+async function resolveRole(
+  userId: string,
+  email: string | null | undefined,
+  currentRole: string | null | undefined,
+): Promise<string> {
+  const role = currentRole ?? "USER";
+  if (email && adminEmails.has(email.toLowerCase()) && role !== "ADMIN") {
+    await prisma.user
+      .update({ where: { id: userId }, data: { role: "ADMIN" } })
+      .catch(() => null);
+    return "ADMIN";
+  }
+  return role;
+}
 
 // Yandex ID подключается только если заданы креды приложения.
 export const yandexEnabled = Boolean(
@@ -75,12 +104,14 @@ export const authConfig: NextAuthConfig = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.role = await resolveRole(user.id!, user.email, user.role);
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.id) {
         session.user.id = token.id as string;
+        session.user.role = (token.role as string) ?? "USER";
       }
       return session;
     },

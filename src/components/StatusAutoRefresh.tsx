@@ -10,11 +10,14 @@ export function StatusAutoRefresh({
   initialSignature,
   projectId,
   monitorId,
+  scope,
   intervalMs = 15000,
 }: {
   initialSignature: string;
   projectId?: string;
   monitorId?: string;
+  // "all" — для админской панели: опрашивать статусы мониторов всех пользователей.
+  scope?: "all";
   intervalMs?: number;
 }) {
   const router = useRouter();
@@ -30,6 +33,7 @@ export function StatusAutoRefresh({
     const params = new URLSearchParams();
     if (projectId) params.set("projectId", projectId);
     if (monitorId) params.set("monitorId", monitorId);
+    if (scope) params.set("scope", scope);
     const qs = params.toString();
     const url = `/api/monitors/status${qs ? `?${qs}` : ""}`;
 
@@ -60,7 +64,7 @@ export function StatusAutoRefresh({
       stopped = true;
       clearInterval(id);
     };
-  }, [router, projectId, monitorId, intervalMs]);
+  }, [router, projectId, monitorId, scope, intervalMs]);
 
   return null;
 }

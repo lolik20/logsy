@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getUserId } from "@/lib/session";
+import { getUserId, isAdmin } from "@/lib/session";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MonitorManager } from "@/components/MonitorManager";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
@@ -22,6 +22,7 @@ export default async function ProjectPage({
   params: { id: string };
 }) {
   const userId = (await getUserId())!;
+  const admin = await isAdmin();
   const project = await prisma.project.findUnique({
     where: { id: params.id },
     include: {
@@ -35,13 +36,20 @@ export default async function ProjectPage({
     },
   });
 
-  if (!project || project.userId !== userId) notFound();
+  // Владелец видит свой проект; администратор — любой.
+  if (!project || (project.userId !== userId && !admin)) notFound();
 
+  // Управление проектом (добавление мониторов, удаление) доступно только владельцу.
+  const isowner = project.userId === userId;
   const signature = statusSignature(project.monitors);
 
   return (
     <div>
-      <StatusAutoRefresh initialSignature={signature} projectId={project.id} />
+      <StatusAutoRefresh
+        initialSignature={signature}
+        projectId={project.id}
+        scope={admin ? "all" : undefined}
+      />
       <div className="mb-6">
         <Link href="/dashboard" className="text-sm text-slate-500 hover:text-brand">
           ← К проектам
@@ -51,11 +59,17 @@ export default async function ProjectPage({
             <h1 className="text-2xl font-bold">{project.name}</h1>
             <p className="text-sm text-slate-500">{project.domain}</p>
           </div>
-          <DeleteProjectButton projectId={project.id} />
+          {isowner && <DeleteProjectButton projectId={project.id} />}
         </div>
       </div>
 
-      <MonitorManager projectId={project.id} projectDomain={project.domain} />
+      {isowner ? (
+        <MonitorManager projectId={project.id} projectDomain={project.domain} />
+      ) : (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
+          Просмотр проекта пользователя в режиме администратора.
+        </div>
+      )}
 
       <h2 className="mb-3 mt-8 text-lg font-semibold">Мониторы</h2>
       <div className="grid gap-3">

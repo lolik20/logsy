@@ -22,6 +22,7 @@ export default async function DashboardLayout({
       <DashboardSidebar
         email={session.user.email ?? ""}
         subscription={subscription}
+        isAdmin={session.user.role === "ADMIN"}
       />
       <div className="min-w-0 flex-1">
         <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>

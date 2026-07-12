@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getUserId } from "@/lib/session";
+import { getUserId, isAdmin } from "@/lib/session";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MonitorActions } from "@/components/MonitorActions";
 import { MonitorEdit } from "@/components/MonitorEdit";
@@ -22,6 +22,7 @@ export default async function MonitorPage({
   params: { id: string };
 }) {
   const userId = (await getUserId())!;
+  const admin = await isAdmin();
   const monitor = await prisma.monitor.findUnique({
     where: { id: params.id },
     include: {
@@ -30,12 +31,16 @@ export default async function MonitorPage({
     },
   });
 
-  if (!monitor || monitor.project.userId !== userId) notFound();
+  // Владелец видит свой монитор; администратор — любой.
+  if (!monitor || (monitor.project.userId !== userId && !admin)) notFound();
+
+  // Редактирование и управление доступно только владельцу монитора.
+  const isowner = monitor.project.userId === userId;
 
   // Уведомления шлются на email-контакты владельца. Если их нет — предупредим.
-  const contactCount = await prisma.contact.count({
-    where: { userId, type: "EMAIL" },
-  });
+  const contactCount = isowner
+    ? await prisma.contact.count({ where: { userId, type: "EMAIL" } })
+    : 1;
 
   const total = monitor.results.length;
   const okCount = monitor.results.filter((r) => r.ok).length;
@@ -44,7 +49,11 @@ export default async function MonitorPage({
 
   return (
     <div>
-      <StatusAutoRefresh initialSignature={signature} monitorId={monitor.id} />
+      <StatusAutoRefresh
+        initialSignature={signature}
+        monitorId={monitor.id}
+        scope={admin ? "all" : undefined}
+      />
       <Link
         href={`/dashboard/projects/${monitor.projectId}`}
         className="text-sm text-slate-500 hover:text-brand"
@@ -68,7 +77,9 @@ export default async function MonitorPage({
             )}
           </div>
         </div>
-        <MonitorActions monitorId={monitor.id} isActive={monitor.isActive} />
+        {isowner && (
+          <MonitorActions monitorId={monitor.id} isActive={monitor.isActive} />
+        )}
       </div>
 
       {contactCount === 0 && (
@@ -86,21 +97,30 @@ export default async function MonitorPage({
         </div>
       )}
 
-      <div className="mt-4">
-        <MonitorEdit
-          id={monitor.id}
-          name={monitor.name}
-          url={monitor.url}
-          port={monitor.port}
-          method={monitor.method}
-          interval={monitor.interval}
-          expectedStatus={monitor.expectedStatus}
-          timeoutMs={monitor.timeoutMs}
-          headers={monitor.headers}
-          bodyType={monitor.bodyType}
-          body={monitor.body}
-        />
-      </div>
+      {isowner && (
+        <div className="mt-4">
+          <MonitorEdit
+            id={monitor.id}
+            name={monitor.name}
+            url={monitor.url}
+            port={monitor.port}
+            method={monitor.method}
+            interval={monitor.interval}
+            expectedStatus={monitor.expectedStatus}
+            timeoutMs={monitor.timeoutMs}
+            headers={monitor.headers}
+            bodyType={monitor.bodyType}
+            body={monitor.body}
+          />
+        </div>
+      )}
+
+      {!isowner && (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
+          Просмотр монитора пользователя «{monitor.project.name}» в режиме
+          администратора.
+        </div>
+      )}
 
       {monitor.lastStatus === "DOWN" && monitor.results[0]?.error && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/30 dark:text-red-300">
