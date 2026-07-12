@@ -104,6 +104,37 @@ interface ProbeResult {
 
 const MAX_BODY_CHARS = 500;
 
+// Эскалация повторных оповещений, пока монитор остаётся недоступным.
+// Первый алерт уходит сразу при падении, далее — напоминания: чем дольше
+// длится авария, тем реже письма (не спамим и не попадаем под rate-limit).
+// Для каждого порога простоя (afterMs) задан свой шаг напоминаний (everyMs);
+// берётся последний подходящий сверху вниз, последний тир повторяется до
+// восстановления. Реальная частота не может быть чаще интервала проверки.
+const ESCALATION: Array<{ afterMs: number; everyMs: number }> = [
+  { afterMs: 0, everyMs: 15 * 60 * 1000 }, // первый час простоя — каждые 15 мин
+  { afterMs: 60 * 60 * 1000, everyMs: 60 * 60 * 1000 }, // после 1 ч — каждый час
+  { afterMs: 6 * 60 * 60 * 1000, everyMs: 4 * 60 * 60 * 1000 }, // после 6 ч — каждые 4 ч
+];
+
+/** Шаг напоминаний для текущей длительности простоя. */
+function reminderStepMs(outageMs: number): number {
+  let step = ESCALATION[0].everyMs;
+  for (const tier of ESCALATION) {
+    if (outageMs >= tier.afterMs) step = tier.everyMs;
+  }
+  return step;
+}
+
+/** Человекочитаемая длительность (ru), минимум «1 мин». */
+function formatDuration(ms: number): string {
+  const totalMin = Math.max(1, Math.round(ms / 60000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m} мин`;
+  if (m === 0) return `${h} ч`;
+  return `${h} ч ${m} мин`;
+}
+
 /** Читает тело ответа и возвращает усечённый однострочный сниппет. */
 async function readBody(res: Response): Promise<string> {
   try {
@@ -209,6 +240,46 @@ async function notify(
   }
 }
 
+/**
+ * DOWN-алерты текущей аварии: первый и последний по времени. «Текущая авария» —
+ * все DOWN-алерты, отправленные после последнего RECOVERY (или все, если
+ * восстановлений ещё не было). Отсюда берём начало простоя (firstAt) и время
+ * последнего напоминания (lastAt).
+ */
+async function outageDownAlerts(
+  monitorId: string,
+): Promise<{ firstAt: Date | null; lastAt: Date | null }> {
+  const lastRecovery = await prisma.alert.findFirst({
+    where: { monitorId, kind: "RECOVERY" },
+    orderBy: { sentAt: "desc" },
+    select: { sentAt: true },
+  });
+  // undefined-фильтр Prisma игнорирует — если RECOVERY не было, берём все DOWN.
+  const where = {
+    monitorId,
+    kind: "DOWN",
+    sentAt: lastRecovery ? { gt: lastRecovery.sentAt } : undefined,
+  };
+  const [first, last] = await Promise.all([
+    prisma.alert.findFirst({ where, orderBy: { sentAt: "asc" }, select: { sentAt: true } }),
+    prisma.alert.findFirst({ where, orderBy: { sentAt: "desc" }, select: { sentAt: true } }),
+  ]);
+  return { firstAt: first?.sentAt ?? null, lastAt: last?.sentAt ?? null };
+}
+
+/**
+ * Пора ли повторно напомнить, что монитор всё ещё недоступен. Шаг напоминаний
+ * растёт вместе с длительностью простоя (см. ESCALATION). Если отправленных
+ * DOWN-алертов ещё нет (например, письмо не ушло) — напоминаем снова.
+ */
+async function shouldRepeatDownAlert(monitorId: string): Promise<boolean> {
+  const { firstAt, lastAt } = await outageDownAlerts(monitorId);
+  if (!firstAt || !lastAt) return true;
+  const now = Date.now();
+  const step = reminderStepMs(now - firstAt.getTime());
+  return now - lastAt.getTime() >= step;
+}
+
 /** Проверяет один монитор: пишет результат, обновляет статус, шлёт алерты при переходах. */
 export async function checkMonitor(monitor: MonitorRow): Promise<ProbeResult> {
   const result = await probe(monitor);
@@ -229,11 +300,22 @@ export async function checkMonitor(monitor: MonitorRow): Promise<ProbeResult> {
     data: { lastStatus: newStatus, lastCheckedAt: new Date() },
   });
 
-  // Алерт только на смене состояния (не спамим, пока статус держится).
-  if (newStatus === "DOWN" && monitor.lastStatus !== "DOWN") {
-    await notify(monitor, "DOWN", result.error ?? "Проверка не пройдена");
+  // Первый DOWN-алерт уходит сразу при падении, далее — повторные напоминания
+  // с нарастающим шагом (эскалация), пока сервис не восстановится.
+  // Восстановление (RECOVERY) оповещается один раз на переходе DOWN → UP и
+  // содержит суммарную длительность простоя.
+  if (newStatus === "DOWN") {
+    const justWentDown = monitor.lastStatus !== "DOWN";
+    if (justWentDown || (await shouldRepeatDownAlert(monitor.id))) {
+      await notify(monitor, "DOWN", result.error ?? "Проверка не пройдена");
+    }
   } else if (newStatus === "UP" && monitor.lastStatus === "DOWN") {
-    await notify(monitor, "RECOVERY", "Сервис отвечает штатно");
+    // Длительность простоя считаем от первого DOWN-алерта текущей аварии.
+    const { firstAt } = await outageDownAlerts(monitor.id);
+    const detail = firstAt
+      ? `Сервис отвечает штатно. Время простоя: ${formatDuration(Date.now() - firstAt.getTime())}`
+      : "Сервис отвечает штатно";
+    await notify(monitor, "RECOVERY", detail);
   }
 
   return result;
