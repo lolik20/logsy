@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export function LoginForm({ yandexEnabled }: { yandexEnabled: boolean }) {
   const router = useRouter();
@@ -72,6 +73,11 @@ export function LoginForm({ yandexEnabled }: { yandexEnabled: boolean }) {
         >
           {loading ? "Входим…" : "Войти"}
         </button>
+        <p className="text-center text-sm text-slate-500">
+          <Link href="/forgot-password" className="font-medium text-brand hover:underline">
+            Забыли пароль?
+          </Link>
+        </p>
       </form>
     </div>
   );
