@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { BillingManager } from "@/components/BillingManager";
-import { isSubscriptionActive, isTrialActive } from "@/lib/subscription";
+import {
+  describeSubscription,
+  isSubscriptionActive,
+  isTrialActive,
+} from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +19,13 @@ export default async function BillingPage() {
   const sitesLimit = sub?.sitesLimit ?? 1;
   const active = isSubscriptionActive(sub);
   const trial = isTrialActive(sub);
-  const periodEnd = sub?.currentPeriodEnd
-    ? new Date(sub.currentPeriodEnd).toLocaleDateString("ru-RU")
-    : null;
+  const status = describeSubscription(sub);
+  const periodEnd = status.periodEnd;
 
-  const statusLabel = trial ? "Пробный период" : active ? "Активна" : "Не активна";
+  const statusLabel = status.label;
+  const statusValue = status.showPeriodEnd
+    ? `${statusLabel} · до ${periodEnd}`
+    : statusLabel;
 
   return (
     <div>
@@ -41,7 +47,7 @@ export default async function BillingPage() {
       )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <Card label="Статус" value={statusLabel} />
+        <Card label="Статус" value={statusValue} />
         <Card label="Лимит сайтов" value={`${sitesLimit}`} />
         <Card label="Используется" value={`${projectCount} из ${sitesLimit}`} />
       </div>

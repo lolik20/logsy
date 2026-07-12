@@ -48,6 +48,31 @@ export async function POST(req: Request) {
   }
 
   const domain = parsed.data.domain.trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+  // Антифрод по домену: если такой сайт уже мониторит другой аккаунт, добавить
+  // его можно только на платном тарифе (после оплаты). Так один и тот же домен
+  // нельзя бесплатно «размножать» по разным аккаунтам с пробным периодом.
+  const paid = sub?.plan === "PAID" && isSubscriptionActive(sub);
+  if (!paid) {
+    const takenByOther = await prisma.project.findFirst({
+      where: {
+        domain: { equals: domain, mode: "insensitive" },
+        userId: { not: userId },
+      },
+      select: { id: true },
+    });
+    if (takenByOther) {
+      return NextResponse.json(
+        {
+          error:
+            "Этот домен уже отслеживается на другом аккаунте. Добавить его " +
+            "можно только на платном тарифе — оформите подписку в разделе «Тарифы».",
+        },
+        { status: 402 },
+      );
+    }
+  }
+
   const project = await prisma.project.create({
     data: { userId, name: parsed.data.name.trim(), domain },
   });

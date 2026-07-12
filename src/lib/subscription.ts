@@ -54,3 +54,43 @@ export function trialEndFrom(start: Date = new Date()): Date {
   end.setDate(end.getDate() + TRIAL_DAYS);
   return end;
 }
+
+export type SubscriptionTone = "trial" | "active" | "inactive";
+
+export type SubscriptionStatus = {
+  /** Короткая подпись статуса: «Пробный период» / «Активна» / «Не активна». */
+  label: string;
+  /** Стилевой тон для плашки/индикатора. */
+  tone: SubscriptionTone;
+  /** Дата окончания текущего периода (пробного или оплаченного) в формате ru-RU. */
+  periodEnd: string | null;
+  /** Есть ли смысл показывать строку «до …» рядом со статусом. */
+  showPeriodEnd: boolean;
+};
+
+/**
+ * Единое описание текущего статуса баланса/подписки для интерфейса —
+ * используется и в боковом меню, и на вкладке «Тарифы», чтобы данные
+ * не расходились.
+ */
+export function describeSubscription(
+  sub: SubscriptionLike | null | undefined,
+  now: Date = new Date(),
+): SubscriptionStatus {
+  const active = isSubscriptionActive(sub, now);
+  const trial = isTrialActive(sub, now);
+  const periodEnd = sub?.currentPeriodEnd
+    ? new Date(sub.currentPeriodEnd).toLocaleDateString("ru-RU")
+    : null;
+
+  const label = trial ? "Пробный период" : active ? "Активна" : "Не активна";
+  const tone: SubscriptionTone = trial ? "trial" : active ? "active" : "inactive";
+
+  return {
+    label,
+    tone,
+    periodEnd,
+    // Дату «до» показываем, пока подписка активна (и в пробном, и в платном периоде).
+    showPeriodEnd: active && !!periodEnd,
+  };
+}
