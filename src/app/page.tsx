@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
+import { BILLING_PLANS, perSitePriceRub } from "@/lib/pricing";
 
 const features = [
   {
@@ -21,6 +22,11 @@ const features = [
     title: "Проекты и мониторы",
     text: "Группируйте мониторы по проектам (доменам). Вся история проверок под рукой.",
     icon: "📊",
+  },
+  {
+    title: "Контроль SSL-сертификата",
+    text: "Следим за сроком действия SSL и предупреждаем письмом за неделю, за 3 дня, за 1 день и за 1 час до истечения — сайт не «покраснеет» в браузере неожиданно.",
+    icon: "🔒",
   },
   {
     title: "Проверка оплаты и авторизации",
@@ -59,6 +65,7 @@ const comparison: { label: string; logsy: boolean; hetrix: boolean }[] = [
   { label: "Поддержка на русском", logsy: true, hetrix: false },
   { label: "Данные хранятся в РФ (152-ФЗ)", logsy: true, hetrix: false },
   { label: "Мониторинг API: методы, тело, заголовки", logsy: true, hetrix: true },
+  { label: "Контроль срока SSL-сертификата", logsy: true, hetrix: true },
   { label: "Алерты на почту", logsy: true, hetrix: true },
   { label: "Проверки каждую минуту", logsy: true, hetrix: true },
 ];
@@ -157,9 +164,9 @@ export default async function LandingPage() {
         <div className="mx-auto mt-14 max-w-3xl rounded-3xl border border-white/50 bg-white/60 p-4 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50">
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { name: "shop.example.ru", status: "Работает", color: "text-green-600", dot: "bg-green-500", ms: "128 мс" },
-              { name: "api.example.ru", status: "Работает", color: "text-green-600", dot: "bg-green-500", ms: "94 мс" },
-              { name: "checkout", status: "Недоступен", color: "text-red-600", dot: "bg-red-500", ms: "500" },
+              { name: "shop.example.ru", status: "Работает", color: "text-green-600", dot: "bg-green-500", ms: "128 мс", ssl: "SSL: 82 дн.", sslColor: "text-green-600" },
+              { name: "api.example.ru", status: "Работает", color: "text-green-600", dot: "bg-green-500", ms: "94 мс", ssl: "SSL истекает: 9 дн.", sslColor: "text-amber-600" },
+              { name: "checkout", status: "Недоступен", color: "text-red-600", dot: "bg-red-500", ms: "500", ssl: "SSL: 41 дн.", sslColor: "text-green-600" },
             ].map((s) => (
               <div
                 key={s.name}
@@ -170,7 +177,10 @@ export default async function LandingPage() {
                   <span className={`text-sm font-medium ${s.color}`}>{s.status}</span>
                 </div>
                 <div className="mt-2 truncate font-mono text-xs text-slate-500">{s.name}</div>
-                <div className="mt-1 text-xs text-slate-400">{s.ms}</div>
+                <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
+                  <span>{s.ms}</span>
+                  <span className={`font-medium ${s.sslColor}`}>{s.ssl}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -328,6 +338,7 @@ export default async function LandingPage() {
         <h2 className="text-center text-3xl font-bold">Простой тариф</h2>
         <p className="mt-3 text-center text-slate-600 dark:text-slate-400">
           Первые 2 недели — бесплатно. Дальше платите только за то, что мониторите.
+          Чем длиннее период — тем выгоднее.
         </p>
         <div className="mx-auto mt-10 max-w-md rounded-3xl bg-gradient-to-br from-brand to-sky-500 p-[1.5px] shadow-card transition-transform hover:-translate-y-1">
           <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl dark:bg-slate-900/80">
@@ -343,14 +354,43 @@ export default async function LandingPage() {
                 2 недели бесплатно · без карты
               </div>
             </div>
+
+            {/* Периоды оплаты со скидкой */}
+            <div className="mt-8 grid grid-cols-3 gap-2">
+              {BILLING_PLANS.map((p) => {
+                const perSite = perSitePriceRub(p);
+                const perMonth = Math.round(perSite / p.months);
+                return (
+                  <div
+                    key={p.id}
+                    className="relative rounded-2xl border border-slate-200/80 bg-white/70 p-3 text-center dark:border-slate-700/70 dark:bg-white/5"
+                  >
+                    {p.discountPercent > 0 && (
+                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        −{p.discountPercent}%
+                      </span>
+                    )}
+                    <div className="text-xs font-semibold text-slate-500">{p.label}</div>
+                    <div className="mt-1 text-lg font-extrabold">{perMonth} ₽</div>
+                    <div className="text-[11px] text-slate-400">за сайт / мес</div>
+                    <div className="mt-1 text-[11px] text-slate-500">
+                      {perSite} ₽ за сайт
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             <ul className="mt-8 space-y-3 text-sm">
               {[
                 "14 дней бесплатного пробного периода на 1 сайт",
                 "Неограниченное число мониторов на сайт",
                 "Проверки каждую минуту (1м / 1ч / 1д)",
                 "HTTP-методы GET, POST, PUT, DELETE",
+                "Контроль срока SSL-сертификата",
                 "Алерты на почту без задержек",
                 "История проверок и статистика",
+                "Скидка 10% за 3 месяца и 20% за год",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2">
                   <span className="text-brand">✓</span>

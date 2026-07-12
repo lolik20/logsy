@@ -1,0 +1,28 @@
+import { Suspense } from "react";
+import Link from "next/link";
+import { ResetPasswordForm } from "@/components/ResetPasswordForm";
+
+export default function ResetPasswordPage() {
+  return (
+    <main className="flex min-h-screen items-center justify-center px-6">
+      <div className="w-full max-w-sm">
+        <Link href="/" className="mb-8 block text-center text-2xl font-bold text-brand">
+          Logsy
+        </Link>
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <h1 className="text-xl font-semibold">Новый пароль</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Придумайте новый пароль для входа в Logsy.
+          </p>
+          <Suspense
+            fallback={
+              <p className="mt-6 text-center text-sm text-slate-500">Загрузка…</p>
+            }
+          >
+            <ResetPasswordForm />
+          </Suspense>
+        </div>
+      </div>
+    </main>
+  );
+}

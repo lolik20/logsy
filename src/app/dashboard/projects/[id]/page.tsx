@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MonitorManager } from "@/components/MonitorManager";
+import { ProjectSslSettings } from "@/components/ProjectSslSettings";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
 import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
 import { statusSignature } from "@/lib/status";
@@ -64,7 +65,26 @@ export default async function ProjectPage({
       </div>
 
       {isowner ? (
-        <MonitorManager projectId={project.id} projectDomain={project.domain} />
+        <>
+          <div className="mb-6">
+            <ProjectSslSettings
+              projectId={project.id}
+              domain={project.domain}
+              checkSsl={project.checkSsl}
+              sslStatus={project.sslStatus}
+              sslExpiresAt={
+                project.sslExpiresAt ? project.sslExpiresAt.toISOString() : null
+              }
+              sslDaysLeft={project.sslDaysLeft}
+              sslIssuer={project.sslIssuer}
+              sslCheckedAt={
+                project.sslCheckedAt ? project.sslCheckedAt.toISOString() : null
+              }
+            />
+          </div>
+
+          <MonitorManager projectId={project.id} projectDomain={project.domain} />
+        </>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
           Просмотр проекта пользователя в режиме администратора.

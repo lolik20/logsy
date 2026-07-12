@@ -33,8 +33,19 @@ export async function POST(req: Request) {
 
   // Успешная оплата — активируем/продлеваем подписку. Делаем один раз.
   if (status === "CONFIRMED" && payment.status !== "CONFIRMED") {
-    const periodEnd = new Date();
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    const existing = await prisma.subscription.findUnique({
+      where: { userId: payment.userId },
+    });
+
+    // Оплаченные месяцы добавляем к текущей дате окончания, если подписка
+    // ещё действует (продление), иначе отсчитываем от сегодняшнего дня.
+    const now = new Date();
+    const startFrom =
+      existing?.currentPeriodEnd && existing.currentPeriodEnd.getTime() > now.getTime()
+        ? new Date(existing.currentPeriodEnd)
+        : now;
+    const periodEnd = new Date(startFrom);
+    periodEnd.setMonth(periodEnd.getMonth() + payment.months);
 
     await prisma.subscription.upsert({
       where: { userId: payment.userId },
