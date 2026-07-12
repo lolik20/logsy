@@ -9,7 +9,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: { paid?: string };
+}) {
+  const paid = searchParams?.paid;
   const userId = (await getUserId())!;
   const [sub, projectCount] = await Promise.all([
     prisma.subscription.findUnique({ where: { userId } }),
@@ -31,6 +36,20 @@ export default async function BillingPage() {
     <div>
       <h1 className="text-2xl font-bold">Тарифы и подписка</h1>
       <p className="mt-1 text-sm text-slate-500">Тариф Pro — 300 ₽ за один сайт в месяц.</p>
+
+      {paid === "1" && (
+        <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
+          ✅ Оплата прошла. Подписка активируется автоматически в течение
+          пары минут после подтверждения платежа Т-Кассой — обновите страницу,
+          если статус ещё не изменился.
+        </div>
+      )}
+
+      {paid === "0" && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+          Оплата не завершена. Вы можете попробовать снова.
+        </div>
+      )}
 
       {trial && periodEnd && (
         <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
