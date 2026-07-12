@@ -33,10 +33,6 @@ export function RegisterForm() {
         Готово! Мы отправили пароль на <b>{email}</b>. Проверьте почту и войдите.
         <br />
         Вам активирован бесплатный пробный период на 2 недели (1 сайт).
-        <br />
-        <span className="text-xs text-green-700 dark:text-green-400">
-          (В dev-режиме без SMTP пароль выводится в консоль сервера.)
-        </span>
       </div>
     );
   }
