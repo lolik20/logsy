@@ -22,6 +22,7 @@ model User {
   emailVerified DateTime?
   image         String?
   passwordHash  String?
+  signupIp      String?   // IP, с которого зарегистрировался пользователь (антифрод)
   createdAt     DateTime  @default(now())
 
   accounts      Account[]
@@ -29,6 +30,8 @@ model User {
   projects      Project[]
   contacts      Contact[]
   subscription  Subscription?
+
+  @@index([signupIp])
 }
 
 model Account {
@@ -152,10 +155,11 @@ model Alert {
 model Subscription {
   id               String    @id @default(cuid())
   userId           String    @unique
-  plan             String    @default("FREE") // FREE | PAID
+  plan             String    @default("FREE") // FREE | TRIAL | PAID
   sitesLimit       Int       @default(1)
   priceRub         Int       @default(300)
   status           String    @default("inactive") // active | inactive
+  // Для TRIAL — дата окончания пробного периода; для PAID — конец оплаченного периода.
   currentPeriodEnd DateTime?
   createdAt        DateTime  @default(now())
 

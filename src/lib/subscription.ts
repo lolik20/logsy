@@ -1,0 +1,56 @@
+// Логика доступности сервиса по подписке: пробный период и платный тариф.
+
+/** Длительность бесплатного пробного периода при регистрации. */
+export const TRIAL_DAYS = 14;
+
+/** Лимит сайтов на время пробного периода. */
+export const TRIAL_SITES_LIMIT = 1;
+
+export type SubscriptionLike = {
+  plan: string;
+  status: string;
+  currentPeriodEnd: Date | null;
+};
+
+/**
+ * Активна ли подписка прямо сейчас — то есть можно ли пользоваться сервисом
+ * (мониторинг работает, можно добавлять проекты).
+ *
+ *  - TRIAL — пока не истёк пробный период (currentPeriodEnd в будущем);
+ *  - PAID  — статус active и оплаченный период ещё не закончился;
+ *  - FREE / прочее — неактивна.
+ */
+export function isSubscriptionActive(
+  sub: SubscriptionLike | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!sub) return false;
+
+  if (sub.plan === "TRIAL") {
+    return !!sub.currentPeriodEnd && sub.currentPeriodEnd.getTime() > now.getTime();
+  }
+
+  if (sub.plan === "PAID") {
+    return (
+      sub.status === "active" &&
+      (!sub.currentPeriodEnd || sub.currentPeriodEnd.getTime() > now.getTime())
+    );
+  }
+
+  return false;
+}
+
+/** Идёт ли сейчас именно пробный период (для показа плашек в интерфейсе). */
+export function isTrialActive(
+  sub: SubscriptionLike | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  return sub?.plan === "TRIAL" && isSubscriptionActive(sub, now);
+}
+
+/** Дата окончания пробного периода от заданного момента. */
+export function trialEndFrom(start: Date = new Date()): Date {
+  const end = new Date(start);
+  end.setDate(end.getDate() + TRIAL_DAYS);
+  return end;
+}

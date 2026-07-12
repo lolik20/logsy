@@ -18,6 +18,9 @@ export default async function RegisterPage() {
           <p className="mt-1 text-sm text-slate-500">
             Укажите email — пароль сгенерируем и отправим вам на почту.
           </p>
+          <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">
+            🎁 2 недели бесплатно на 1 сайт — без привязки карты.
+          </p>
           <RegisterForm />
           <p className="mt-6 text-center text-sm text-slate-500">
             Уже есть аккаунт?{" "}

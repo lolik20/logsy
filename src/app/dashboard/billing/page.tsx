@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { BillingManager } from "@/components/BillingManager";
+import { isSubscriptionActive, isTrialActive } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -12,24 +13,41 @@ export default async function BillingPage() {
   ]);
 
   const sitesLimit = sub?.sitesLimit ?? 1;
-  const active = sub?.status === "active";
+  const active = isSubscriptionActive(sub);
+  const trial = isTrialActive(sub);
+  const periodEnd = sub?.currentPeriodEnd
+    ? new Date(sub.currentPeriodEnd).toLocaleDateString("ru-RU")
+    : null;
+
+  const statusLabel = trial ? "Пробный период" : active ? "Активна" : "Не активна";
 
   return (
     <div>
       <h1 className="text-2xl font-bold">Тарифы и подписка</h1>
       <p className="mt-1 text-sm text-slate-500">Тариф Pro — 300 ₽ за один сайт в месяц.</p>
 
+      {trial && periodEnd && (
+        <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
+          🎁 Идёт бесплатный пробный период — до <b>{periodEnd}</b>. После
+          окончания оформите подписку, чтобы мониторинг продолжил работать.
+        </div>
+      )}
+
+      {!active && sub?.plan === "TRIAL" && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+          Пробный период закончился. Оформите подписку, чтобы возобновить
+          мониторинг.
+        </div>
+      )}
+
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <Card label="Статус" value={active ? "Активна" : "Не активна"} />
+        <Card label="Статус" value={statusLabel} />
         <Card label="Лимит сайтов" value={`${sitesLimit}`} />
         <Card label="Используется" value={`${projectCount} из ${sitesLimit}`} />
       </div>
 
-      {sub?.currentPeriodEnd && active && (
-        <p className="mt-3 text-sm text-slate-500">
-          Оплачено до{" "}
-          {new Date(sub.currentPeriodEnd).toLocaleDateString("ru-RU")}
-        </p>
+      {periodEnd && active && !trial && (
+        <p className="mt-3 text-sm text-slate-500">Оплачено до {periodEnd}</p>
       )}
 
       <div className="mt-8">
