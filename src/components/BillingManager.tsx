@@ -1,27 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export function BillingManager({ currentSites }: { currentSites: number }) {
-  const router = useRouter();
   const [sites, setSites] = useState(Math.max(currentSites, 1));
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function subscribe() {
+  async function pay() {
     setLoading(true);
-    const res = await fetch("/api/billing/subscribe", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sites }),
-    });
-    setLoading(false);
-    if (res.ok) {
-      setDone(true);
-      router.refresh();
-    } else {
-      alert("Не удалось оформить подписку");
+    setError(null);
+    try {
+      const res = await fetch("/api/billing/pay", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sites }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) {
+        // Редирект на страницу оплаты Т-Кассы.
+        window.location.href = data.url;
+        return;
+      }
+      setError(data.error || "Не удалось перейти к оплате");
+      setLoading(false);
+    } catch {
+      setError("Не удалось перейти к оплате");
+      setLoading(false);
     }
   }
 
@@ -49,22 +54,18 @@ export function BillingManager({ currentSites }: { currentSites: number }) {
       </div>
 
       <button
-        onClick={subscribe}
+        onClick={pay}
         disabled={loading}
         className="mt-5 w-full rounded-lg bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark disabled:opacity-60"
       >
-        {loading ? "Оформляем…" : "Оплатить и активировать"}
+        {loading ? "Переходим к оплате…" : "Перейти к оплате"}
       </button>
 
-      {done && (
-        <p className="mt-3 text-sm text-green-600">
-          Подписка активирована. Лимит сайтов обновлён.
-        </p>
-      )}
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
       <p className="mt-3 text-xs text-slate-400">
-        Демо-оплата (без реального провайдера). Для продакшена подключается
-        YooKassa в /api/billing/subscribe.
+        Оплата картой через Т-Кассу. Чек по 54-ФЗ придёт на вашу почту.
+        Подписка активируется автоматически после успешной оплаты.
       </p>
     </div>
   );
