@@ -70,6 +70,23 @@ curl -X POST "http://localhost:3000/api/cron/run?token=$CRON_SECRET"
 | `DATABASE_URL` | Строка подключения к PostgreSQL |
 | `AUTH_SECRET` | Секрет Auth.js (`openssl rand -base64 32`) |
 | `AUTH_YANDEX_ID` / `AUTH_YANDEX_SECRET` | Yandex ID OAuth (иначе кнопка скрыта) |
+
+### Yandex ID OAuth
+
+1. Создайте приложение на <https://oauth.yandex.ru/>.
+2. В поле **Redirect URI** (Callback URL) укажите:
+
+   ```
+   ${NEXTAUTH_URL}/api/auth/callback/yandex
+   ```
+
+   Локально это `http://localhost:3000/api/auth/callback/yandex`,
+   в проде — `https://ваш-домен/api/auth/callback/yandex`.
+3. Выдайте права: «Доступ к адресу электронной почты» и «Доступ к логину, имени и фамилии».
+4. Скопируйте `ID` и `Client secret` приложения в `AUTH_YANDEX_ID` и `AUTH_YANDEX_SECRET`.
+
+Колбэк-эндпоинт обрабатывается автоматически catch-all роутом
+`src/app/api/auth/[...nextauth]/route.ts` — отдельный обработчик не нужен.
 | `SMTP_*` | SMTP для писем (иначе письма пишутся в консоль) |
 | `CRON_SECRET` | Токен для `POST /api/cron/run` |
 
