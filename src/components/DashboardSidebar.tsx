@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import type { SubscriptionStatus } from "@/lib/subscription";
 
 type IconProps = { className?: string };
 
@@ -67,7 +68,58 @@ const soonLinks = [
   { label: "Логирование", Icon: LogsIcon },
 ];
 
-export function DashboardSidebar({ email }: { email: string }) {
+const toneStyles: Record<
+  SubscriptionStatus["tone"],
+  { dot: string; text: string }
+> = {
+  trial: {
+    dot: "bg-green-500",
+    text: "text-green-700 dark:text-green-300",
+  },
+  active: {
+    dot: "bg-brand",
+    text: "text-brand",
+  },
+  inactive: {
+    dot: "bg-red-500",
+    text: "text-red-600 dark:text-red-400",
+  },
+};
+
+function BalanceStatus({ subscription }: { subscription: SubscriptionStatus }) {
+  const tone = toneStyles[subscription.tone];
+  return (
+    <Link
+      href="/dashboard/billing"
+      title={
+        subscription.showPeriodEnd && subscription.periodEnd
+          ? `${subscription.label} — до ${subscription.periodEnd}`
+          : subscription.label
+      }
+      className="mx-2 mb-2 flex items-center gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-100 md:mx-3 dark:hover:bg-slate-800"
+    >
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tone.dot}`} />
+      <span className="hidden min-w-0 flex-1 md:block">
+        <span className={`block text-sm font-semibold ${tone.text}`}>
+          {subscription.label}
+        </span>
+        {subscription.showPeriodEnd && subscription.periodEnd && (
+          <span className="block text-xs text-slate-400">
+            до {subscription.periodEnd}
+          </span>
+        )}
+      </span>
+    </Link>
+  );
+}
+
+export function DashboardSidebar({
+  email,
+  subscription,
+}: {
+  email: string;
+  subscription: SubscriptionStatus;
+}) {
   const pathname = usePathname();
 
   return (
@@ -119,6 +171,8 @@ export function DashboardSidebar({ email }: { email: string }) {
           </div>
         ))}
       </nav>
+
+      <BalanceStatus subscription={subscription} />
 
       <div className="border-t border-slate-200 p-2 md:p-3 dark:border-slate-800">
         <div className="hidden truncate px-3 pb-2 pt-1 text-xs text-slate-400 md:block">
