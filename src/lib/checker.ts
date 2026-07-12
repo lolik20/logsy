@@ -104,6 +104,12 @@ interface ProbeResult {
 
 const MAX_BODY_CHARS = 500;
 
+// Интервал повторного оповещения, пока монитор остаётся недоступным.
+// Первый алерт уходит сразу при падении, далее — напоминания с этим шагом,
+// чтобы о длительной аварии не забыли (но без спама на каждой проверке).
+// Настраивается через env DOWN_ALERT_REPEAT_MS, по умолчанию — 1 час.
+const DOWN_REMINDER_MS = Number(process.env.DOWN_ALERT_REPEAT_MS) || 60 * 60 * 1000;
+
 /** Читает тело ответа и возвращает усечённый однострочный сниппет. */
 async function readBody(res: Response): Promise<string> {
   try {
@@ -209,6 +215,21 @@ async function notify(
   }
 }
 
+/**
+ * Пора ли повторно напомнить о том, что монитор всё ещё недоступен.
+ * Смотрит время последнего отправленного DOWN-алерта: если его нет
+ * (например, письмо не ушло) или он старше DOWN_REMINDER_MS — напоминаем снова.
+ */
+async function shouldRepeatDownAlert(monitorId: string): Promise<boolean> {
+  const last = await prisma.alert.findFirst({
+    where: { monitorId, kind: "DOWN" },
+    orderBy: { sentAt: "desc" },
+    select: { sentAt: true },
+  });
+  if (!last) return true;
+  return Date.now() - last.sentAt.getTime() >= DOWN_REMINDER_MS;
+}
+
 /** Проверяет один монитор: пишет результат, обновляет статус, шлёт алерты при переходах. */
 export async function checkMonitor(monitor: MonitorRow): Promise<ProbeResult> {
   const result = await probe(monitor);
@@ -229,9 +250,14 @@ export async function checkMonitor(monitor: MonitorRow): Promise<ProbeResult> {
     data: { lastStatus: newStatus, lastCheckedAt: new Date() },
   });
 
-  // Алерт только на смене состояния (не спамим, пока статус держится).
-  if (newStatus === "DOWN" && monitor.lastStatus !== "DOWN") {
-    await notify(monitor, "DOWN", result.error ?? "Проверка не пройдена");
+  // Первый DOWN-алерт уходит сразу при падении, далее — повторные напоминания
+  // с шагом DOWN_REMINDER_MS, пока сервис не восстановится. Восстановление
+  // (RECOVERY) оповещается один раз на переходе DOWN → UP.
+  if (newStatus === "DOWN") {
+    const justWentDown = monitor.lastStatus !== "DOWN";
+    if (justWentDown || (await shouldRepeatDownAlert(monitor.id))) {
+      await notify(monitor, "DOWN", result.error ?? "Проверка не пройдена");
+    }
   } else if (newStatus === "UP" && monitor.lastStatus === "DOWN") {
     await notify(monitor, "RECOVERY", "Сервис отвечает штатно");
   }
