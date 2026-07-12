@@ -36,6 +36,17 @@ function CardIcon({ className }: IconProps) {
   );
 }
 
+function LogsIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16v16H4z" />
+      <path d="M8 8h8" />
+      <path d="M8 12h8" />
+      <path d="M8 16h5" />
+    </svg>
+  );
+}
+
 function LogoutIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -50,6 +61,10 @@ const links = [
   { href: "/dashboard", label: "Проекты", Icon: GridIcon },
   { href: "/dashboard/contacts", label: "Контакты", Icon: MailIcon },
   { href: "/dashboard/billing", label: "Тарифы", Icon: CardIcon },
+];
+
+const soonLinks = [
+  { label: "Логирование", Icon: LogsIcon },
 ];
 
 export function DashboardSidebar({ email }: { email: string }) {
@@ -88,6 +103,21 @@ export function DashboardSidebar({ email }: { email: string }) {
             </Link>
           );
         })}
+
+        {soonLinks.map(({ label, Icon }) => (
+          <div
+            key={label}
+            title={`${label} — скоро`}
+            aria-disabled="true"
+            className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 dark:text-slate-500"
+          >
+            <Icon className="h-5 w-5 shrink-0" />
+            <span className="hidden md:inline">{label}</span>
+            <span className="ml-auto hidden rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand md:inline dark:bg-brand/15">
+              Скоро
+            </span>
+          </div>
+        ))}
       </nav>
 
       <div className="border-t border-slate-200 p-2 md:p-3 dark:border-slate-800">
