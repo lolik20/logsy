@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
+import { BILLING_PLANS, perSitePriceRub } from "@/lib/pricing";
 
 const features = [
   {
@@ -328,6 +329,7 @@ export default async function LandingPage() {
         <h2 className="text-center text-3xl font-bold">Простой тариф</h2>
         <p className="mt-3 text-center text-slate-600 dark:text-slate-400">
           Первые 2 недели — бесплатно. Дальше платите только за то, что мониторите.
+          Чем длиннее период — тем выгоднее.
         </p>
         <div className="mx-auto mt-10 max-w-md rounded-3xl bg-gradient-to-br from-brand to-sky-500 p-[1.5px] shadow-card transition-transform hover:-translate-y-1">
           <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl dark:bg-slate-900/80">
@@ -343,6 +345,33 @@ export default async function LandingPage() {
                 2 недели бесплатно · без карты
               </div>
             </div>
+
+            {/* Периоды оплаты со скидкой */}
+            <div className="mt-8 grid grid-cols-3 gap-2">
+              {BILLING_PLANS.map((p) => {
+                const perSite = perSitePriceRub(p);
+                const perMonth = Math.round(perSite / p.months);
+                return (
+                  <div
+                    key={p.id}
+                    className="relative rounded-2xl border border-slate-200/80 bg-white/70 p-3 text-center dark:border-slate-700/70 dark:bg-white/5"
+                  >
+                    {p.discountPercent > 0 && (
+                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        −{p.discountPercent}%
+                      </span>
+                    )}
+                    <div className="text-xs font-semibold text-slate-500">{p.label}</div>
+                    <div className="mt-1 text-lg font-extrabold">{perMonth} ₽</div>
+                    <div className="text-[11px] text-slate-400">за сайт / мес</div>
+                    <div className="mt-1 text-[11px] text-slate-500">
+                      {perSite} ₽ за сайт
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             <ul className="mt-8 space-y-3 text-sm">
               {[
                 "14 дней бесплатного пробного периода на 1 сайт",
@@ -351,6 +380,7 @@ export default async function LandingPage() {
                 "HTTP-методы GET, POST, PUT, DELETE",
                 "Алерты на почту без задержек",
                 "История проверок и статистика",
+                "Скидка 10% за 3 месяца и 20% за год",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2">
                   <span className="text-brand">✓</span>

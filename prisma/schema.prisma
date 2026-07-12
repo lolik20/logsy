@@ -178,6 +178,8 @@ model Payment {
   paymentId  String?
   // Кол-во сайтов, которое активируется после оплаты.
   sites      Int      @default(1)
+  // Длительность оплаченного периода в месяцах (1 | 3 | 12).
+  months     Int      @default(1)
   // Сумма в рублях.
   amountRub  Int
   // NEW | AUTHORIZED | CONFIRMED | REJECTED | REFUNDED | CANCELED
