@@ -45,6 +45,7 @@ export function MonitorManager({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [path, setPath] = useState("/");
+  const [port, setPort] = useState("");
   const [method, setMethod] = useState<(typeof METHODS)[number]>("GET");
   const [interval, setInterval] = useState("1m");
   const [expectedStatus, setExpectedStatus] = useState("200");
@@ -61,6 +62,7 @@ export function MonitorManager({
   function reset() {
     setName("");
     setPath("/");
+    setPort("");
     setMethod("GET");
     setInterval("1m");
     setExpectedStatus("200");
@@ -92,6 +94,7 @@ export function MonitorManager({
         projectId,
         name,
         url: composeUrl(projectDomain, path),
+        port: port.trim() === "" ? null : Number(port),
         method,
         interval,
         expectedStatus: Number(expectedStatus),
@@ -152,6 +155,22 @@ export function MonitorManager({
               className="min-w-0 flex-1 bg-transparent px-3 py-2 outline-none"
             />
           </div>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-slate-500">Порт (необязательно)</span>
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            value={port}
+            onChange={(e) => setPort(e.target.value)}
+            placeholder={
+              composeUrl(projectDomain, path).startsWith("http://")
+                ? "по умолчанию 80"
+                : "по умолчанию 443"
+            }
+            className={inputCls}
+          />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-slate-500">HTTP-метод</span>

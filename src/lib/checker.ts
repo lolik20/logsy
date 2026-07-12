@@ -12,6 +12,7 @@ type MonitorRow = {
   projectId: string;
   name: string;
   url: string;
+  port: number | null;
   method: string;
   interval: string;
   expectedStatus: number;
@@ -67,6 +68,21 @@ function buildRequestInit(monitor: MonitorRow): {
   return { headers };
 }
 
+/**
+ * Возвращает URL для запроса с учётом порта монитора. Если порт не задан,
+ * используется стандартный порт схемы (80 для http, 443 для https).
+ */
+export function effectiveUrl(rawUrl: string, port: number | null): string {
+  if (port == null) return rawUrl;
+  try {
+    const u = new URL(rawUrl);
+    u.port = String(port);
+    return u.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 /** Нужно ли проверять монитор прямо сейчас (по его интервалу). */
 export function isDue(monitor: {
   interval: string;
@@ -109,7 +125,7 @@ async function probe(monitor: MonitorRow): Promise<ProbeResult> {
 
   try {
     const { headers, body } = buildRequestInit(monitor);
-    const res = await fetch(monitor.url, {
+    const res = await fetch(effectiveUrl(monitor.url, monitor.port), {
       method: monitor.method,
       // Идём по редиректам (301/302/307/308), как обычный веб-клиент, и
       // проверяем статус конечной страницы — иначе редирект считался бы ошибкой.

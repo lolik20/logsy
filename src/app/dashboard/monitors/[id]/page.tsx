@@ -30,6 +30,11 @@ export default async function MonitorPage({
 
   if (!monitor || monitor.project.userId !== userId) notFound();
 
+  // Уведомления шлются на email-контакты владельца. Если их нет — предупредим.
+  const contactCount = await prisma.contact.count({
+    where: { userId, type: "EMAIL" },
+  });
+
   const total = monitor.results.length;
   const okCount = monitor.results.filter((r) => r.ok).length;
   const uptime = total > 0 ? Math.round((okCount / total) * 100) : null;
@@ -54,16 +59,35 @@ export default async function MonitorPage({
               {monitor.method}
             </span>{" "}
             {monitor.url}
+            {monitor.port != null && (
+              <span className="text-slate-400"> · порт {monitor.port}</span>
+            )}
           </div>
         </div>
         <MonitorActions monitorId={monitor.id} isActive={monitor.isActive} />
       </div>
+
+      {contactCount === 0 && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+          <span className="font-semibold">Уведомления не настроены.</span> У вас
+          нет контактов для оповещений — вы не узнаете, когда монитор станет
+          недоступен.{" "}
+          <Link
+            href="/dashboard/contacts"
+            className="font-medium text-amber-900 underline hover:no-underline dark:text-amber-100"
+          >
+            Добавьте контакты
+          </Link>
+          , чтобы получать уведомления.
+        </div>
+      )}
 
       <div className="mt-4">
         <MonitorEdit
           id={monitor.id}
           name={monitor.name}
           url={monitor.url}
+          port={monitor.port}
           method={monitor.method}
           interval={monitor.interval}
           expectedStatus={monitor.expectedStatus}

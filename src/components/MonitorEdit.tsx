@@ -28,6 +28,7 @@ export interface MonitorEditProps {
   id: string;
   name: string;
   url: string;
+  port: number | null;
   method: string;
   interval: string;
   expectedStatus: number;
@@ -56,6 +57,9 @@ export function MonitorEdit(props: MonitorEditProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(props.name);
   const [url, setUrl] = useState(props.url);
+  const [port, setPort] = useState(
+    props.port != null ? String(props.port) : "",
+  );
   const [method, setMethod] = useState<(typeof METHODS)[number]>(
     props.method as (typeof METHODS)[number],
   );
@@ -96,6 +100,7 @@ export function MonitorEdit(props: MonitorEditProps) {
       body: JSON.stringify({
         name,
         url,
+        port: port.trim() === "" ? null : Number(port),
         method,
         interval,
         expectedStatus: Number(expectedStatus),
@@ -151,6 +156,22 @@ export function MonitorEdit(props: MonitorEditProps) {
           onChange={(e) => setUrl(e.target.value)}
           className={inputCls}
         />
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-slate-500">Порт (необязательно)</span>
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            value={port}
+            onChange={(e) => setPort(e.target.value)}
+            placeholder={
+              url.startsWith("http://")
+                ? "по умолчанию 80"
+                : "по умолчанию 443"
+            }
+            className={inputCls}
+          />
+        </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-slate-500">HTTP-метод</span>
           <select

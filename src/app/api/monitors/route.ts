@@ -7,6 +7,11 @@ const schema = z.object({
   projectId: z.string().min(1),
   name: z.string().min(1, "Укажите название").max(120),
   url: z.string().url("Некорректный URL"),
+  // Порт необязателен: если не задан, используется 80 (http) или 443 (https).
+  port: z.preprocess(
+    (v) => (v === "" ? null : v),
+    z.coerce.number().int().min(1).max(65535).nullable().optional(),
+  ),
   method: z.enum(["GET", "POST", "PUT", "DELETE"]),
   interval: z.enum(["1m", "1h", "1d"]),
   expectedStatus: z.coerce.number().int().min(100).max(599).default(200),
@@ -49,6 +54,7 @@ export async function POST(req: Request) {
       projectId: parsed.data.projectId,
       name: parsed.data.name.trim(),
       url: parsed.data.url,
+      port: parsed.data.port ?? null,
       method: parsed.data.method,
       interval: parsed.data.interval,
       expectedStatus: parsed.data.expectedStatus,
