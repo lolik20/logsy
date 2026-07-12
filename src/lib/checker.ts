@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
+import { isSubscriptionActive } from "@/lib/subscription";
 
 export const INTERVAL_MS: Record<string, number> = {
   "1m": 60 * 1000,
@@ -245,9 +246,19 @@ export async function checkMonitor(monitor: MonitorRow): Promise<ProbeResult> {
 export async function runDueChecks(): Promise<number> {
   const monitors = await prisma.monitor.findMany({
     where: { isActive: true },
+    include: {
+      project: {
+        select: { user: { select: { subscription: true } } },
+      },
+    },
   });
 
-  const due = monitors.filter((m) => isDue(m));
+  const now = new Date();
+  // Проверяем только мониторы пользователей с активной подпиской (или идущим
+  // пробным периодом). Истёк триал / нет оплаты — мониторинг останавливается.
+  const due = monitors.filter(
+    (m) => isDue(m) && isSubscriptionActive(m.project.user.subscription, now),
+  );
   await Promise.all(due.map((m) => checkMonitor(m).catch((e) => console.error(e))));
   return due.length;
 }

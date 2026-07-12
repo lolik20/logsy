@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
+import { isSubscriptionActive } from "@/lib/subscription";
 
 const schema = z.object({
   name: z.string().min(1, "Укажите название").max(120),
@@ -20,8 +21,21 @@ export async function POST(req: Request) {
     );
   }
 
-  // Проверка лимита тарифа: количество сайтов не больше sitesLimit.
   const sub = await prisma.subscription.findUnique({ where: { userId } });
+
+  // Пробный период истёк или подписка не оплачена — новые сайты недоступны.
+  if (!isSubscriptionActive(sub)) {
+    return NextResponse.json(
+      {
+        error:
+          "Бесплатный период закончился или подписка не активна. " +
+          "Оформите подписку в разделе «Тарифы», чтобы продолжить.",
+      },
+      { status: 402 },
+    );
+  }
+
+  // Проверка лимита тарифа: количество сайтов не больше sitesLimit.
   const limit = sub?.sitesLimit ?? 1;
   const count = await prisma.project.count({ where: { userId } });
   if (count >= limit) {

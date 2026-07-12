@@ -32,6 +32,8 @@ export function RegisterForm() {
       <div className="mt-6 rounded-lg bg-green-50 p-4 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">
         Готово! Мы отправили пароль на <b>{email}</b>. Проверьте почту и войдите.
         <br />
+        Вам активирован бесплатный пробный период на 2 недели (1 сайт).
+        <br />
         <span className="text-xs text-green-700 dark:text-green-400">
           (В dev-режиме без SMTP пароль выводится в консоль сервера.)
         </span>

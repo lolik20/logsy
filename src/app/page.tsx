@@ -149,6 +149,9 @@ export default async function LandingPage() {
             Тарифы
           </Link>
         </div>
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+          2 недели бесплатно на 1 сайт · без привязки карты
+        </p>
 
         {/* Парящая стеклянная карточка-превью статусов */}
         <div className="mx-auto mt-14 max-w-3xl rounded-3xl border border-white/50 bg-white/60 p-4 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50">
@@ -324,7 +327,7 @@ export default async function LandingPage() {
       <section id="pricing" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
         <h2 className="text-center text-3xl font-bold">Простой тариф</h2>
         <p className="mt-3 text-center text-slate-600 dark:text-slate-400">
-          Платите только за то, что мониторите.
+          Первые 2 недели — бесплатно. Дальше платите только за то, что мониторите.
         </p>
         <div className="mx-auto mt-10 max-w-md rounded-3xl bg-gradient-to-br from-brand to-sky-500 p-[1.5px] shadow-card transition-transform hover:-translate-y-1">
           <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl dark:bg-slate-900/80">
@@ -336,9 +339,13 @@ export default async function LandingPage() {
                 <span className="text-5xl font-extrabold">300 ₽</span>
                 <span className="text-slate-500">/ сайт в месяц</span>
               </div>
+              <div className="mt-3 inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 dark:bg-green-950/50 dark:text-green-400">
+                2 недели бесплатно · без карты
+              </div>
             </div>
             <ul className="mt-8 space-y-3 text-sm">
               {[
+                "14 дней бесплатного пробного периода на 1 сайт",
                 "Неограниченное число мониторов на сайт",
                 "Проверки каждую минуту (1м / 1ч / 1д)",
                 "HTTP-методы GET, POST, PUT, DELETE",
@@ -355,7 +362,7 @@ export default async function LandingPage() {
               href="/register"
               className="mt-8 block rounded-xl bg-gradient-to-r from-brand to-brand-light px-6 py-3 text-center font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
             >
-              Подключить
+              Начать бесплатно
             </Link>
           </div>
         </div>
