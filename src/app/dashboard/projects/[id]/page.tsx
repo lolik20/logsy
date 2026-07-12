@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MonitorManager } from "@/components/MonitorManager";
+import { ProjectSslSettings } from "@/components/ProjectSslSettings";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
 import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
 import { statusSignature } from "@/lib/status";
@@ -53,6 +54,23 @@ export default async function ProjectPage({
           </div>
           <DeleteProjectButton projectId={project.id} />
         </div>
+      </div>
+
+      <div className="mb-6">
+        <ProjectSslSettings
+          projectId={project.id}
+          domain={project.domain}
+          checkSsl={project.checkSsl}
+          sslStatus={project.sslStatus}
+          sslExpiresAt={
+            project.sslExpiresAt ? project.sslExpiresAt.toISOString() : null
+          }
+          sslDaysLeft={project.sslDaysLeft}
+          sslIssuer={project.sslIssuer}
+          sslCheckedAt={
+            project.sslCheckedAt ? project.sslCheckedAt.toISOString() : null
+          }
+        />
       </div>
 
       <MonitorManager projectId={project.id} projectDomain={project.domain} />

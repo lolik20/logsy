@@ -24,6 +24,11 @@ const features = [
     icon: "📊",
   },
   {
+    title: "Контроль SSL-сертификата",
+    text: "Следим за сроком действия SSL и предупреждаем письмом за неделю, за 3 дня, за 1 день и за 1 час до истечения — сайт не «покраснеет» в браузере неожиданно.",
+    icon: "🔒",
+  },
+  {
     title: "Проверка оплаты и авторизации",
     text: "Мониторьте не только главную, но и критичные сценарии: оплату, вход, API — с телом запроса и заголовками.",
     icon: "🔐",
@@ -60,6 +65,7 @@ const comparison: { label: string; logsy: boolean; hetrix: boolean }[] = [
   { label: "Поддержка на русском", logsy: true, hetrix: false },
   { label: "Данные хранятся в РФ (152-ФЗ)", logsy: true, hetrix: false },
   { label: "Мониторинг API: методы, тело, заголовки", logsy: true, hetrix: true },
+  { label: "Контроль срока SSL-сертификата", logsy: true, hetrix: true },
   { label: "Алерты на почту", logsy: true, hetrix: true },
   { label: "Проверки каждую минуту", logsy: true, hetrix: true },
 ];
@@ -158,9 +164,9 @@ export default async function LandingPage() {
         <div className="mx-auto mt-14 max-w-3xl rounded-3xl border border-white/50 bg-white/60 p-4 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50">
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { name: "shop.example.ru", status: "Работает", color: "text-green-600", dot: "bg-green-500", ms: "128 мс" },
-              { name: "api.example.ru", status: "Работает", color: "text-green-600", dot: "bg-green-500", ms: "94 мс" },
-              { name: "checkout", status: "Недоступен", color: "text-red-600", dot: "bg-red-500", ms: "500" },
+              { name: "shop.example.ru", status: "Работает", color: "text-green-600", dot: "bg-green-500", ms: "128 мс", ssl: "SSL: 82 дн.", sslColor: "text-green-600" },
+              { name: "api.example.ru", status: "Работает", color: "text-green-600", dot: "bg-green-500", ms: "94 мс", ssl: "SSL истекает: 9 дн.", sslColor: "text-amber-600" },
+              { name: "checkout", status: "Недоступен", color: "text-red-600", dot: "bg-red-500", ms: "500", ssl: "SSL: 41 дн.", sslColor: "text-green-600" },
             ].map((s) => (
               <div
                 key={s.name}
@@ -171,7 +177,10 @@ export default async function LandingPage() {
                   <span className={`text-sm font-medium ${s.color}`}>{s.status}</span>
                 </div>
                 <div className="mt-2 truncate font-mono text-xs text-slate-500">{s.name}</div>
-                <div className="mt-1 text-xs text-slate-400">{s.ms}</div>
+                <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
+                  <span>{s.ms}</span>
+                  <span className={`font-medium ${s.sslColor}`}>{s.ssl}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -378,6 +387,7 @@ export default async function LandingPage() {
                 "Неограниченное число мониторов на сайт",
                 "Проверки каждую минуту (1м / 1ч / 1д)",
                 "HTTP-методы GET, POST, PUT, DELETE",
+                "Контроль срока SSL-сертификата",
                 "Алерты на почту без задержек",
                 "История проверок и статистика",
                 "Скидка 10% за 3 месяца и 20% за год",
