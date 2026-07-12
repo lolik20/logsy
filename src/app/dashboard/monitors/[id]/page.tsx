@@ -5,6 +5,8 @@ import { getUserId } from "@/lib/session";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MonitorActions } from "@/components/MonitorActions";
 import { MonitorEdit } from "@/components/MonitorEdit";
+import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
+import { statusSignature } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
 
@@ -38,9 +40,11 @@ export default async function MonitorPage({
   const total = monitor.results.length;
   const okCount = monitor.results.filter((r) => r.ok).length;
   const uptime = total > 0 ? Math.round((okCount / total) * 100) : null;
+  const signature = statusSignature([monitor]);
 
   return (
     <div>
+      <StatusAutoRefresh initialSignature={signature} monitorId={monitor.id} />
       <Link
         href={`/dashboard/projects/${monitor.projectId}`}
         className="text-sm text-slate-500 hover:text-brand"

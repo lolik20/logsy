@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { ProjectManager } from "@/components/ProjectManager";
 import { StatusBadge } from "@/components/StatusBadge";
+import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
+import { statusSignature } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
 
@@ -14,16 +16,20 @@ export default async function DashboardPage() {
       where: { userId },
       orderBy: { createdAt: "desc" },
       include: {
-        monitors: { select: { id: true, lastStatus: true } },
+        monitors: {
+          select: { id: true, lastStatus: true, lastCheckedAt: true },
+        },
       },
     }),
     prisma.subscription.findUnique({ where: { userId } }),
   ]);
 
   const limit = sub?.sitesLimit ?? 1;
+  const signature = statusSignature(projects.flatMap((p) => p.monitors));
 
   return (
     <div>
+      <StatusAutoRefresh initialSignature={signature} />
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Проекты</h1>

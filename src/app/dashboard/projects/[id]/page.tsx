@@ -5,6 +5,8 @@ import { getUserId } from "@/lib/session";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MonitorManager } from "@/components/MonitorManager";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
+import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
+import { statusSignature } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +37,11 @@ export default async function ProjectPage({
 
   if (!project || project.userId !== userId) notFound();
 
+  const signature = statusSignature(project.monitors);
+
   return (
     <div>
+      <StatusAutoRefresh initialSignature={signature} projectId={project.id} />
       <div className="mb-6">
         <Link href="/dashboard" className="text-sm text-slate-500 hover:text-brand">
           ← К проектам
