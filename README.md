@@ -82,7 +82,11 @@ curl -X POST "http://localhost:3000/api/cron/run?token=$CRON_SECRET"
 
    Локально это `http://localhost:3000/api/auth/callback/yandex`,
    в проде — `https://ваш-домен/api/auth/callback/yandex`.
-3. Выдайте права: «Доступ к адресу электронной почты» и «Доступ к логину, имени и фамилии».
+3. Выдайте права (scope, провайдер запрашивает по умолчанию
+   `login:info login:email login:avatar`):
+   - «Доступ к адресу электронной почты» (`login:email`) — обязательно, email это ключ пользователя;
+   - «Доступ к логину, имени и фамилии» (`login:info`);
+   - «Доступ к портрету пользователя» (`login:avatar`).
 4. Скопируйте `ID` и `Client secret` приложения в `AUTH_YANDEX_ID` и `AUTH_YANDEX_SECRET`.
 
 Колбэк-эндпоинт обрабатывается автоматически catch-all роутом
