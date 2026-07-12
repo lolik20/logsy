@@ -36,8 +36,8 @@ export default async function BillingPage({
     <div>
       <h1 className="text-2xl font-bold">Тарифы и подписка</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Тариф Pro — 300 ₽ за один сайт в месяц. Скидка 10% при оплате за 3 месяца
-        и 20% при оплате за год.
+        Тариф Pro — 300 ₽ за один сайт в месяц. Скидка 20% при оплате за 3 месяца
+        и 30% при оплате за год.
       </p>
 
       {paid === "1" && (

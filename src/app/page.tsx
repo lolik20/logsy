@@ -380,7 +380,7 @@ export default async function LandingPage() {
                 "HTTP-методы GET, POST, PUT, DELETE",
                 "Алерты на почту без задержек",
                 "История проверок и статистика",
-                "Скидка 10% за 3 месяца и 20% за год",
+                "Скидка 20% за 3 месяца и 30% за год",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2">
                   <span className="text-brand">✓</span>

@@ -17,11 +17,11 @@ export type PlanInfo = {
   label: string;
 };
 
-/** Доступные планы: 1 месяц (без скидки), 3 месяца (−10%), год (−20%). */
+/** Доступные планы: 1 месяц (без скидки), 3 месяца (−20%), год (−30%). */
 export const BILLING_PLANS: PlanInfo[] = [
   { id: "1m", months: 1, discountPercent: 0, label: "1 месяц" },
-  { id: "3m", months: 3, discountPercent: 10, label: "3 месяца" },
-  { id: "12m", months: 12, discountPercent: 20, label: "1 год" },
+  { id: "3m", months: 3, discountPercent: 20, label: "3 месяца" },
+  { id: "12m", months: 12, discountPercent: 30, label: "1 год" },
 ];
 
 export function getPlan(id: string): PlanInfo | undefined {
