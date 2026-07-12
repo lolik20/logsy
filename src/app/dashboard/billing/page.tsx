@@ -35,7 +35,10 @@ export default async function BillingPage({
   return (
     <div>
       <h1 className="text-2xl font-bold">Тарифы и подписка</h1>
-      <p className="mt-1 text-sm text-slate-500">Тариф Pro — 300 ₽ за один сайт в месяц.</p>
+      <p className="mt-1 text-sm text-slate-500">
+        Тариф Pro — 300 ₽ за один сайт в месяц. Скидка 10% при оплате за 3 месяца
+        и 20% при оплате за год.
+      </p>
 
       {paid === "1" && (
         <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">

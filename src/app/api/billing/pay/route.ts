@@ -3,15 +3,16 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { initPayment, tbankConfigured, type ReceiptItem } from "@/lib/tbank";
+import { getPlan, perSitePriceRub, totalPriceRub } from "@/lib/pricing";
 
 // Инициация оплаты тарифа Pro (300 ₽ за сайт/мес) через Т-Кассу.
 // Создаёт платёж методом Init с чеком (Receipt: УСН + email пользователя)
 // и возвращает PaymentURL для редиректа на страницу оплаты.
-
-const PRICE_PER_SITE_RUB = 300;
+// Период тарифа: 1 месяц (без скидки) | 3 месяца (−10%) | год (−20%).
 
 const schema = z.object({
   sites: z.coerce.number().int().min(1).max(100).default(1),
+  period: z.enum(["1m", "3m", "12m"]).default("1m"),
 });
 
 function appUrl(): string {
@@ -36,21 +37,22 @@ export async function POST(req: Request) {
 
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   const sites = parsed.success ? parsed.data.sites : 1;
+  const plan = getPlan(parsed.success ? parsed.data.period : "1m")!;
 
-  const amountRub = PRICE_PER_SITE_RUB * sites;
+  const amountRub = totalPriceRub(plan, sites);
   const amountKopecks = amountRub * 100;
-  const pricePerSiteKopecks = PRICE_PER_SITE_RUB * 100;
+  const pricePerSiteKopecks = perSitePriceRub(plan) * 100;
 
   // Создаём запись платежа — её id используем как OrderId.
   const payment = await prisma.payment.create({
-    data: { userId, orderId: "", sites, amountRub, status: "NEW" },
+    data: { userId, orderId: "", sites, months: plan.months, amountRub, status: "NEW" },
   });
   const orderId = payment.id;
   await prisma.payment.update({ where: { id: payment.id }, data: { orderId } });
 
   const items: ReceiptItem[] = [
     {
-      Name: `Подписка Logsy Pro — ${sites} ${pluralSite(sites)}`,
+      Name: `Подписка Logsy Pro — ${sites} ${pluralSite(sites)}, ${plan.label}`,
       Price: pricePerSiteKopecks,
       Quantity: sites,
       Amount: amountKopecks,
@@ -64,7 +66,7 @@ export async function POST(req: Request) {
     const result = await initPayment({
       amountKopecks,
       orderId,
-      description: `Тариф Pro, ${sites} ${pluralSite(sites)}, ${amountRub} ₽/мес`,
+      description: `Тариф Pro, ${plan.label}, ${sites} ${pluralSite(sites)}, ${amountRub} ₽`,
       email: user.email,
       items,
       successUrl: `${base}/dashboard/billing?paid=1`,
