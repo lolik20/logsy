@@ -59,7 +59,7 @@ function LogoutIcon({ className }: IconProps) {
 }
 
 const links = [
-  { href: "/dashboard", label: "Проекты", Icon: GridIcon },
+  { href: "/dashboard", label: "Мониторинг", Icon: GridIcon },
   { href: "/dashboard/contacts", label: "Контакты", Icon: MailIcon },
   { href: "/dashboard/billing", label: "Тарифы", Icon: CardIcon },
 ];
