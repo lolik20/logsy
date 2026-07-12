@@ -1,15 +1,21 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getUserId } from "@/lib/session";
+import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectManager } from "@/components/ProjectManager";
 import { StatusBadge } from "@/components/StatusBadge";
 import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
 import { statusSignature } from "@/lib/status";
+import { AdminMonitoring } from "@/components/AdminMonitoring";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const userId = (await getUserId())!;
+
+  // Администратор видит на вкладке «Мониторинг» проекты всех пользователей.
+  if (await isAdmin()) {
+    return <AdminMonitoring />;
+  }
 
   const [projects, sub] = await Promise.all([
     prisma.project.findMany({

@@ -38,6 +38,17 @@ function CardIcon({ className }: IconProps) {
   );
 }
 
+function UsersIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
 function LogsIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -82,6 +93,11 @@ const links = [
   { href: "/dashboard", label: "Мониторинг", Icon: GridIcon },
   { href: "/dashboard/contacts", label: "Контакты", Icon: MailIcon },
   { href: "/dashboard/billing", label: "Тарифы", Icon: CardIcon },
+];
+
+// Пункты меню, доступные только администраторам.
+const adminLinks = [
+  { href: "/dashboard/users", label: "Пользователи", Icon: UsersIcon },
 ];
 
 const soonLinks = [
@@ -138,13 +154,16 @@ function BalanceStatus({ subscription }: { subscription: SubscriptionStatus }) {
 function SidebarContent({
   email,
   subscription,
+  isAdmin = false,
   onNavigate,
 }: {
   email: string;
   subscription: SubscriptionStatus;
+  isAdmin?: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const navLinks = isAdmin ? [...links, ...adminLinks] : links;
 
   return (
     <>
@@ -158,7 +177,7 @@ function SidebarContent({
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {links.map(({ href, label, Icon }) => {
+        {navLinks.map(({ href, label, Icon }) => {
           const active =
             href === "/dashboard"
               ? pathname === "/dashboard"
@@ -217,9 +236,11 @@ function SidebarContent({
 export function DashboardSidebar({
   email,
   subscription,
+  isAdmin = false,
 }: {
   email: string;
   subscription: SubscriptionStatus;
+  isAdmin?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -243,7 +264,11 @@ export function DashboardSidebar({
     <>
       {/* Десктопный сайдбар */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/50 bg-white/70 backdrop-blur-xl md:flex dark:border-white/10 dark:bg-slate-900/60">
-        <SidebarContent email={email} subscription={subscription} />
+        <SidebarContent
+          email={email}
+          subscription={subscription}
+          isAdmin={isAdmin}
+        />
       </aside>
 
       {/* Мобильная верхняя панель с бургером */}
@@ -292,6 +317,7 @@ export function DashboardSidebar({
         <SidebarContent
           email={email}
           subscription={subscription}
+          isAdmin={isAdmin}
           onNavigate={() => setOpen(false)}
         />
       </aside>
