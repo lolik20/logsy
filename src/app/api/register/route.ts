@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { generatePassword, hashPassword } from "@/lib/password";
+import { createQuickAuthToken, buildQuickAuthUrl } from "@/lib/quick-auth";
 import { sendMail } from "@/lib/mailer";
 import { getClientIp } from "@/lib/request-ip";
 import { TRIAL_DAYS, TRIAL_SITES_LIMIT, trialEndFrom } from "@/lib/subscription";
@@ -62,6 +63,11 @@ export async function POST(req: Request) {
 
   const appUrl = process.env.APP_URL || "http://localhost:3000";
   const trialEndStr = trialEnd.toLocaleDateString("ru-RU");
+
+  // Ссылка для быстрой авторизации: одноразовый вход без ввода пароля.
+  const quickToken = await createQuickAuthToken(email);
+  const quickAuthUrl = buildQuickAuthUrl(appUrl, quickToken);
+
   await sendMail({
     to: email,
     subject: "Доступ к Logsy — ваш пароль",
@@ -70,7 +76,9 @@ export async function POST(req: Request) {
       `Вы зарегистрировались в Logsy — сервисе мониторинга доступности сайтов.\n\n` +
       `Вам активирован бесплатный пробный период на ${TRIAL_DAYS} дней ` +
       `(1 сайт) — до ${trialEndStr}.\n\n` +
-      `Данные для входа:\n` +
+      `Быстрый вход (по ссылке, без пароля, действует 24 часа):\n` +
+      `  ${quickAuthUrl}\n\n` +
+      `Данные для входа вручную:\n` +
       `  Логин (email): ${email}\n` +
       `  Пароль: ${password}\n\n` +
       `Войти: ${appUrl}/login\n\n` +

@@ -4,6 +4,7 @@ import Yandex from "next-auth/providers/yandex";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
+import { consumeQuickAuthToken } from "@/lib/quick-auth";
 
 const providers: NextAuthConfig["providers"] = [
   Credentials({
@@ -24,6 +25,24 @@ const providers: NextAuthConfig["providers"] = [
 
       const ok = await verifyPassword(password, user.passwordHash);
       if (!ok) return null;
+
+      return { id: user.id, email: user.email, name: user.name };
+    },
+  }),
+  // Быстрая авторизация по одноразовой ссылке из письма (без ввода пароля).
+  Credentials({
+    id: "quick-link",
+    name: "Ссылка из письма",
+    credentials: {
+      token: { label: "Token", type: "text" },
+    },
+    async authorize(credentials) {
+      const token = String(credentials?.token || "");
+      const email = await consumeQuickAuthToken(token);
+      if (!email) return null;
+
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user) return null;
 
       return { id: user.id, email: user.email, name: user.name };
     },
