@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
 import { isSubscriptionActive } from "@/lib/subscription";
+import { runDueProjectSslChecks } from "@/lib/ssl-checker";
 
 export const INTERVAL_MS: Record<string, number> = {
   "1m": 60 * 1000,
@@ -342,5 +343,12 @@ export async function runDueChecks(): Promise<number> {
     (m) => isDue(m) && isSubscriptionActive(m.project.user.subscription, now),
   );
   await Promise.all(due.map((m) => checkMonitor(m).catch((e) => console.error(e))));
+
+  // Параллельно проверяем сроки SSL-сертификатов проектов (для тех, у кого
+  // включена проверка и активна подписка).
+  await runDueProjectSslChecks(now).catch((e) =>
+    console.error("[Logsy] Ошибка проверки SSL проектов:", e),
+  );
+
   return due.length;
 }
