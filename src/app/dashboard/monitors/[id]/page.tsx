@@ -54,6 +54,9 @@ export default async function MonitorPage({
               {monitor.method}
             </span>{" "}
             {monitor.url}
+            {monitor.port != null && (
+              <span className="text-slate-400"> · порт {monitor.port}</span>
+            )}
           </div>
         </div>
         <MonitorActions monitorId={monitor.id} isActive={monitor.isActive} />
@@ -64,6 +67,7 @@ export default async function MonitorPage({
           id={monitor.id}
           name={monitor.name}
           url={monitor.url}
+          port={monitor.port}
           method={monitor.method}
           interval={monitor.interval}
           expectedStatus={monitor.expectedStatus}

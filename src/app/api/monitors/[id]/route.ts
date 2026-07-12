@@ -16,6 +16,11 @@ const patchSchema = z.object({
   isActive: z.boolean().optional(),
   name: z.string().min(1).max(120).optional(),
   url: z.string().url("Некорректный URL").optional(),
+  // Порт необязателен: пустое значение сбрасывает на стандартный (80/443).
+  port: z.preprocess(
+    (v) => (v === "" ? null : v),
+    z.coerce.number().int().min(1).max(65535).nullable().optional(),
+  ),
   method: z.enum(["GET", "POST", "PUT", "DELETE"]).optional(),
   interval: z.enum(["1m", "1h", "1d"]).optional(),
   expectedStatus: z.coerce.number().int().min(100).max(599).optional(),
