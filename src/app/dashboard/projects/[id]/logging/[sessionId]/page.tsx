@@ -133,7 +133,7 @@ export default async function SessionPage({
                   {e.durationMs != null ? `${e.durationMs} мс` : "—"}
                 </td>
                 <td className="px-4 py-2">
-                  {e.stack || e.reqBody || e.query || (e.route && e.message) ? (
+                  {e.stack || e.reqBody || e.resBody || e.query || (e.route && e.message) ? (
                     <details>
                       <summary className="cursor-pointer text-brand">Показать</summary>
                       {e.message && (
@@ -167,6 +167,16 @@ export default async function SessionPage({
                           </div>
                           <pre className="mt-1 overflow-x-auto rounded bg-slate-50 p-2 text-xs dark:bg-slate-800">
                             {e.reqBody}
+                          </pre>
+                        </div>
+                      )}
+                      {e.resBody && (
+                        <div className="mt-2">
+                          <div className="text-xs font-medium text-slate-500">
+                            Ответ сервера
+                          </div>
+                          <pre className="mt-1 overflow-x-auto rounded bg-slate-50 p-2 text-xs dark:bg-slate-800">
+                            {e.resBody}
                           </pre>
                         </div>
                       )}
