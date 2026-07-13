@@ -5,45 +5,53 @@ import { useRouter } from "next/navigation";
 
 /**
  * Кнопка «В исключения» напротив события лога. Добавляет сигнатуру события (тип +
- * сообщение + маршрут) в игнор-лист проекта: правило действует на весь проект — уже
- * записанные такие же события удаляются во всех сессиях, будущие не сохраняются.
- * Снять правило можно в блоке «Исключения» на странице логов проекта.
+ * сообщение + маршрут) в игнор-лист проекта — новые такие события перестают
+ * сохраняться во всём проекте. Уже записанные события остаются. Повторный клик
+ * снимает правило.
  */
-export function AddExceptionButton({ eventId }: { eventId: string }) {
+export function AddExceptionButton({
+  eventId,
+  excluded: initialExcluded,
+}: {
+  eventId: string;
+  excluded: boolean;
+}) {
   const router = useRouter();
+  const [excluded, setExcluded] = useState(initialExcluded);
   const [loading, setLoading] = useState(false);
 
-  async function onClick() {
-    if (
-      !confirm(
-        "Скрыть такие ошибки во всём проекте? Уже записанные будут удалены, " +
-          "новые перестанут сохраняться. Снять правило можно в блоке «Исключения».",
-      )
-    ) {
-      return;
-    }
+  async function toggle() {
     setLoading(true);
     const res = await fetch("/api/logger/exceptions", {
-      method: "POST",
+      method: excluded ? "DELETE" : "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ eventId }),
     });
+    setLoading(false);
     if (res.ok) {
+      setExcluded(!excluded);
       router.refresh();
     } else {
-      setLoading(false);
-      alert("Не удалось добавить в исключения");
+      alert(excluded ? "Не удалось убрать из исключений" : "Не удалось добавить в исключения");
     }
   }
 
   return (
     <button
-      onClick={onClick}
+      onClick={toggle}
       disabled={loading}
-      title="Больше не сохранять такие события во всём проекте"
-      className="whitespace-nowrap rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium hover:border-amber-400 hover:text-amber-600 disabled:opacity-60 dark:border-slate-700"
+      title={
+        excluded
+          ? "Такие события снова будут сохраняться"
+          : "Больше не сохранять такие события во всём проекте"
+      }
+      className={`whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-medium disabled:opacity-60 ${
+        excluded
+          ? "border-slate-300 text-slate-500 hover:border-slate-400 dark:border-slate-700"
+          : "border-slate-300 hover:border-amber-400 hover:text-amber-600 dark:border-slate-700"
+      }`}
     >
-      В исключения
+      {excluded ? "В исключениях" : "В исключения"}
     </button>
   );
 }

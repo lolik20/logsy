@@ -1,10 +1,10 @@
 // Управление игнор-листом сервиса логирования. Правило-исключение действует на весь
-// проект: его сигнатура (тип + сообщение + маршрут) не привязана к сессии.
+// проект: его сигнатура (тип + сообщение + маршрут) не привязана к сессии. Пока правило
+// активно, новые такие события не сохраняются (фильтр в /api/logger/ingest). Уже
+// записанные события остаются как есть.
 //
-// POST { eventId } — добавить событие в исключения: создать правило и удалить уже
-//   записанные совпадающие события во всех сессиях проекта. Будущие такие же события
-//   не сохранит фильтр в /api/logger/ingest.
-// DELETE { id } — снять правило (по его id): такие события снова будут сохраняться.
+// POST   { eventId } — добавить сигнатуру события в исключения.
+// DELETE { eventId } | { id } — снять правило (по событию или по id правила).
 //
 // Доступ — только владельцу проекта (или администратору).
 
@@ -16,25 +16,30 @@ import { getUserId, isAdmin } from "@/lib/session";
 export const dynamic = "force-dynamic";
 
 const postSchema = z.object({ eventId: z.string().min(1) });
-const deleteSchema = z.object({ id: z.string().min(1) });
+const deleteSchema = z.union([
+  z.object({ eventId: z.string().min(1) }),
+  z.object({ id: z.string().min(1) }),
+]);
 
-/** Проверяет, что текущий пользователь — владелец проекта (или админ). */
-async function assertProjectAccess(projectUserId: string) {
+type Denied = { ok: false; error: string; status: number };
+
+/** Проверяет, что текущий пользователь — владелец проекта (или админ). null — доступ есть. */
+async function accessError(projectUserId: string): Promise<Denied | null> {
   const userId = await getUserId();
-  if (!userId) return { error: "Не авторизован", status: 401 as const };
+  if (!userId) return { ok: false, error: "Не авторизован", status: 401 };
   const admin = await isAdmin();
-  if (projectUserId !== userId && !admin) return { error: "Нет доступа", status: 403 as const };
-  return { ok: true as const };
+  if (projectUserId !== userId && !admin) return { ok: false, error: "Нет доступа", status: 403 };
+  return null;
 }
 
-export async function POST(req: Request) {
-  const parsed = postSchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
-  }
+type EventMatch = { projectId: string; type: string; message: string | null; route: string | null };
 
+/** Сигнатура события (на весь проект) — общий фильтр для правил-исключений. */
+async function signatureForEvent(
+  eventId: string,
+): Promise<Denied | { ok: true; match: EventMatch }> {
   const event = await prisma.logEvent.findUnique({
-    where: { id: parsed.data.eventId },
+    where: { id: eventId },
     select: {
       type: true,
       message: true,
@@ -43,30 +48,37 @@ export async function POST(req: Request) {
       session: { select: { project: { select: { userId: true } } } },
     },
   });
-  if (!event) return NextResponse.json({ error: "Событие не найдено" }, { status: 404 });
+  if (!event) return { ok: false, error: "Событие не найдено", status: 404 };
 
-  const access = await assertProjectAccess(event.session.project.userId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
+  const denied = await accessError(event.session.project.userId);
+  if (denied) return denied;
+
+  return {
+    ok: true,
+    match: {
+      projectId: event.projectId,
+      type: event.type,
+      message: event.message,
+      route: event.route,
+    },
+  };
+}
+
+export async function POST(req: Request) {
+  const parsed = postSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
   }
 
-  // Сигнатура правила — на весь проект (тип + сообщение + маршрут), без привязки к сессии.
-  const match = {
-    projectId: event.projectId,
-    type: event.type,
-    message: event.message,
-    route: event.route,
-  };
+  const res = await signatureForEvent(parsed.data.eventId);
+  if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
+  const { match } = res;
 
   // Идемпотентно: если правило уже есть — переиспользуем его, дубликат не создаём.
   const existing = await prisma.logException.findFirst({ where: match });
   const exception = existing ?? (await prisma.logException.create({ data: match }));
 
-  // Исключение действует на весь проект, поэтому убираем и уже записанные совпадающие
-  // события во всех сессиях проекта — иначе ошибка осталась бы видна у других посетителей.
-  const removed = await prisma.logEvent.deleteMany({ where: match });
-
-  return NextResponse.json({ exception, removed: removed.count });
+  return NextResponse.json({ exception });
 }
 
 export async function DELETE(req: Request) {
@@ -75,17 +87,23 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
   }
 
-  const exception = await prisma.logException.findUnique({
-    where: { id: parsed.data.id },
-    select: { id: true, project: { select: { userId: true } } },
-  });
-  if (!exception) return NextResponse.json({ error: "Правило не найдено" }, { status: 404 });
+  // Снятие по id правила — из блока «Исключения» на странице логов.
+  if ("id" in parsed.data) {
+    const exception = await prisma.logException.findUnique({
+      where: { id: parsed.data.id },
+      select: { id: true, project: { select: { userId: true } } },
+    });
+    if (!exception) return NextResponse.json({ error: "Правило не найдено" }, { status: 404 });
 
-  const access = await assertProjectAccess(exception.project.userId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
+    const denied = await accessError(exception.project.userId);
+    if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status });
+    await prisma.logException.delete({ where: { id: exception.id } });
+    return NextResponse.json({ ok: true });
   }
 
-  await prisma.logException.delete({ where: { id: exception.id } });
+  // Снятие по событию — переключатель кнопки напротив события.
+  const res = await signatureForEvent(parsed.data.eventId);
+  if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
+  await prisma.logException.deleteMany({ where: res.match });
   return NextResponse.json({ ok: true });
 }
