@@ -106,11 +106,12 @@ model Project {
   // (чтобы напоминание ушло один раз за период). Аналог поля в Subscription.
   expiryAlertSentFor DateTime?
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  monitors    Monitor[]
-  logSessions LogSession[]
-  logUsage    LogUsage[]
-  payments    Payment[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monitors      Monitor[]
+  logSessions   LogSession[]
+  logUsage      LogUsage[]
+  logExceptions LogException[]
+  payments      Payment[]
 
   @@index([userId])
 }
@@ -200,6 +201,26 @@ model LogEvent {
 
   @@index([projectId, createdAt])
   @@index([sessionId, createdAt])
+}
+
+// Исключения (игнор-лист) сервиса логирования. Каждое правило — сигнатура события
+// (тип + сообщение + маршрут), которую проект попросил не сохранять. Создаётся из
+// карточки события кнопкой «В исключения». При приёме батча события с совпадающей
+// сигнатурой отбрасываются (см. exceptionSignature в src/lib/logging.ts).
+model LogException {
+  id        String   @id @default(cuid())
+  projectId String
+  // Тип события: ERROR | UNHANDLED_REJECTION | SLOW_REQUEST | HTTP_ERROR.
+  type      String
+  // Сообщение события (для JS-ошибок), либо null.
+  message   String?
+  // Маршрут сетевого запроса (для HTTP/медленных запросов), либо null.
+  route     String?
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 // Суточный счётчик объёма принятых логов на проект — для контроля квоты тарифа.

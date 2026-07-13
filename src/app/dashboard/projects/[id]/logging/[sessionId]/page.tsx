@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
+import { exceptionSignature } from "@/lib/logging";
+import { AddExceptionButton } from "@/components/AddExceptionButton";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +49,13 @@ export default async function SessionPage({
     ["ERROR", "UNHANDLED_REJECTION", "HTTP_ERROR"].includes(e.type),
   ).length;
 
+  // Игнор-лист проекта — чтобы показать, какие события уже добавлены в исключения.
+  const exceptions = await prisma.logException.findMany({
+    where: { projectId: session.projectId },
+    select: { type: true, message: true, route: true },
+  });
+  const blocked = new Set(exceptions.map(exceptionSignature));
+
   return (
     <div>
       <Link
@@ -86,12 +95,13 @@ export default async function SessionPage({
               <th className="px-4 py-2 font-medium">Код</th>
               <th className="px-4 py-2 font-medium">Длит.</th>
               <th className="px-4 py-2 font-medium">Детали</th>
+              <th className="px-4 py-2 font-medium"></th>
             </tr>
           </thead>
           <tbody>
             {session.events.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
                   В сессии нет событий.
                 </td>
               </tr>
@@ -172,6 +182,12 @@ export default async function SessionPage({
                   ) : (
                     <span className="text-slate-400">—</span>
                   )}
+                </td>
+                <td className="px-4 py-2 text-right">
+                  <AddExceptionButton
+                    eventId={e.id}
+                    excluded={blocked.has(exceptionSignature(e))}
+                  />
                 </td>
               </tr>
             ))}

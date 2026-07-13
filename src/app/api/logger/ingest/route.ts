@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
-import { accountUsage, truncate, MAX_BODY_CHARS } from "@/lib/logging";
+import { accountUsage, truncate, exceptionSignature, MAX_BODY_CHARS } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
 
@@ -131,8 +131,17 @@ export async function POST(req: Request) {
     select: { id: true },
   });
 
-  await prisma.logEvent.createMany({
-    data: events.map((e) => ({
+  // Игнор-лист проекта: события с совпадающей сигнатурой (тип+сообщение+маршрут)
+  // не сохраняем. Сигнатуру считаем от усечённых значений — так же, как хранится
+  // правило (оно создаётся из уже сохранённого, усечённого события).
+  const exceptions = await prisma.logException.findMany({
+    where: { projectId: project.id },
+    select: { type: true, message: true, route: true },
+  });
+  const blocked = new Set(exceptions.map(exceptionSignature));
+
+  const rows = events
+    .map((e) => ({
       projectId: project.id,
       sessionId: session.id,
       type: e.type,
@@ -146,8 +155,12 @@ export async function POST(req: Request) {
       durationMs: e.durationMs ?? null,
       reqBody: truncate(e.reqBody, MAX_BODY_CHARS),
       createdAt: e.ts ? new Date(e.ts) : undefined,
-    })),
-  });
+    }))
+    .filter((row) => !blocked.has(exceptionSignature(row)));
 
-  return NextResponse.json({ stored: true, count: events.length }, { status: 200, headers });
+  if (rows.length) {
+    await prisma.logEvent.createMany({ data: rows });
+  }
+
+  return NextResponse.json({ stored: true, count: rows.length }, { status: 200, headers });
 }
