@@ -5,6 +5,7 @@ import { getUserId } from "@/lib/session";
 
 const patchSchema = z.object({
   checkSsl: z.boolean().optional(),
+  checkDomain: z.boolean().optional(),
 });
 
 export async function PATCH(
@@ -28,12 +29,16 @@ export async function PATCH(
   }
 
   // При включении проверки сбрасываем OFF в PENDING, чтобы ближайший прогон
-  // сразу проверил сертификат.
+  // сразу проверил сертификат / срок регистрации.
   const data: {
     checkSsl?: boolean;
     sslStatus?: string;
     sslCheckedAt?: null;
     sslAlertHours?: null;
+    checkDomain?: boolean;
+    domainStatus?: string;
+    domainCheckedAt?: null;
+    domainAlertDays?: null;
   } = {};
   if (parsed.data.checkSsl !== undefined) {
     data.checkSsl = parsed.data.checkSsl;
@@ -41,6 +46,14 @@ export async function PATCH(
       data.sslStatus = "PENDING";
       data.sslCheckedAt = null;
       data.sslAlertHours = null;
+    }
+  }
+  if (parsed.data.checkDomain !== undefined) {
+    data.checkDomain = parsed.data.checkDomain;
+    if (parsed.data.checkDomain) {
+      data.domainStatus = "PENDING";
+      data.domainCheckedAt = null;
+      data.domainAlertDays = null;
     }
   }
 

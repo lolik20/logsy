@@ -11,6 +11,7 @@ const KIND_LABEL: Record<string, string> = {
   DOWN: "Падение",
   RECOVERY: "Восстановление",
   SSL: "SSL",
+  DOMAIN: "Домен",
   SUBSCRIPTION: "Тариф",
 };
 
@@ -53,7 +54,8 @@ export default async function ProjectAlertsPage({
         <>
           <p className="mb-4 text-sm text-slate-500">
             Каналы уведомлений общие для аккаунта — приходят, когда мониторы
-            проекта падают или восстанавливаются, а также при истечении SSL и тарифа.
+            проекта падают или восстанавливаются, а также при истечении SSL,
+            регистрации домена и тарифа.
           </p>
           <ContactManager
             botLink={botLink}

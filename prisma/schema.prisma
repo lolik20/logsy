@@ -93,6 +93,17 @@ model Project {
   // Нужен, чтобы каждое оповещение (за неделю/3 дня/1 день/1 час/истёк) ушло один раз.
   sslAlertHours Int?
 
+  // Контроль срока регистрации домена проекта (данные регистратора по RDAP/WHOIS).
+  checkDomain     Boolean   @default(true)
+  domainStatus    String    @default("PENDING") // VALID | EXPIRING | EXPIRED | ERROR | OFF | PENDING
+  domainExpiresAt DateTime? // дата окончания срока регистрации домена
+  domainDaysLeft  Int?      // сколько полных дней осталось до окончания регистрации
+  domainRegistrar String?   // регистратор домена (по данным RDAP)
+  domainCheckedAt DateTime? // когда срок регистрации проверяли в последний раз
+  // Порог (в днях) последнего отправленного предупреждения: 30 | 14 | 7 | 3 | 1 | 0.
+  // Нужен, чтобы каждое оповещение (за 30/14/7/3/1 день/истёк) ушло один раз.
+  domainAlertDays Int?
+
   // ---- Тарификация на уровне проекта (перевод биллинга с per-user на per-project) ----
   // Тариф проекта: T300 (базовый) | T1000 | T3000. null — тариф ещё не выбран (идёт триал).
   tier          String?
@@ -255,7 +266,7 @@ model Alert {
   monitorId String
   contactId String
   message   String
-  kind      String   @default("DOWN") // DOWN | RECOVERY | SSL | SUBSCRIPTION
+  kind      String   @default("DOWN") // DOWN | RECOVERY | SSL | DOMAIN | SUBSCRIPTION
   sentAt    DateTime @default(now())
 
   monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
