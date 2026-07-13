@@ -187,11 +187,12 @@ model LogEvent {
   message    String?
   stack      String?
   url        String?  // URL страницы, где произошло событие
-  route      String?  // URL/маршрут сетевого запроса
+  route      String?  // URL/маршрут сетевого запроса (с query-строкой)
+  query      String?  // query-параметры запроса (усечено)
   method     String?
   statusCode Int?
   durationMs Int?
-  reqBody    String?  // тело запроса (усечено)
+  reqBody    String?  // тело запроса / payload (усечено)
   meta       String?  // произвольный JSON (расширяемость; hook под запись экрана)
   createdAt  DateTime @default(now())
 

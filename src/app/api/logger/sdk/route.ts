@@ -66,10 +66,42 @@ const SDK = `(function(){
     var ua = navigator.userAgent;
     var buffer = [];
 
+    // Приводит тело запроса разных типов к строке (payload для логирования).
     function clip(v) {
       if (v == null) return null;
-      try { if (typeof v !== "string") v = JSON.stringify(v); } catch (e) { v = String(v); }
+      try {
+        if (typeof v === "string") {
+          // как есть
+        } else if (typeof URLSearchParams !== "undefined" && v instanceof URLSearchParams) {
+          v = v.toString();
+        } else if (typeof FormData !== "undefined" && v instanceof FormData) {
+          var o = {};
+          v.forEach(function (val, k) { o[k] = (typeof val === "string") ? val : "[file]"; });
+          v = JSON.stringify(o);
+        } else if ((typeof Blob !== "undefined" && v instanceof Blob) ||
+                   (typeof ArrayBuffer !== "undefined" && v instanceof ArrayBuffer)) {
+          v = "[binary]";
+        } else {
+          v = JSON.stringify(v);
+        }
+      } catch (e) {
+        try { v = String(v); } catch (e2) { v = "[unserializable]"; }
+      }
+      if (typeof v !== "string") {
+        try { v = String(v); } catch (e) { v = "[unserializable]"; }
+      }
       return v.length > MAX_BODY ? v.slice(0, MAX_BODY) + "…" : v;
+    }
+
+    // Извлекает query-строку из URL запроса (без ведущего "?").
+    function queryOf(url) {
+      try {
+        var u = new URL(url, location.href);
+        return u.search ? u.search.slice(1) : null;
+      } catch (e) {
+        var i = String(url).indexOf("?");
+        return i >= 0 ? String(url).slice(i + 1) : null;
+      }
     }
 
     function push(ev) {
@@ -135,6 +167,7 @@ const SDK = `(function(){
         type: failed ? "HTTP_ERROR" : (httpErr ? "HTTP_ERROR" : "SLOW_REQUEST"),
         message: failed ? "Network request failed" : (httpErr ? ("HTTP " + status) : ("Slow request " + durationMs + "ms")),
         route: String(url),
+        query: queryOf(url),
         method: method || "GET",
         statusCode: status || null,
         durationMs: durationMs,
