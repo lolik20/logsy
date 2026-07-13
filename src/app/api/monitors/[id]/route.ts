@@ -50,6 +50,22 @@ export async function PATCH(
 
   const { headers, body, name, ...rest } = parsed.data;
 
+  // Хост менять нельзя: при редактировании допустимо править только путь.
+  if (rest.url !== undefined) {
+    try {
+      const next = new URL(rest.url);
+      const current = new URL(monitor.url);
+      if (next.hostname !== current.hostname) {
+        return NextResponse.json(
+          { error: "Хост менять нельзя" },
+          { status: 400 },
+        );
+      }
+    } catch {
+      return NextResponse.json({ error: "Некорректный URL" }, { status: 400 });
+    }
+  }
+
   // headers приходят объектом — сохраняем как JSON-строку (или null, если пусто).
   let headersValue: string | null | undefined = undefined;
   if (headers !== undefined) {

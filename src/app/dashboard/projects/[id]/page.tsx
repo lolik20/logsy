@@ -95,7 +95,8 @@ export default async function ProjectPage({
       <div className="grid gap-3">
         {project.monitors.length === 0 && (
           <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500 dark:border-slate-700">
-            Добавьте монитор: URL, метод и периодичность проверки.
+            Пока нет мониторов. Добавьте монитор: путь, метод и периодичность
+            проверки.
           </p>
         )}
         {project.monitors.map((m) => {

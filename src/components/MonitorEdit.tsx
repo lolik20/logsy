@@ -24,6 +24,24 @@ const BODY_PLACEHOLDER: Record<string, string> = {
 
 type HeaderRow = { key: string; value: string };
 
+// Разбирает сохранённый URL на неизменяемый префикс (схема + хост) и путь.
+// Хост менять нельзя, поэтому в форме редактируется только путь.
+function splitUrl(url: string): { origin: string; path: string } {
+  try {
+    const u = new URL(url);
+    return { origin: u.origin, path: u.pathname + u.search + u.hash };
+  } catch {
+    return { origin: url, path: "" };
+  }
+}
+
+// Собирает полный URL из зафиксированного префикса и введённого пути.
+function composeUrl(origin: string, input: string): string {
+  const v = input.trim();
+  const path = v === "" ? "" : v.startsWith("/") ? v : "/" + v;
+  return `${origin}${path}`;
+}
+
 export interface MonitorEditProps {
   id: string;
   name: string;
@@ -55,8 +73,9 @@ function headersToRows(headers: string | null): HeaderRow[] {
 export function MonitorEdit(props: MonitorEditProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const { origin, path: initialPath } = splitUrl(props.url);
   const [name, setName] = useState(props.name);
-  const [url, setUrl] = useState(props.url);
+  const [path, setPath] = useState(initialPath);
   const [port, setPort] = useState(
     props.port != null ? String(props.port) : "",
   );
@@ -99,7 +118,7 @@ export function MonitorEdit(props: MonitorEditProps) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name,
-        url,
+        url: composeUrl(origin, path),
         port: port.trim() === "" ? null : Number(port),
         method,
         interval,
@@ -148,14 +167,23 @@ export function MonitorEdit(props: MonitorEditProps) {
           onChange={(e) => setName(e.target.value)}
           className={inputCls}
         />
-        <input
-          required
-          type="url"
-          placeholder="URL для проверки"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          className={inputCls}
-        />
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-slate-500">URL запроса</span>
+          <div className="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-brand dark:border-slate-700">
+            <span className="flex items-center whitespace-nowrap bg-slate-100 px-3 text-sm text-slate-500 dark:bg-slate-800">
+              {origin}
+            </span>
+            <input
+              placeholder="/путь для проверки"
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+              className="min-w-0 flex-1 bg-transparent px-3 py-2 outline-none"
+            />
+          </div>
+          <span className="text-xs text-slate-400">
+            Хост менять нельзя — редактируется только путь.
+          </span>
+        </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-slate-500">Порт (необязательно)</span>
           <input
@@ -165,7 +193,7 @@ export function MonitorEdit(props: MonitorEditProps) {
             value={port}
             onChange={(e) => setPort(e.target.value)}
             placeholder={
-              url.startsWith("http://")
+              origin.startsWith("http://")
                 ? "по умолчанию 80"
                 : "по умолчанию 443"
             }
