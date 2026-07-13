@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useEffect, useState } from "react";
-import type { SubscriptionStatus } from "@/lib/subscription";
+import { useEffect, useMemo, useState } from "react";
 
 type IconProps = { className?: string };
 
@@ -60,6 +59,22 @@ function LogsIcon({ className }: IconProps) {
   );
 }
 
+function FolderIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
+}
+
 function LogoutIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -89,81 +104,48 @@ function CloseIcon({ className }: IconProps) {
   );
 }
 
-const links = [
-  { href: "/dashboard", label: "Мониторинг", Icon: GridIcon },
-  { href: "/dashboard/contacts", label: "Алерты", Icon: BellIcon },
-  { href: "/dashboard/billing", label: "Тарифы", Icon: CardIcon },
+export type SidebarProject = { id: string; name: string };
+
+// Сервисы внутри проекта (второй уровень меню). href — суффикс к /dashboard/projects/[id].
+const SERVICES = [
+  { key: "monitoring", label: "Мониторинг", suffix: "", Icon: GridIcon },
+  { key: "logging", label: "Логирование", suffix: "/logging", Icon: LogsIcon },
+  { key: "alerts", label: "Алерты", suffix: "/alerts", Icon: BellIcon },
+  { key: "tariff", label: "Тариф", suffix: "/tariff", Icon: CardIcon },
 ];
 
-// Пункты меню, доступные только администраторам.
-const adminLinks = [
-  { href: "/dashboard/users", label: "Пользователи", Icon: UsersIcon },
-];
-
-const soonLinks = [
-  { label: "Логирование", Icon: LogsIcon },
-];
-
-const toneStyles: Record<
-  SubscriptionStatus["tone"],
-  { dot: string; text: string }
-> = {
-  trial: {
-    dot: "bg-green-500",
-    text: "text-green-700 dark:text-green-300",
-  },
-  active: {
-    dot: "bg-brand",
-    text: "text-brand",
-  },
-  inactive: {
-    dot: "bg-red-500",
-    text: "text-red-600 dark:text-red-400",
-  },
-};
-
-function BalanceStatus({ subscription }: { subscription: SubscriptionStatus }) {
-  const tone = toneStyles[subscription.tone];
-  return (
-    <Link
-      href="/dashboard/billing"
-      title={
-        subscription.showPeriodEnd && subscription.periodEnd
-          ? `${subscription.label} — до ${subscription.periodEnd}`
-          : subscription.label
-      }
-      className="mx-3 mb-2 flex items-center gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
-    >
-      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tone.dot}`} />
-      <span className="min-w-0 flex-1">
-        <span className={`block text-sm font-semibold ${tone.text}`}>
-          {subscription.label}
-        </span>
-        {subscription.showPeriodEnd && subscription.periodEnd && (
-          <span className="block text-xs text-slate-400">
-            до {subscription.periodEnd}
-          </span>
-        )}
-      </span>
-    </Link>
-  );
+/** Достаёт id активного проекта из пути /dashboard/projects/<id>/... */
+function activeProjectId(pathname: string): string | null {
+  const m = pathname.match(/^\/dashboard\/projects\/([^/]+)/);
+  return m ? m[1] : null;
 }
 
-// Внутреннее наполнение панели: логотип, навигация, статус подписки, футер.
+// Внутреннее наполнение панели: логотип, двухуровневая навигация, футер.
 // Используется и для десктопного сайдбара, и для мобильной шторки (бургер).
 function SidebarContent({
   email,
-  subscription,
+  projects,
   isAdmin = false,
   onNavigate,
 }: {
   email: string;
-  subscription: SubscriptionStatus;
+  projects: SidebarProject[];
   isAdmin?: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const navLinks = isAdmin ? [...links, ...adminLinks] : links;
+  const activeId = activeProjectId(pathname);
+
+  // Раскрытые проекты. Активный проект раскрываем автоматически.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (activeId) setExpanded((prev) => ({ ...prev, [activeId]: true }));
+  }, [activeId]);
+
+  const toggle = (id: string) =>
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const projectsRootActive = pathname === "/dashboard";
 
   return (
     <>
@@ -171,56 +153,106 @@ function SidebarContent({
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand to-brand-light text-sm font-bold text-white shadow-card">
           L
         </span>
-        <span className="text-lg font-bold text-slate-900 dark:text-white">
-          Logsy
-        </span>
+        <span className="text-lg font-bold text-slate-900 dark:text-white">Logsy</span>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-4">
-        {navLinks.map(({ href, label, Icon }) => {
-          const active =
-            href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(href);
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        {/* Первый уровень — список проектов */}
+        <Link
+          href="/dashboard"
+          onClick={onNavigate}
+          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+            projectsRootActive
+              ? "bg-brand-50 text-brand dark:bg-brand/15"
+              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+          }`}
+        >
+          <GridIcon className="h-5 w-5 shrink-0" />
+          <span>Все проекты</span>
+        </Link>
+
+        <div className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          Проекты
+        </div>
+
+        {projects.length === 0 && (
+          <div className="px-3 py-2 text-xs text-slate-400">
+            Пока нет проектов
+          </div>
+        )}
+
+        {projects.map((p) => {
+          const isOpen = !!expanded[p.id] || activeId === p.id;
+          const isActiveProject = activeId === p.id;
+          const base = `/dashboard/projects/${p.id}`;
           return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNavigate}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                active
-                  ? "bg-brand-50 text-brand dark:bg-brand/15"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-              }`}
-            >
-              <Icon className="h-5 w-5 shrink-0" />
-              <span>{label}</span>
-            </Link>
+            <div key={p.id}>
+              {/* Второй уровень — проект (раскрывающийся) */}
+              <button
+                type="button"
+                onClick={() => toggle(p.id)}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+                  isActiveProject
+                    ? "text-slate-900 dark:text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
+              >
+                <FolderIcon className="h-5 w-5 shrink-0 text-slate-400" />
+                <span className="min-w-0 flex-1 truncate text-left">{p.name}</span>
+                <ChevronIcon
+                  className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-90" : ""}`}
+                />
+              </button>
+
+              {/* Сервисы проекта */}
+              {isOpen && (
+                <div className="mb-1 ml-4 space-y-0.5 border-l border-slate-200 pl-2 dark:border-slate-700">
+                  {SERVICES.map(({ key, label, suffix, Icon }) => {
+                    const href = base + suffix;
+                    const active =
+                      suffix === ""
+                        ? pathname === base
+                        : pathname.startsWith(href);
+                    return (
+                      <Link
+                        key={key}
+                        href={href}
+                        onClick={onNavigate}
+                        className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
+                          active
+                            ? "bg-brand-50 font-medium text-brand dark:bg-brand/15"
+                            : "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span>{label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
 
-        {soonLinks.map(({ label, Icon }) => (
-          <div
-            key={label}
-            title={`${label} — скоро`}
-            aria-disabled="true"
-            className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 dark:text-slate-500"
+        {isAdmin && (
+          <Link
+            href="/dashboard/users"
+            onClick={onNavigate}
+            className={`mt-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+              pathname.startsWith("/dashboard/users")
+                ? "bg-brand-50 text-brand dark:bg-brand/15"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            }`}
           >
-            <Icon className="h-5 w-5 shrink-0" />
-            <span>{label}</span>
-            <span className="ml-auto rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand dark:bg-brand/15">
-              Скоро
-            </span>
-          </div>
-        ))}
+            <UsersIcon className="h-5 w-5 shrink-0" />
+            <span>Пользователи</span>
+          </Link>
+        )}
       </nav>
 
-      <BalanceStatus subscription={subscription} />
-
       <div className="border-t border-slate-200 p-3 dark:border-slate-800">
-        <div className="truncate px-3 pb-2 pt-1 text-xs text-slate-400">
-          {email}
-        </div>
+        <div className="truncate px-3 pb-2 pt-1 text-xs text-slate-400">{email}</div>
         <button
           onClick={() => signOut({ callbackUrl: "/" })}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 dark:text-slate-300 dark:hover:bg-red-950/40"
@@ -235,11 +267,11 @@ function SidebarContent({
 
 export function DashboardSidebar({
   email,
-  subscription,
+  projects,
   isAdmin = false,
 }: {
   email: string;
-  subscription: SubscriptionStatus;
+  projects: SidebarProject[];
   isAdmin?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -260,15 +292,16 @@ export function DashboardSidebar({
     };
   }, [open]);
 
+  const content = useMemo(
+    () => ({ email, projects, isAdmin }),
+    [email, projects, isAdmin],
+  );
+
   return (
     <>
       {/* Десктопный сайдбар */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/50 bg-white/70 backdrop-blur-xl md:flex dark:border-white/10 dark:bg-slate-900/60">
-        <SidebarContent
-          email={email}
-          subscription={subscription}
-          isAdmin={isAdmin}
-        />
+        <SidebarContent {...content} />
       </aside>
 
       {/* Мобильная верхняя панель с бургером */}
@@ -285,9 +318,7 @@ export function DashboardSidebar({
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-brand to-brand-light text-xs font-bold text-white shadow-card">
             L
           </span>
-          <span className="text-base font-bold text-slate-900 dark:text-white">
-            Logsy
-          </span>
+          <span className="text-base font-bold text-slate-900 dark:text-white">Logsy</span>
         </span>
       </header>
 
@@ -314,12 +345,7 @@ export function DashboardSidebar({
         >
           <CloseIcon className="h-5 w-5" />
         </button>
-        <SidebarContent
-          email={email}
-          subscription={subscription}
-          isAdmin={isAdmin}
-          onNavigate={() => setOpen(false)}
-        />
+        <SidebarContent {...content} onNavigate={() => setOpen(false)} />
       </aside>
     </>
   );

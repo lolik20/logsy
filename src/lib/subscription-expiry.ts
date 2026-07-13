@@ -1,17 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
 import { sendTelegramMessage } from "@/lib/telegram";
-import { isSubscriptionActive } from "@/lib/subscription";
+import { isProjectServiceActive } from "@/lib/subscription";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 type ContactRow = { id: string; type: string; value: string };
 
-type SubscriptionExpiryRow = {
+type ProjectExpiryRow = {
   id: string;
-  plan: string;
-  status: string;
+  name: string;
+  billingStatus: string;
   currentPeriodEnd: Date | null;
+  trialEndsAt: Date | null;
   expiryAlertSentFor: Date | null;
   user: {
     id: string;
@@ -20,33 +21,36 @@ type SubscriptionExpiryRow = {
   };
 };
 
-/** Человекочитаемое название плана для темы/текста письма. */
-function planPhrase(plan: string): string {
-  return plan === "TRIAL" ? "Пробный период" : "Подписка";
+/** Дата окончания текущего периода проекта (пробного или оплаченного). */
+function periodEndOf(p: ProjectExpiryRow): Date | null {
+  return p.billingStatus === "TRIAL" ? p.trialEndsAt : p.currentPeriodEnd;
+}
+
+function planPhrase(billingStatus: string): string {
+  return billingStatus === "TRIAL" ? "Пробный период" : "Тариф";
 }
 
 /**
- * Отправляет напоминание о скором окончании подписки на все контакты
- * пользователя и записывает алерты в историю (если у пользователя есть монитор).
+ * Отправляет напоминание о скором окончании тарифа проекта на все контакты
+ * пользователя и записывает алерты в историю (если у проекта есть монитор).
  */
-async function notifyExpiry(sub: SubscriptionExpiryRow, end: Date): Promise<void> {
-  const contacts = sub.user.contacts;
+async function notifyExpiry(project: ProjectExpiryRow, end: Date): Promise<void> {
+  const contacts = project.user.contacts;
   if (contacts.length === 0) return;
 
   const when = end.toLocaleString("ru-RU");
-  const label = planPhrase(sub.plan);
-  const subject = `⚠️ ${label} Logsy истекает завтра`;
+  const label = planPhrase(project.billingStatus);
+  const subject = `⚠️ ${label} Logsy по проекту «${project.name}» истекает завтра`;
   const text =
-    `${label} истекает ${when} — меньше чем через сутки.\n` +
-    `После окончания мониторинг ваших сайтов будет остановлен.\n` +
-    `Продлите подписку на вкладке «Тарифы», чтобы проверки не прерывались.\n` +
+    `${label} по проекту «${project.name}» истекает ${when} — меньше чем через сутки.\n` +
+    `После окончания мониторинг и логирование проекта будут остановлены.\n` +
+    `Продлите тариф во вкладке «Тариф» проекта, чтобы сервис не прерывался.\n` +
     `Время напоминания: ${new Date().toLocaleString("ru-RU")}\n`;
 
   // Алерт в истории требует monitorId и contactId. Привязываем к первому монитору
-  // пользователя; если мониторов ещё нет — оповещение всё равно уходит, просто
-  // без записи в истории.
+  // проекта; если мониторов нет — оповещение всё равно уходит, просто без записи.
   const monitor = await prisma.monitor.findFirst({
-    where: { project: { userId: sub.user.id } },
+    where: { projectId: project.id },
     select: { id: true },
     orderBy: { createdAt: "asc" },
   });
@@ -70,7 +74,7 @@ async function notifyExpiry(sub: SubscriptionExpiryRow, end: Date): Promise<void
       }
     } catch (err) {
       console.error(
-        `[Logsy] Не удалось отправить напоминание о подписке на ${contact.value}:`,
+        `[Logsy] Не удалось отправить напоминание о тарифе на ${contact.value}:`,
         err,
       );
     }
@@ -78,18 +82,27 @@ async function notifyExpiry(sub: SubscriptionExpiryRow, end: Date): Promise<void
 }
 
 /**
- * Обходит подписки, которым осталось меньше суток до окончания, и один раз за
- * период шлёт напоминание по всем контактам пользователя. Администраторов
- * (безлимитная подписка) и неактивные подписки пропускает.
+ * Обходит проекты, которым осталось меньше суток до окончания тарифа/триала, и
+ * один раз за период шлёт напоминание по всем контактам владельца. Проекты
+ * администраторов (безлимит) и неактивные пропускает.
  */
 export async function runDueSubscriptionExpiryChecks(now: Date): Promise<number> {
   const soon = new Date(now.getTime() + DAY_MS);
 
-  const subs = await prisma.subscription.findMany({
+  const projects = (await prisma.project.findMany({
     where: {
-      currentPeriodEnd: { gt: now, lte: soon },
+      OR: [
+        { billingStatus: "ACTIVE", currentPeriodEnd: { gt: now, lte: soon } },
+        { billingStatus: "TRIAL", trialEndsAt: { gt: now, lte: soon } },
+      ],
     },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      billingStatus: true,
+      currentPeriodEnd: true,
+      trialEndsAt: true,
+      expiryAlertSentFor: true,
       user: {
         select: {
           id: true,
@@ -98,29 +111,29 @@ export async function runDueSubscriptionExpiryChecks(now: Date): Promise<number>
         },
       },
     },
-  });
+  })) as ProjectExpiryRow[];
 
   let notified = 0;
   await Promise.all(
-    subs.map(async (sub) => {
-      const end = sub.currentPeriodEnd;
+    projects.map(async (project) => {
+      const end = periodEndOf(project);
       if (!end) return;
-      // Безлимитная подписка администратора не истекает — пропускаем.
-      if (sub.user.role === "ADMIN") return;
-      // Только для реально активной подписки (TRIAL в срок / PAID со статусом active).
-      if (!isSubscriptionActive(sub, now)) return;
+      // Безлимитный тариф администратора не истекает — пропускаем.
+      if (project.user.role === "ADMIN") return;
+      // Только для реально активного тарифа/триала.
+      if (!isProjectServiceActive(project, false, now)) return;
       // За этот период уже предупреждали — второй раз не шлём.
-      if (sub.expiryAlertSentFor && sub.expiryAlertSentFor.getTime() === end.getTime())
+      if (project.expiryAlertSentFor && project.expiryAlertSentFor.getTime() === end.getTime())
         return;
-      // Нет контактов — отправлять некуда, отметку не ставим (вдруг добавит позже).
-      if (sub.user.contacts.length === 0) return;
+      // Нет контактов — отправлять некуда.
+      if (project.user.contacts.length === 0) return;
 
       notified += 1;
-      await notifyExpiry(sub, end).catch((e) =>
-        console.error(`[Logsy] Ошибка напоминания о подписке ${sub.id}:`, e),
+      await notifyExpiry(project, end).catch((e) =>
+        console.error(`[Logsy] Ошибка напоминания о тарифе проекта ${project.id}:`, e),
       );
-      await prisma.subscription.update({
-        where: { id: sub.id },
+      await prisma.project.update({
+        where: { id: project.id },
         data: { expiryAlertSentFor: end },
       });
     }),

@@ -7,6 +7,7 @@ import { MonitorManager } from "@/components/MonitorManager";
 import { ProjectSslSettings } from "@/components/ProjectSslSettings";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
 import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
+import { ProjectServiceTabs } from "@/components/ProjectServiceTabs";
 import { statusSignature } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +63,7 @@ export default async function ProjectPage({
           </div>
           {isowner && <DeleteProjectButton projectId={project.id} />}
         </div>
+        <ProjectServiceTabs projectId={project.id} active="monitoring" />
       </div>
 
       {isowner ? (

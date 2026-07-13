@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { BILLING_PLANS, perSitePriceRub } from "@/lib/pricing";
+import { BILLING_PLANS, TIERS, tierPriceRub } from "@/lib/pricing";
+import { LandingNav } from "@/components/LandingNav";
 
 const features = [
   {
@@ -89,48 +90,14 @@ export default async function LandingPage() {
         className="pointer-events-none absolute bottom-0 left-1/2 h-80 w-[36rem] -translate-x-1/2 rounded-full bg-indigo-300/20 blur-3xl"
       />
 
-      {/* Навбар — стеклянный, липкий */}
-      <header className="sticky top-0 z-30 mx-auto flex max-w-6xl items-center justify-between rounded-b-2xl border-b border-white/40 bg-white/60 px-6 py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50">
-        <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-light text-base font-bold text-white shadow-card">
-            L
-          </span>
-          <span className="text-2xl font-bold text-slate-900 dark:text-white">
-            Logsy
-          </span>
-        </div>
-        <nav className="flex items-center gap-3">
-          {session ? (
-            <Link
-              href="/dashboard"
-              className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark"
-            >
-              Панель управления
-            </Link>
-          ) : (
-            <>
-              <Link
-                href="/login"
-                className="rounded-xl px-4 py-2 text-sm font-medium text-slate-700 hover:text-brand dark:text-slate-200"
-              >
-                Войти
-              </Link>
-              <Link
-                href="/register"
-                className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-card hover:bg-brand-dark"
-              >
-                Начать
-              </Link>
-            </>
-          )}
-        </nav>
-      </header>
+      {/* Навбар со ссылками на разделы и бургером на мобильных */}
+      <LandingNav authed={!!session} />
 
       {/* Hero */}
       <section className="relative z-10 mx-auto max-w-6xl px-6 pb-16 pt-16 text-center">
         <span className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/60 px-4 py-1.5 text-sm font-medium text-brand backdrop-blur-md dark:border-white/10 dark:bg-white/5">
           <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />
-          Мониторинг доступности сайтов и API
+          Мониторинг доступности и логирование фронтенда
         </span>
         <h1 className="mx-auto mt-6 max-w-3xl text-4xl font-extrabold leading-tight tracking-tight sm:text-6xl">
           Узнавайте о падении сайта{" "}
@@ -139,8 +106,9 @@ export default async function LandingPage() {
           </span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-300">
-          Logsy проверяет ваши сайты и API каждую минуту и сразу присылает
-          письмо, если что-то пошло не так. Настройка за пару минут.
+          Logsy проверяет ваши сайты и API каждую минуту и ловит ошибки фронтенда
+          в проде — и сразу присылает письмо, если что-то пошло не так. Настройка
+          за пару минут.
         </p>
         <div className="mt-8 flex justify-center gap-3">
           <Link
@@ -157,7 +125,7 @@ export default async function LandingPage() {
           </Link>
         </div>
         <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-          2 недели бесплатно на 1 сайт · без привязки карты
+          2 недели бесплатно на каждый проект · без привязки карты
         </p>
 
         {/* Парящая стеклянная карточка-превью статусов */}
@@ -266,7 +234,7 @@ export default async function LandingPage() {
       </section>
 
       {/* Фичи */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 py-12">
+      <section id="features" className="relative z-10 mx-auto max-w-6xl px-6 py-12">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (
             <div
@@ -282,6 +250,76 @@ export default async function LandingPage() {
               </p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Логирование фронтенда — новое направление */}
+      <section id="logging" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
+        <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-500 to-brand p-[1.5px] shadow-card">
+          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl sm:p-12 dark:bg-slate-900/80">
+            <div className="text-center">
+              <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand dark:bg-brand/10">
+                <span className="h-2 w-2 rounded-full bg-brand" />
+                Новое · Логирование фронтенда
+              </span>
+              <h2 className="mx-auto mt-4 max-w-3xl text-3xl font-bold sm:text-4xl">
+                Видьте ошибки прода{" "}
+                <span className="bg-gradient-to-r from-brand to-indigo-500 bg-clip-text text-transparent">
+                  глазами пользователя
+                </span>
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-slate-600 dark:text-slate-300">
+                Один тег в <code className="font-mono text-sm">&lt;head&gt;</code> — и Logsy
+                ловит JS-ошибки, упавшие и медленные запросы к вашему бэкенду и
+                собирает всё в сессии пользователей. Без SDK, сборки и настройки.
+              </p>
+            </div>
+
+            {/* Установка в одну строку */}
+            <div className="mx-auto mt-8 max-w-2xl">
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-900 p-4 text-left dark:border-slate-700/70">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Подключение
+                </div>
+                <pre className="overflow-x-auto text-xs text-slate-100 sm:text-sm">
+                  <code>&lt;script src=&quot;https://cdn.logsy.ru/logger.js&quot; async&gt;&lt;/script&gt;</code>
+                </pre>
+              </div>
+              <p className="mt-2 text-center text-xs text-slate-500">
+                Скрипт работает только с домена вашего проекта — чужой сайт его не
+                запустит.
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                { t: "Фронт-ошибки", s: "Ловим необработанные исключения и отклонённые промисы со стеком.", icon: "🐞" },
+                { t: "Ошибки бэкенда на фронте", s: "Видим упавшие 4xx/5xx запросы: маршрут, метод, payload, код ответа.", icon: "🔌" },
+                { t: "Медленные запросы", s: "Отмечаем всё, что грузится дольше 500 мс — узкие места видны сразу.", icon: "🐢" },
+                { t: "Сессии пользователей", s: "Все события группируются в сессию — виден весь путь до ошибки.", icon: "🧭" },
+                { t: "Умный батчинг", s: "Собираем только критичное и шлём раз в 10 секунд — ноль нагрузки на сайт.", icon: "📦" },
+                { t: "Установка за минуту", s: "Одна строка в <head>, без ключей и зависимостей. Автозапуск.", icon: "⚡" },
+              ].map((f) => (
+                <div
+                  key={f.t}
+                  className="rounded-2xl border border-white/60 bg-white/70 p-5 backdrop-blur-md dark:border-white/10 dark:bg-white/5"
+                >
+                  <div className="text-2xl">{f.icon}</div>
+                  <h3 className="mt-3 text-base font-semibold">{f.t}</h3>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{f.s}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-10 text-center">
+              <Link
+                href="/register"
+                className="inline-block rounded-xl bg-gradient-to-r from-brand to-indigo-500 px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
+              >
+                Подключить логирование
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -333,79 +371,90 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* Тарифы */}
+      {/* Тарифы — за проект, три уровня */}
       <section id="pricing" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
-        <h2 className="text-center text-3xl font-bold">Простой тариф</h2>
-        <p className="mt-3 text-center text-slate-600 dark:text-slate-400">
-          Первые 2 недели — бесплатно. Дальше платите только за то, что мониторите.
-          Чем длиннее период — тем выгоднее.
+        <h2 className="text-center text-3xl font-bold">Тарифы — за проект</h2>
+        <p className="mx-auto mt-3 max-w-2xl text-center text-slate-600 dark:text-slate-400">
+          Один тариф на проект: uptime-мониторинг, логирование и алерты в каждом.
+          Первые 2 недели — бесплатно, без карты. Скидка 10% за 3 месяца и 20% за год.
         </p>
-        <div className="mx-auto mt-10 max-w-md rounded-3xl bg-gradient-to-br from-brand to-sky-500 p-[1.5px] shadow-card transition-transform hover:-translate-y-1">
-          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl dark:bg-slate-900/80">
-            <div className="text-center">
-              <div className="inline-block rounded-full bg-gradient-to-r from-brand to-sky-500 bg-clip-text text-sm font-semibold uppercase tracking-wide text-transparent">
-                Pro
-              </div>
-              <div className="mt-4 flex items-baseline justify-center gap-1">
-                <span className="text-5xl font-extrabold">300 ₽</span>
-                <span className="text-slate-500">/ сайт в месяц</span>
-              </div>
-              <div className="mt-3 inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 dark:bg-green-950/50 dark:text-green-400">
-                2 недели бесплатно · без карты
-              </div>
-            </div>
 
-            {/* Периоды оплаты со скидкой */}
-            <div className="mt-8 grid grid-cols-3 gap-2">
-              {BILLING_PLANS.map((p) => {
-                const perSite = perSitePriceRub(p);
-                const perMonth = Math.round(perSite / p.months);
-                return (
-                  <div
-                    key={p.id}
-                    className="relative rounded-2xl border border-slate-200/80 bg-white/70 p-3 text-center dark:border-slate-700/70 dark:bg-white/5"
-                  >
-                    {p.discountPercent > 0 && (
-                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-semibold text-white">
-                        −{p.discountPercent}%
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {TIERS.map((t, idx) => {
+            const highlighted = t.id === "T1000";
+            return (
+              <div
+                key={t.id}
+                className={`rounded-3xl p-[1.5px] shadow-card transition-transform hover:-translate-y-1 ${
+                  highlighted
+                    ? "bg-gradient-to-br from-brand to-indigo-500"
+                    : "bg-white/50 dark:bg-white/10"
+                }`}
+              >
+                <div className="flex h-full flex-col rounded-[calc(1.5rem-1.5px)] bg-white/85 p-7 backdrop-blur-xl dark:bg-slate-900/85">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold uppercase tracking-wide text-brand">
+                      {t.name}
+                    </span>
+                    {highlighted && (
+                      <span className="rounded-full bg-brand px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                        Популярный
                       </span>
                     )}
-                    <div className="text-xs font-semibold text-slate-500">{p.label}</div>
-                    <div className="mt-1 text-lg font-extrabold">{perMonth} ₽</div>
-                    <div className="text-[11px] text-slate-400">за сайт / мес</div>
-                    <div className="mt-1 text-[11px] text-slate-500">
-                      {perSite} ₽ за сайт
-                    </div>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="mt-3 flex items-baseline gap-1">
+                    <span className="text-4xl font-extrabold">{t.monthlyRub} ₽</span>
+                    <span className="text-slate-500">/ проект в месяц</span>
+                  </div>
+                  <div className="mt-2 text-sm font-medium text-slate-500">{t.logsLabel}</div>
 
-            <ul className="mt-8 space-y-3 text-sm">
-              {[
-                "14 дней бесплатного пробного периода на 1 сайт",
-                "Неограниченное число мониторов на сайт",
-                "Проверки каждую минуту (1м / 1ч / 1д)",
-                "HTTP-методы GET, POST, PUT, DELETE",
-                "Контроль срока SSL-сертификата",
-                "Алерты на почту без задержек",
-                "История проверок и статистика",
-                "Скидка 10% за 3 месяца и 20% за год",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-2">
-                  <span className="text-brand">✓</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/register"
-              className="mt-8 block rounded-xl bg-gradient-to-r from-brand to-brand-light px-6 py-3 text-center font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
-            >
-              Начать бесплатно
-            </Link>
-          </div>
+                  <ul className="mt-5 flex-1 space-y-2.5 text-sm">
+                    {t.features.map((item) => (
+                      <li key={item} className="flex items-start gap-2">
+                        <span className="text-brand">✓</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Цена по периодам оплаты */}
+                  <div className="mt-6 grid grid-cols-3 gap-2">
+                    {BILLING_PLANS.map((p) => (
+                      <div
+                        key={p.id}
+                        className="relative rounded-xl border border-slate-200/80 bg-white/70 p-2 text-center dark:border-slate-700/70 dark:bg-white/5"
+                      >
+                        {p.discountPercent > 0 && (
+                          <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-green-600 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                            −{p.discountPercent}%
+                          </span>
+                        )}
+                        <div className="text-[10px] font-semibold text-slate-500">{p.label}</div>
+                        <div className="mt-0.5 text-sm font-extrabold">{tierPriceRub(t, p)} ₽</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Link
+                    href="/register"
+                    className={`mt-6 block rounded-xl px-6 py-3 text-center font-semibold shadow-card transition-transform hover:-translate-y-0.5 ${
+                      highlighted
+                        ? "bg-gradient-to-r from-brand to-indigo-500 text-white"
+                        : "border border-brand/40 text-brand hover:bg-brand/5"
+                    }`}
+                  >
+                    Начать бесплатно
+                  </Link>
+                  <span className="sr-only">Тариф {idx + 1}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
+
+        <p className="mt-6 text-center text-sm text-slate-500">
+          14 дней бесплатного пробного периода на каждый новый проект · без привязки карты
+        </p>
       </section>
 
       <footer className="border-t border-slate-200 py-8 text-center text-sm text-slate-500 dark:border-slate-800">
