@@ -4,54 +4,46 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 /**
- * Кнопка «В исключения» напротив события лога. Добавляет сигнатуру события в игнор-лист
- * проекта (POST /api/logger/exceptions) — будущие такие же события не сохраняются.
- * Повторный клик снимает правило (DELETE). Уже сохранённые события не удаляются.
+ * Кнопка «В исключения» напротив события лога. Добавляет сигнатуру события (тип +
+ * сообщение + маршрут) в игнор-лист проекта: правило действует на весь проект — уже
+ * записанные такие же события удаляются во всех сессиях, будущие не сохраняются.
+ * Снять правило можно в блоке «Исключения» на странице логов проекта.
  */
-export function AddExceptionButton({
-  eventId,
-  excluded: initialExcluded,
-}: {
-  eventId: string;
-  excluded: boolean;
-}) {
+export function AddExceptionButton({ eventId }: { eventId: string }) {
   const router = useRouter();
-  const [excluded, setExcluded] = useState(initialExcluded);
   const [loading, setLoading] = useState(false);
 
-  async function toggle() {
+  async function onClick() {
+    if (
+      !confirm(
+        "Скрыть такие ошибки во всём проекте? Уже записанные будут удалены, " +
+          "новые перестанут сохраняться. Снять правило можно в блоке «Исключения».",
+      )
+    ) {
+      return;
+    }
     setLoading(true);
-    const method = excluded ? "DELETE" : "POST";
     const res = await fetch("/api/logger/exceptions", {
-      method,
+      method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ eventId }),
     });
-    setLoading(false);
     if (res.ok) {
-      setExcluded(!excluded);
       router.refresh();
     } else {
-      alert(excluded ? "Не удалось убрать из исключений" : "Не удалось добавить в исключения");
+      setLoading(false);
+      alert("Не удалось добавить в исключения");
     }
   }
 
   return (
     <button
-      onClick={toggle}
+      onClick={onClick}
       disabled={loading}
-      title={
-        excluded
-          ? "Такие события снова будут сохраняться"
-          : "Больше не сохранять такие события"
-      }
-      className={`whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-medium disabled:opacity-60 ${
-        excluded
-          ? "border-slate-300 text-slate-500 hover:border-slate-400 dark:border-slate-700"
-          : "border-slate-300 hover:border-amber-400 hover:text-amber-600 dark:border-slate-700"
-      }`}
+      title="Больше не сохранять такие события во всём проекте"
+      className="whitespace-nowrap rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium hover:border-amber-400 hover:text-amber-600 disabled:opacity-60 dark:border-slate-700"
     >
-      {excluded ? "В исключениях" : "В исключения"}
+      В исключения
     </button>
   );
 }
