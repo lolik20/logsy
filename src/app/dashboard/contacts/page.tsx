@@ -11,6 +11,7 @@ export default async function ContactsPage() {
     where: { userId },
     orderBy: { createdAt: "desc" },
   });
+  const botLink = await getBotLink();
 
   return (
     <div>
@@ -23,7 +24,7 @@ export default async function ContactsPage() {
 
       <div className="mt-6">
         <ContactManager
-          botLink={getBotLink()}
+          botLink={botLink}
           contacts={contacts.map((c) => ({
             id: c.id,
             type: c.type,

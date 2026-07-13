@@ -6,7 +6,7 @@ const nextConfig = {
   experimental: {
     instrumentationHook: true,
     // Держим node-only пакеты внешними в серверном бандле.
-    serverComponentsExternalPackages: ["node-cron", "nodemailer", "@prisma/client"],
+    serverComponentsExternalPackages: ["node-cron", "nodemailer", "@prisma/client", "undici"],
   },
   webpack: (config, { nextRuntime }) => {
     // instrumentation.ts компилируется и для edge-рантайма, куда по графу
@@ -29,6 +29,13 @@ const nextConfig = {
         zlib: false,
         http: false,
         https: false,
+      };
+      // undici (используется в @/lib/telegram для прокси) тянет node:dns и на
+      // edge не работает. Реально этот код на edge не выполняется — сводим
+      // пакет к пустышке, чтобы edge-бандл не падал на node:-схемах.
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        undici: false,
       };
     }
     return config;
