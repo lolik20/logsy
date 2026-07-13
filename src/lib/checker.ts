@@ -3,6 +3,7 @@ import { sendMail } from "@/lib/mailer";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { isServiceActive } from "@/lib/subscription";
 import { runDueProjectSslChecks } from "@/lib/ssl-checker";
+import { runDueSubscriptionExpiryChecks } from "@/lib/subscription-expiry";
 
 export const INTERVAL_MS: Record<string, number> = {
   "1m": 60 * 1000,
@@ -359,6 +360,11 @@ export async function runDueChecks(): Promise<number> {
   // включена проверка и активна подписка).
   await runDueProjectSslChecks(now).catch((e) =>
     console.error("[Logsy] Ошибка проверки SSL проектов:", e),
+  );
+
+  // И напоминаем пользователям, у кого подписка истекает менее чем через сутки.
+  await runDueSubscriptionExpiryChecks(now).catch((e) =>
+    console.error("[Logsy] Ошибка напоминаний об окончании подписки:", e),
   );
 
   return due.length;
