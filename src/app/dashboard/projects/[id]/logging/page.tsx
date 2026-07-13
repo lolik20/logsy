@@ -150,11 +150,19 @@ export default async function LoggingPage({
                   <span className="text-xs uppercase tracking-wide text-slate-400">IP</span>
                   <span className="font-mono text-sm font-semibold">{g.ip}</span>
                 </div>
-                <div className="text-xs text-slate-500">
-                  {g.list.length} {pluralSess(g.list.length)} · {g.events} событий
-                  {g.errors > 0 && (
-                    <span className="text-red-600"> · {g.errors} ошибок</span>
-                  )}
+                <div className="flex items-center gap-3 text-xs text-slate-500">
+                  <span>
+                    {g.list.length} {pluralSess(g.list.length)} · {g.events} событий
+                    {g.errors > 0 && (
+                      <span className="text-red-600"> · {g.errors} ошибок</span>
+                    )}
+                  </span>
+                  <Link
+                    href={`/dashboard/projects/${project.id}/logging/combined?ip=${encodeURIComponent(g.ip)}&date=${dateStr}`}
+                    className="whitespace-nowrap font-medium text-brand hover:underline"
+                  >
+                    Все события →
+                  </Link>
                 </div>
               </div>
 
