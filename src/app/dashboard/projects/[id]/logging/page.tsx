@@ -67,6 +67,23 @@ export default async function LoggingPage({
     : [];
   const errorCount = new Map(errorGroups.map((g) => [g.sessionId, g._count._all]));
 
+  // Группируем сессии по IP пользователя. Сессии уже отсортированы по времени убыв.,
+  // поэтому группы идут в порядке появления самой свежей сессии.
+  type Sess = (typeof sessions)[number];
+  const ipGroupsMap = new Map<string, Sess[]>();
+  for (const s of sessions) {
+    const key = s.ip || "Без IP";
+    const arr = ipGroupsMap.get(key);
+    if (arr) arr.push(s);
+    else ipGroupsMap.set(key, [s]);
+  }
+  const ipGroups = Array.from(ipGroupsMap.entries()).map(([ip, list]) => ({
+    ip,
+    list,
+    events: list.reduce((n, s) => n + s._count.events, 0),
+    errors: list.reduce((n, s) => n + (errorCount.get(s.id) ?? 0), 0),
+  }));
+
   const snippet = `<script src="${appUrl()}/api/logger/sdk" async></script>`;
 
   return (
@@ -112,60 +129,91 @@ export default async function LoggingPage({
         <LogDateFilter value={dateStr} />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-        <table className="w-full min-w-[560px] text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-900">
-            <tr>
-              <th className="px-4 py-2 font-medium">Начало</th>
-              <th className="px-4 py-2 font-medium">Активность</th>
-              <th className="px-4 py-2 font-medium">События</th>
-              <th className="px-4 py-2 font-medium">Ошибки</th>
-              <th className="px-4 py-2 font-medium">Устройство</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sessions.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-500">
-                  За выбранную дату сессий нет.
-                </td>
-              </tr>
-            )}
-            {sessions.map((s) => {
-              const errs = errorCount.get(s.id) ?? 0;
-              return (
-                <tr
-                  key={s.id}
-                  className="border-t border-slate-100 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
-                >
-                  <td className="px-4 py-2">
-                    <Link
-                      href={`/dashboard/projects/${project.id}/logging/${s.id}`}
-                      className="text-brand hover:underline"
-                    >
-                      {new Date(s.startedAt).toLocaleString("ru-RU")}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2 text-slate-500">
-                    {new Date(s.lastSeenAt).toLocaleTimeString("ru-RU")}
-                  </td>
-                  <td className="px-4 py-2">{s._count.events}</td>
-                  <td className="px-4 py-2">
-                    {errs > 0 ? (
-                      <span className="text-red-600">{errs}</span>
-                    ) : (
-                      <span className="text-slate-400">0</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 max-w-[220px] truncate text-slate-400">
-                    {s.userAgent ?? "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {sessions.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500 dark:border-slate-700">
+          За выбранную дату сессий нет.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {ipGroups.map((g) => (
+            <div
+              key={g.ip}
+              className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800"
+            >
+              {/* Заголовок группы — IP пользователя и сводка */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs uppercase tracking-wide text-slate-400">IP</span>
+                  <span className="font-mono text-sm font-semibold">{g.ip}</span>
+                </div>
+                <div className="text-xs text-slate-500">
+                  {g.list.length} {pluralSess(g.list.length)} · {g.events} событий
+                  {g.errors > 0 && (
+                    <span className="text-red-600"> · {g.errors} ошибок</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] text-sm">
+                  <thead className="text-left text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Начало</th>
+                      <th className="px-4 py-2 font-medium">Активность</th>
+                      <th className="px-4 py-2 font-medium">События</th>
+                      <th className="px-4 py-2 font-medium">Ошибки</th>
+                      <th className="px-4 py-2 font-medium">Устройство</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {g.list.map((s) => {
+                      const errs = errorCount.get(s.id) ?? 0;
+                      return (
+                        <tr
+                          key={s.id}
+                          className="border-t border-slate-100 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                        >
+                          <td className="px-4 py-2">
+                            <Link
+                              href={`/dashboard/projects/${project.id}/logging/${s.id}`}
+                              className="text-brand hover:underline"
+                            >
+                              {new Date(s.startedAt).toLocaleString("ru-RU")}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-2 text-slate-500">
+                            {new Date(s.lastSeenAt).toLocaleTimeString("ru-RU")}
+                          </td>
+                          <td className="px-4 py-2">{s._count.events}</td>
+                          <td className="px-4 py-2">
+                            {errs > 0 ? (
+                              <span className="text-red-600">{errs}</span>
+                            ) : (
+                              <span className="text-slate-400">0</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 max-w-[220px] truncate text-slate-400">
+                            {s.userAgent ?? "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
+}
+
+/** Склонение слова «сессия» по числу. */
+function pluralSess(n: number): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return "сессия";
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return "сессии";
+  return "сессий";
 }
