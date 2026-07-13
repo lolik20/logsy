@@ -177,14 +177,11 @@ export default async function LoggingPage({
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[520px] text-sm">
+                <table className="w-full min-w-[320px] text-sm">
                   <thead className="text-left text-slate-500">
                     <tr>
                       <th className="px-4 py-2 font-medium">Начало</th>
-                      <th className="px-4 py-2 font-medium">Активность</th>
-                      <th className="px-4 py-2 font-medium">События</th>
                       <th className="px-4 py-2 font-medium">Ошибки</th>
-                      <th className="px-4 py-2 font-medium">Устройство</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -203,19 +200,12 @@ export default async function LoggingPage({
                               {new Date(s.startedAt).toLocaleString("ru-RU")}
                             </Link>
                           </td>
-                          <td className="px-4 py-2 text-slate-500">
-                            {new Date(s.lastSeenAt).toLocaleTimeString("ru-RU")}
-                          </td>
-                          <td className="px-4 py-2">{s._count.events}</td>
                           <td className="px-4 py-2">
                             {errs > 0 ? (
                               <span className="text-red-600">{errs}</span>
                             ) : (
                               <span className="text-slate-400">0</span>
                             )}
-                          </td>
-                          <td className="px-4 py-2 max-w-[220px] truncate text-slate-400">
-                            {s.userAgent ?? "—"}
                           </td>
                         </tr>
                       );
