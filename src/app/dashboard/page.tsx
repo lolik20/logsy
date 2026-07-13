@@ -6,8 +6,24 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
 import { statusSignature } from "@/lib/status";
 import { AdminMonitoring } from "@/components/AdminMonitoring";
+import { Faq } from "@/components/Faq";
 
 export const dynamic = "force-dynamic";
+
+const monitoringFaq = [
+  {
+    q: "Как добавить сайт для мониторинга?",
+    a: 'Нажмите «Добавить проект», укажите название и домен сайта (например example.ru). Проект — это ваш сайт, внутри которого можно завести несколько проверок.',
+  },
+  {
+    q: "Как добавить монитор (проверку)?",
+    a: "Откройте проект и нажмите «Добавить монитор». Укажите путь для проверки, HTTP-метод и периодичность — мы будем регулярно опрашивать адрес и сообщать, если он станет недоступен.",
+  },
+  {
+    q: "Как я узнаю, что сайт упал?",
+    a: 'Уведомления приходят на каналы из вкладки «Алерты» (email или Telegram). Добавьте хотя бы один канал, иначе оповещения приходить не будут.',
+  },
+];
 
 export default async function DashboardPage() {
   const userId = (await getUserId())!;
@@ -50,7 +66,7 @@ export default async function DashboardPage() {
       <div className="mt-6 grid gap-4">
         {projects.length === 0 && (
           <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500 dark:border-slate-700">
-            Пока нет проектов. Добавьте первый сайт для мониторинга.
+            Пока нет проектов. Добавьте свой первый сайт для мониторинга.
           </p>
         )}
         {projects.map((p) => {
@@ -83,6 +99,10 @@ export default async function DashboardPage() {
             </Link>
           );
         })}
+      </div>
+
+      <div className="mt-8">
+        <Faq items={monitoringFaq} />
       </div>
     </div>
   );

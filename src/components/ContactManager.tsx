@@ -164,7 +164,7 @@ export function ContactManager({
               </span>
               <button
                 onClick={() => remove(c.id)}
-                className="text-sm text-slate-400 hover:text-red-600"
+                className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-red-400 hover:text-red-600 dark:border-slate-700 dark:text-slate-300"
               >
                 Удалить
               </button>

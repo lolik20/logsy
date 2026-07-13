@@ -2,8 +2,28 @@ import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { getBotLink } from "@/lib/telegram";
 import { ContactManager } from "@/components/ContactManager";
+import { Faq } from "@/components/Faq";
 
 export const dynamic = "force-dynamic";
+
+const alertsFaq = [
+  {
+    q: "Как добавить email для уведомлений?",
+    a: "В блоке «Email» введите адрес и нажмите «Добавить». На него будут приходить письма, когда монитор упадёт или восстановится.",
+  },
+  {
+    q: "Как подключить Telegram?",
+    a: "Нажмите «Открыть бота», запустите его кнопкой «Запустить» — бот пришлёт ваш chat id. Скопируйте его в поле «Chat id» и нажмите «Добавить».",
+  },
+  {
+    q: "Как удалить канал?",
+    a: 'В списке «Подключённые каналы» нажмите кнопку «Удалить» напротив нужного канала.',
+  },
+  {
+    q: "Когда приходят алерты?",
+    a: "Когда монитор становится недоступен или восстанавливается, а также при приближении окончания срока SSL-сертификата.",
+  },
+];
 
 export default async function ContactsPage() {
   const userId = (await getUserId())!;
@@ -31,6 +51,10 @@ export default async function ContactsPage() {
             value: c.value,
           }))}
         />
+      </div>
+
+      <div className="mt-8">
+        <Faq items={alertsFaq} />
       </div>
     </div>
   );

@@ -2,6 +2,26 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Faq } from "@/components/Faq";
+
+const MONITOR_FAQ = [
+  {
+    q: "Что указать в поле «URL запроса»?",
+    a: "Хост берётся из домена проекта — вам нужно ввести только путь, например /health или /api/status. Для проверки главной страницы оставьте /.",
+  },
+  {
+    q: "Какой HTTP-метод выбрать?",
+    a: "Для обычной проверки доступности подойдёт GET. POST/PUT/DELETE нужны, если эндпоинт ждёт запрос с телом — тогда появится поле для тела запроса.",
+  },
+  {
+    q: "Что такое периодичность и ожидаемый код?",
+    a: "Периодичность — как часто мы опрашиваем адрес. Ожидаемый код — HTTP-статус, который считается «всё хорошо» (обычно 200). Если ответ другой — монитор пометится как упавший.",
+  },
+  {
+    q: "Зачем заголовки и порт?",
+    a: "Заголовки нужны для защищённых эндпоинтов (например Authorization). Порт указывайте, только если сервис слушает нестандартный порт — иначе используется 80/443.",
+  },
+];
 
 const METHODS = ["GET", "POST", "PUT", "DELETE"] as const;
 const INTERVALS: { value: string; label: string }[] = [
@@ -134,6 +154,7 @@ export function MonitorManager({
       className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
     >
       <h3 className="mb-4 font-semibold">Новый монитор</h3>
+      <Faq items={MONITOR_FAQ} className="mb-4" title="Как заполнить форму" />
       <div className="grid gap-3 sm:grid-cols-2">
         <input
           required
