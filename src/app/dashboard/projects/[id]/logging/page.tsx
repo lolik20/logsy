@@ -82,7 +82,8 @@ export default async function LoggingPage({
   const ipGroups = Array.from(ipGroupsMap.entries()).map(([ip, list]) => ({
     ip,
     list,
-    events: list.reduce((n, s) => n + s._count.events, 0),
+    // Сессии отсортированы по времени убыв. — берём начало самой свежей сессии IP.
+    startedAt: list[0].startedAt,
     errors: list.reduce((n, s) => n + (errorCount.get(s.id) ?? 0), 0),
   }));
 
@@ -148,84 +149,31 @@ export default async function LoggingPage({
           За выбранную дату сессий нет.
         </p>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {ipGroups.map((g) => (
-            <div
+            <Link
               key={g.ip}
-              className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800"
+              href={`/dashboard/projects/${project.id}/logging/combined?ip=${encodeURIComponent(g.ip)}&date=${dateStr}`}
+              className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-brand hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/50"
             >
-              {/* Заголовок группы — IP пользователя и сводка */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase tracking-wide text-slate-400">IP</span>
-                  <span className="font-mono text-sm font-semibold">{g.ip}</span>
-                </div>
-                <div className="flex items-center gap-3 text-xs text-slate-500">
-                  <span>
-                    {g.list.length} {pluralSess(g.list.length)} · {g.events} событий
-                    {g.errors > 0 && (
-                      <span className="text-red-600"> · {g.errors} ошибок</span>
-                    )}
-                  </span>
-                  <Link
-                    href={`/dashboard/projects/${project.id}/logging/combined?ip=${encodeURIComponent(g.ip)}&date=${dateStr}`}
-                    className="whitespace-nowrap font-medium text-brand hover:underline"
-                  >
-                    Все события →
-                  </Link>
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-slate-400">IP</span>
+                <span className="font-mono text-sm font-semibold">{g.ip}</span>
               </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[320px] text-sm">
-                  <thead className="text-left text-slate-500">
-                    <tr>
-                      <th className="px-4 py-2 font-medium">Начало</th>
-                      <th className="px-4 py-2 font-medium">Ошибки</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {g.list.map((s) => {
-                      const errs = errorCount.get(s.id) ?? 0;
-                      return (
-                        <tr
-                          key={s.id}
-                          className="border-t border-slate-100 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
-                        >
-                          <td className="px-4 py-2">
-                            <Link
-                              href={`/dashboard/projects/${project.id}/logging/${s.id}`}
-                              className="text-brand hover:underline"
-                            >
-                              {new Date(s.startedAt).toLocaleString("ru-RU")}
-                            </Link>
-                          </td>
-                          <td className="px-4 py-2">
-                            {errs > 0 ? (
-                              <span className="text-red-600">{errs}</span>
-                            ) : (
-                              <span className="text-slate-400">0</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="flex items-center gap-4 text-sm">
+                <span className="text-slate-500">
+                  {new Date(g.startedAt).toLocaleString("ru-RU")}
+                </span>
+                {g.errors > 0 ? (
+                  <span className="text-red-600">{g.errors} ошибок</span>
+                ) : (
+                  <span className="text-slate-400">нет ошибок</span>
+                )}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
     </div>
   );
-}
-
-/** Склонение слова «сессия» по числу. */
-function pluralSess(n: number): string {
-  const m10 = n % 10;
-  const m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return "сессия";
-  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return "сессии";
-  return "сессий";
 }
