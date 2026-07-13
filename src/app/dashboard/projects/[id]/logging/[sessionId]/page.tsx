@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
-import { exceptionSignature } from "@/lib/logging";
+import { endpointOf, exceptionKey } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 
 export const dynamic = "force-dynamic";
@@ -52,9 +52,9 @@ export default async function SessionPage({
   // Активные правила-исключения проекта — чтобы отметить уже исключённые события.
   const exceptions = await prisma.logException.findMany({
     where: { projectId: session.projectId },
-    select: { type: true, message: true, route: true },
+    select: { type: true, endpoint: true },
   });
-  const blocked = new Set(exceptions.map(exceptionSignature));
+  const blocked = new Set(exceptions.map(exceptionKey));
 
   return (
     <div>
@@ -194,10 +194,16 @@ export default async function SessionPage({
                   )}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <AddExceptionButton
-                    eventId={e.id}
-                    excluded={blocked.has(exceptionSignature(e))}
-                  />
+                  {endpointOf(e.route) ? (
+                    <AddExceptionButton
+                      eventId={e.id}
+                      excluded={blocked.has(
+                        exceptionKey({ type: e.type, endpoint: endpointOf(e.route)! }),
+                      )}
+                    />
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
                 </td>
               </tr>
             ))}

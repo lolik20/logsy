@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
-import { exceptionSignature } from "@/lib/logging";
+import { endpointOf, exceptionKey } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 
 export const dynamic = "force-dynamic";
@@ -95,9 +95,9 @@ export default async function CombinedIpPage({
   // Игнор-лист проекта — чтобы показать, какие события уже в исключениях.
   const exceptions = await prisma.logException.findMany({
     where: { projectId: project.id },
-    select: { type: true, message: true, route: true },
+    select: { type: true, endpoint: true },
   });
-  const blocked = new Set(exceptions.map(exceptionSignature));
+  const blocked = new Set(exceptions.map(exceptionKey));
 
   return (
     <div>
@@ -247,10 +247,16 @@ export default async function CombinedIpPage({
                   )}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <AddExceptionButton
-                    eventId={e.id}
-                    excluded={blocked.has(exceptionSignature(e))}
-                  />
+                  {endpointOf(e.route) ? (
+                    <AddExceptionButton
+                      eventId={e.id}
+                      excluded={blocked.has(
+                        exceptionKey({ type: e.type, endpoint: endpointOf(e.route)! }),
+                      )}
+                    />
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
                 </td>
               </tr>
             ))}

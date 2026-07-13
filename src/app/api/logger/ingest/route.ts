@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
-import { accountUsage, truncate, exceptionSignature, MAX_BODY_CHARS } from "@/lib/logging";
+import { accountUsage, truncate, endpointOf, exceptionKey, MAX_BODY_CHARS } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
 
@@ -132,14 +132,13 @@ export async function POST(req: Request) {
     select: { id: true },
   });
 
-  // Игнор-лист проекта: события с совпадающей сигнатурой (тип+сообщение+маршрут)
-  // не сохраняем. Сигнатуру считаем от усечённых значений — так же, как хранится
-  // правило (оно создаётся из уже сохранённого, усечённого события).
+  // Игнор-лист проекта: события с совпадающей парой (тип + endpoint) не сохраняем.
+  // Endpoint — путь запроса без query-строки; события без маршрута исключить нельзя.
   const exceptions = await prisma.logException.findMany({
     where: { projectId: project.id },
-    select: { type: true, message: true, route: true },
+    select: { type: true, endpoint: true },
   });
-  const blocked = new Set(exceptions.map(exceptionSignature));
+  const blocked = new Set(exceptions.map(exceptionKey));
 
   const rows = events
     .map((e) => ({
@@ -158,7 +157,10 @@ export async function POST(req: Request) {
       resBody: truncate(e.resBody, MAX_BODY_CHARS),
       createdAt: e.ts ? new Date(e.ts) : undefined,
     }))
-    .filter((row) => !blocked.has(exceptionSignature(row)));
+    .filter((row) => {
+      const endpoint = endpointOf(row.route);
+      return !(endpoint && blocked.has(exceptionKey({ type: row.type, endpoint })));
+    });
 
   if (rows.length) {
     await prisma.logEvent.createMany({ data: rows });

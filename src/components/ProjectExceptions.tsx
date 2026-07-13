@@ -6,8 +6,7 @@ import { useRouter } from "next/navigation";
 export type ProjectException = {
   id: string;
   type: string;
-  message: string | null;
-  route: string | null;
+  endpoint: string;
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -50,8 +49,8 @@ export function ProjectExceptions({ exceptions }: { exceptions: ProjectException
           Исключения ({exceptions.length})
         </summary>
         <p className="mt-1 text-xs text-slate-400">
-          Такие события не сохраняются во всём проекте. «Вернуть» — снова начать их
-          записывать.
+          События такого типа на этом endpoint не сохраняются во всём проекте.
+          «Вернуть» — снова начать их записывать.
         </p>
         <ul className="mt-3 space-y-2">
           {exceptions.map((e) => (
@@ -64,7 +63,7 @@ export function ProjectExceptions({ exceptions }: { exceptions: ProjectException
                   {TYPE_LABEL[e.type] ?? e.type}
                 </span>
                 <span className="break-all font-mono text-xs text-slate-600 dark:text-slate-300">
-                  {e.message || e.route || "—"}
+                  {e.endpoint}
                 </span>
               </div>
               <button

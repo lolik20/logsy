@@ -1,9 +1,9 @@
 // Управление игнор-листом сервиса логирования. Правило-исключение действует на весь
-// проект: его сигнатура (тип + сообщение + маршрут) не привязана к сессии. Пока правило
-// активно, новые такие события не сохраняются (фильтр в /api/logger/ingest). Уже
-// записанные события остаются как есть.
+// проект и задаётся парой (тип события + endpoint). Endpoint — путь запроса без
+// query-строки. Пока правило активно, новые такие события не сохраняются (фильтр в
+// /api/logger/ingest). Уже записанные события остаются как есть.
 //
-// POST   { eventId } — добавить сигнатуру события в исключения.
+// POST   { eventId } — добавить (тип + endpoint) события в исключения.
 // DELETE { eventId } | { id } — снять правило (по событию или по id правила).
 //
 // Доступ — только владельцу проекта (или администратору).
@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
+import { endpointOf } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
 
@@ -32,17 +33,16 @@ async function accessError(projectUserId: string): Promise<Denied | null> {
   return null;
 }
 
-type EventMatch = { projectId: string; type: string; message: string | null; route: string | null };
+type EventMatch = { projectId: string; type: string; endpoint: string };
 
-/** Сигнатура события (на весь проект) — общий фильтр для правил-исключений. */
-async function signatureForEvent(
+/** Пара (тип + endpoint) события — на весь проект. Требует, чтобы у события был endpoint. */
+async function matchForEvent(
   eventId: string,
 ): Promise<Denied | { ok: true; match: EventMatch }> {
   const event = await prisma.logEvent.findUnique({
     where: { id: eventId },
     select: {
       type: true,
-      message: true,
       route: true,
       projectId: true,
       session: { select: { project: { select: { userId: true } } } },
@@ -53,15 +53,12 @@ async function signatureForEvent(
   const denied = await accessError(event.session.project.userId);
   if (denied) return denied;
 
-  return {
-    ok: true,
-    match: {
-      projectId: event.projectId,
-      type: event.type,
-      message: event.message,
-      route: event.route,
-    },
-  };
+  const endpoint = endpointOf(event.route);
+  if (!endpoint) {
+    return { ok: false, error: "У события нет endpoint — исключить нельзя", status: 400 };
+  }
+
+  return { ok: true, match: { projectId: event.projectId, type: event.type, endpoint } };
 }
 
 export async function POST(req: Request) {
@@ -70,13 +67,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
   }
 
-  const res = await signatureForEvent(parsed.data.eventId);
+  const res = await matchForEvent(parsed.data.eventId);
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
   const { match } = res;
 
-  // Идемпотентно: если правило уже есть — переиспользуем его, дубликат не создаём.
-  const existing = await prisma.logException.findFirst({ where: match });
-  const exception = existing ?? (await prisma.logException.create({ data: match }));
+  // Идемпотентно: пара (проект, тип, endpoint) уникальна — upsert не создаёт дубликат.
+  const exception = await prisma.logException.upsert({
+    where: {
+      projectId_type_endpoint: {
+        projectId: match.projectId,
+        type: match.type,
+        endpoint: match.endpoint,
+      },
+    },
+    create: match,
+    update: {},
+  });
 
   return NextResponse.json({ exception });
 }
@@ -102,7 +108,7 @@ export async function DELETE(req: Request) {
   }
 
   // Снятие по событию — переключатель кнопки напротив события.
-  const res = await signatureForEvent(parsed.data.eventId);
+  const res = await matchForEvent(parsed.data.eventId);
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
   await prisma.logException.deleteMany({ where: res.match });
   return NextResponse.json({ ok: true });
