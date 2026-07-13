@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
+import { sendTelegramMessage } from "@/lib/telegram";
 import { isServiceActive } from "@/lib/subscription";
 import { checkSslCertificate, sslStatusFromDays, SslInfo } from "@/lib/ssl";
 
@@ -76,7 +77,7 @@ async function notifyProjectSsl(
   info: SslInfo,
 ): Promise<void> {
   const contacts = await prisma.contact.findMany({
-    where: { userId: project.userId, type: "EMAIL" },
+    where: { userId: project.userId },
   });
   if (contacts.length === 0) return;
 
@@ -107,7 +108,11 @@ async function notifyProjectSsl(
 
   for (const contact of contacts) {
     try {
-      await sendMail({ to: contact.value, subject, text });
+      if (contact.type === "TELEGRAM") {
+        await sendTelegramMessage(contact.value, `<b>${subject}</b>\n\n${text}`);
+      } else {
+        await sendMail({ to: contact.value, subject, text });
+      }
       if (monitor) {
         await prisma.alert.create({
           data: {

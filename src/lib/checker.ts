@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
+import { sendTelegramMessage } from "@/lib/telegram";
 import { isServiceActive } from "@/lib/subscription";
 import { runDueProjectSslChecks } from "@/lib/ssl-checker";
 
@@ -208,7 +209,7 @@ async function notify(
   if (!project) return;
 
   const contacts = await prisma.contact.findMany({
-    where: { userId: project.userId, type: "EMAIL" },
+    where: { userId: project.userId },
   });
   if (contacts.length === 0) return;
 
@@ -226,7 +227,11 @@ async function notify(
 
   for (const contact of contacts) {
     try {
-      await sendMail({ to: contact.value, subject, text });
+      if (contact.type === "TELEGRAM") {
+        await sendTelegramMessage(contact.value, `<b>${subject}</b>\n\n${text}`);
+      } else {
+        await sendMail({ to: contact.value, subject, text });
+      }
       await prisma.alert.create({
         data: {
           monitorId: monitor.id,
