@@ -53,6 +53,7 @@ export async function POST(req: Request) {
     await sendTelegramMessage(
       value,
       "✅ Telegram подключён к <b>Logsy</b>. Сюда будут приходить алерты о падении мониторов и SSL.",
+      { html: true },
     ).catch(() => {});
   }
 

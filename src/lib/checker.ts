@@ -228,7 +228,7 @@ async function notify(
   for (const contact of contacts) {
     try {
       if (contact.type === "TELEGRAM") {
-        await sendTelegramMessage(contact.value, `<b>${subject}</b>\n\n${text}`);
+        await sendTelegramMessage(contact.value, `${subject}\n\n${text}`);
       } else {
         await sendMail({ to: contact.value, subject, text });
       }

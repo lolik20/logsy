@@ -80,13 +80,25 @@ async function telegramApi<T>(
 
 // ------------------------------ Отправка алертов ------------------------------
 
+/** Экранирует спецсимволы HTML для parse_mode=HTML. */
+export function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 /**
  * Отправляет сообщение в Telegram-чат по chat id. Если токен не настроен —
  * пишет в консоль и возвращает true (dev-режим, по аналогии с mailer.ts).
+ *
+ * По умолчанию текст уходит как обычный (без parse_mode) — это важно для
+ * алертов, куда попадает тело ответа проверяемого сайта (напр. `<!doctype html>`):
+ * с parse_mode=HTML Telegram отверг бы такое сообщение с ошибкой 400. HTML-режим
+ * включается только для наших собственных сообщений через opts.html, и всё
+ * динамическое в них нужно пропускать через escapeHtml.
  */
 export async function sendTelegramMessage(
   chatId: string,
   text: string,
+  opts: { html?: boolean } = {},
 ): Promise<boolean> {
   if (!getBotToken()) {
     console.log(
@@ -98,12 +110,14 @@ export async function sendTelegramMessage(
     return true;
   }
 
-  const res = await telegramApi("sendMessage", {
+  const params: Record<string, unknown> = {
     chat_id: chatId,
     text,
-    parse_mode: "HTML",
     disable_web_page_preview: true,
-  });
+  };
+  if (opts.html) params.parse_mode = "HTML";
+
+  const res = await telegramApi("sendMessage", params);
   return res !== null;
 }
 
@@ -214,10 +228,11 @@ async function handleUpdate(update: TgUpdate): Promise<void> {
   const chat = message?.chat;
   if (!chat?.id) return;
 
-  const name =
+  const name = escapeHtml(
     [chat.first_name, chat.last_name].filter(Boolean).join(" ") ||
-    chat.username ||
-    "друг";
+      chat.username ||
+      "друг",
+  );
 
   const text =
     `Привет, ${name}! 👋\n\n` +
@@ -226,5 +241,5 @@ async function handleUpdate(update: TgUpdate): Promise<void> {
     `Скопируйте его и вставьте в панели Logsy на вкладке «Алерты», ` +
     `чтобы получать сюда уведомления о падении сайтов и SSL.`;
 
-  await sendTelegramMessage(String(chat.id), text);
+  await sendTelegramMessage(String(chat.id), text, { html: true });
 }
