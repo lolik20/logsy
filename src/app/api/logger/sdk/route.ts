@@ -21,8 +21,8 @@ const SDK = `(function(){
     var origin = (self && self.src) ? new URL(self.src, location.href).origin : location.origin;
     var ENDPOINT = origin + "/api/logger/ingest";
 
-    // Сторонний сервис для определения публичного IP пользователя.
-    var IP_URL = "https://api.ipify.org?format=json";
+    // Наш эндпоинт определения публичного IP пользователя (без сторонних сервисов).
+    var IP_URL = origin + "/api/logger/ip";
     var clientIp = null;
     // Оригинальный fetch — сохраняем до обёртки, чтобы IP-запрос не логировался.
     var _origFetch = window.fetch ? window.fetch.bind(window) : null;
@@ -78,13 +78,11 @@ const SDK = `(function(){
       if (buffer.length >= MAX_BUFFER) flush(false);
     }
 
-    // Не логируем собственные запросы к ингесту (иначе — бесконечная петля)
-    // и служебный запрос определения IP.
+    // Не логируем собственные служебные запросы Logsy (ингест, определение IP) —
+    // иначе получим петлю или лишние события.
     function isOwn(url) {
-      try {
-        var u = String(url);
-        return u.indexOf(ENDPOINT) === 0 || u.indexOf("api.ipify.org") >= 0;
-      } catch (e) { return false; }
+      try { return String(url).indexOf(origin + "/api/logger/") === 0; }
+      catch (e) { return false; }
     }
 
     function flush(useBeacon) {
