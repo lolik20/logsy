@@ -12,6 +12,10 @@ const TYPE_LABEL: Record<string, string> = {
   UNHANDLED_REJECTION: "Promise reject",
   HTTP_ERROR: "Ошибка запроса",
   SLOW_REQUEST: "Медленный запрос",
+  SESSION_START: "Начало сессии",
+  NAVIGATION: "Переход",
+  CLICK: "Клик",
+  INPUT: "Ввод",
 };
 
 const TYPE_TONE: Record<string, string> = {
@@ -19,6 +23,10 @@ const TYPE_TONE: Record<string, string> = {
   UNHANDLED_REJECTION: "text-red-600",
   HTTP_ERROR: "text-orange-600",
   SLOW_REQUEST: "text-amber-600",
+  SESSION_START: "text-emerald-600",
+  NAVIGATION: "text-blue-600",
+  CLICK: "text-slate-600 dark:text-slate-300",
+  INPUT: "text-slate-600 dark:text-slate-300",
 };
 
 export default async function SessionPage({
