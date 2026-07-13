@@ -14,8 +14,10 @@ export async function register(): Promise<void> {
   try {
     const { startScheduler } = await import("@/lib/scheduler");
     const { runDueChecks } = await import("@/lib/checker");
+    const { startTelegramPolling } = await import("@/lib/telegram");
 
     startScheduler();
+    startTelegramPolling();
     runDueChecks().catch((e) => console.error("[Logsy] Первый прогон:", e));
   } catch (e) {
     console.error("[Logsy] Не удалось запустить планировщик:", e);
