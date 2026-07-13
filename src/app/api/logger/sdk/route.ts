@@ -21,20 +21,47 @@ const SDK = `(function(){
     var origin = (self && self.src) ? new URL(self.src, location.href).origin : location.origin;
     var ENDPOINT = origin + "/api/logger/ingest";
 
+    // Сторонний сервис для определения публичного IP пользователя.
+    var IP_URL = "https://api.ipify.org?format=json";
+    var clientIp = null;
+    // Оригинальный fetch — сохраняем до обёртки, чтобы IP-запрос не логировался.
+    var _origFetch = window.fetch ? window.fetch.bind(window) : null;
+
     var SLOW_MS = 500;       // порог «медленного» запроса
     var FLUSH_MS = 10000;    // интервал отправки батча
     var MAX_BODY = 2000;     // предел размера тела запроса
     var MAX_BUFFER = 50;     // предел числа событий в батче
 
-    // Идентификатор пользовательской сессии (живёт в рамках вкладки).
+    // Идентификатор пользователя: один на браузер (localStorage), поэтому все
+    // события пользователя группируются в ОДНУ сессию — и между вкладками, и
+    // между визитами. Если localStorage недоступен — откат на sessionStorage,
+    // затем на временный id в памяти.
     var sid;
     try {
-      sid = sessionStorage.getItem("logsy_sid");
+      sid = localStorage.getItem("logsy_uid");
       if (!sid) {
         sid = (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
-        sessionStorage.setItem("logsy_sid", sid);
+        localStorage.setItem("logsy_uid", sid);
       }
-    } catch (e) { sid = Date.now().toString(36); }
+    } catch (e) {
+      try {
+        sid = sessionStorage.getItem("logsy_uid");
+        if (!sid) {
+          sid = (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+          sessionStorage.setItem("logsy_uid", sid);
+        }
+      } catch (e2) { sid = Date.now().toString(36); }
+    }
+
+    // Определяем публичный IP пользователя через сторонний сервис (не блокируя).
+    try {
+      if (_origFetch) {
+        _origFetch(IP_URL)
+          .then(function (r) { return r.json(); })
+          .then(function (d) { if (d && d.ip) clientIp = String(d.ip); })
+          .catch(function () {});
+      }
+    } catch (e) {}
 
     var ua = navigator.userAgent;
     var buffer = [];
@@ -51,14 +78,18 @@ const SDK = `(function(){
       if (buffer.length >= MAX_BUFFER) flush(false);
     }
 
-    // Не логируем собственные запросы к ингесту (иначе — бесконечная петля).
+    // Не логируем собственные запросы к ингесту (иначе — бесконечная петля)
+    // и служебный запрос определения IP.
     function isOwn(url) {
-      try { return String(url).indexOf(ENDPOINT) === 0; } catch (e) { return false; }
+      try {
+        var u = String(url);
+        return u.indexOf(ENDPOINT) === 0 || u.indexOf("api.ipify.org") >= 0;
+      } catch (e) { return false; }
     }
 
     function flush(useBeacon) {
       if (!buffer.length) return;
-      var batch = { sessionKey: sid, userAgent: ua, events: buffer.splice(0, buffer.length) };
+      var batch = { sessionKey: sid, userAgent: ua, ip: clientIp, events: buffer.splice(0, buffer.length) };
       var body = JSON.stringify(batch);
       try {
         // text/plain — чтобы запрос был CORS-simple и без preflight.

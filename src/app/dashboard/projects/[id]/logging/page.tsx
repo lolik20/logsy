@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { LogDateFilter } from "@/components/LogDateFilter";
+import { AutoRefresh } from "@/components/AutoRefresh";
 import { isProjectServiceActive } from "@/lib/subscription";
 import { retentionDays } from "@/lib/logging";
 
@@ -45,6 +46,8 @@ export default async function LoggingPage({
       : toDateInput(new Date());
   const dayStart = new Date(`${dateStr}T00:00:00`);
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  // Автообновление имеет смысл только для сегодняшней (живой) даты.
+  const isToday = dateStr === toDateInput(new Date());
 
   const sessions = await prisma.logSession.findMany({
     where: { projectId: project.id, startedAt: { gte: dayStart, lt: dayEnd } },
@@ -68,6 +71,7 @@ export default async function LoggingPage({
 
   return (
     <div>
+      {isToday && active && <AutoRefresh />}
       <ProjectHeader
         projectId={project.id}
         name={project.name}

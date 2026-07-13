@@ -36,6 +36,8 @@ const eventSchema = z.object({
 const batchSchema = z.object({
   sessionKey: z.string().min(1).max(128),
   userAgent: z.string().max(512).optional().nullable(),
+  // Публичный IP пользователя, определённый скриптом через сторонний сервис.
+  ip: z.string().max(64).optional().nullable(),
   events: z.array(eventSchema).min(1).max(MAX_EVENTS_PER_BATCH),
 });
 
@@ -109,19 +111,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ stored: false, reason: "quota" }, { status: 200, headers });
   }
 
-  const { sessionKey, userAgent, events } = parsed.data;
+  const { sessionKey, userAgent, ip, events } = parsed.data;
+  // IP от скрипта (публичный, через сторонний сервис) приоритетнее заголовков;
+  // если его нет — берём из X-Forwarded-For / X-Real-IP.
+  const resolvedIp = truncate(ip, 64) ?? getClientIp(req);
 
-  // Апсертим сессию (обновляем lastSeenAt), затем пишем события пачкой.
+  // Апсертим сессию (обновляем lastSeenAt и IP), затем пишем события пачкой.
   const session = await prisma.logSession.upsert({
     where: { projectId_sessionKey: { projectId: project.id, sessionKey } },
     create: {
       projectId: project.id,
       sessionKey,
       userAgent: truncate(userAgent, 512),
-      ip: getClientIp(req),
+      ip: resolvedIp,
       lastSeenAt: new Date(),
     },
-    update: { lastSeenAt: new Date() },
+    update: { lastSeenAt: new Date(), ip: resolvedIp },
     select: { id: true },
   });
 
