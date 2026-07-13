@@ -158,7 +158,9 @@ const SDK = `(function(){
     });
 
     // Решает, надо ли отправить сетевое событие: ошибка бэкенда (>=400) или медленный (>500мс).
-    function record(method, url, status, durationMs, reqBody, failed) {
+    // resBody — тело ответа сервера (только для ошибок), чтобы в логе был не просто код,
+    // а реальный текст ответа бэкенда.
+    function record(method, url, status, durationMs, reqBody, failed, resBody) {
       if (isOwn(url)) return;
       var slow = durationMs > SLOW_MS;
       var httpErr = status >= 400;
@@ -172,6 +174,7 @@ const SDK = `(function(){
         statusCode: status || null,
         durationMs: durationMs,
         reqBody: clip(reqBody),
+        resBody: clip(resBody),
         url: location.href
       });
     }
@@ -185,10 +188,23 @@ const SDK = `(function(){
         var method = (init && init.method) || (input && input.method) || "GET";
         var reqBody = init && init.body ? init.body : null;
         return _fetch.apply(this, arguments).then(function(res) {
-          try { record(method, url, res.status, Date.now() - start, reqBody, false); } catch (e) {}
+          var dur = Date.now() - start;
+          try {
+            // Для ошибок бэкенда читаем тело ответа. Клонируем ответ, чтобы не «съесть»
+            // поток у приложения; чтение асинхронное, поэтому событие пушим в колбэке.
+            if (res.status >= 400 && res.clone) {
+              res.clone().text().then(function(body) {
+                try { record(method, url, res.status, dur, reqBody, false, body); } catch (e) {}
+              }, function() {
+                try { record(method, url, res.status, dur, reqBody, false, null); } catch (e) {}
+              });
+            } else {
+              record(method, url, res.status, dur, reqBody, false, null);
+            }
+          } catch (e) {}
           return res;
         }, function(err) {
-          try { record(method, url, 0, Date.now() - start, reqBody, true); } catch (e) {}
+          try { record(method, url, 0, Date.now() - start, reqBody, true, null); } catch (e) {}
           throw err;
         });
       };
@@ -209,7 +225,16 @@ const SDK = `(function(){
         self.addEventListener("loadend", function() {
           try {
             var failed = self.status === 0;
-            record(meta.method, meta.url, self.status, Date.now() - start, body, failed);
+            // Тело ответа доступно как строка только для text/'' responseType.
+            var resBody = null;
+            if (self.status >= 400) {
+              try {
+                if (self.responseType === "" || self.responseType === "text") {
+                  resBody = self.responseText;
+                }
+              } catch (e) {}
+            }
+            record(meta.method, meta.url, self.status, Date.now() - start, body, failed, resBody);
           } catch (e) {}
         });
         return _send.apply(this, arguments);

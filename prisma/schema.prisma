@@ -205,6 +205,7 @@ model LogEvent {
   statusCode Int?
   durationMs Int?
   reqBody    String?  // тело запроса / payload (усечено)
+  resBody    String?  // тело ответа сервера (усечено; только для ошибок запросов)
   meta       String?  // произвольный JSON (расширяемость; hook под запись экрана)
   createdAt  DateTime @default(now())
 

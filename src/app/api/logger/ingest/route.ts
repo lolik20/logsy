@@ -31,6 +31,7 @@ const eventSchema = z.object({
   statusCode: z.number().int().optional().nullable(),
   durationMs: z.number().int().optional().nullable(),
   reqBody: z.string().max(8000).optional().nullable(),
+  resBody: z.string().max(8000).optional().nullable(),
   ts: z.number().int().optional().nullable(),
 });
 
@@ -154,6 +155,7 @@ export async function POST(req: Request) {
       statusCode: e.statusCode ?? null,
       durationMs: e.durationMs ?? null,
       reqBody: truncate(e.reqBody, MAX_BODY_CHARS),
+      resBody: truncate(e.resBody, MAX_BODY_CHARS),
       createdAt: e.ts ? new Date(e.ts) : undefined,
     }))
     .filter((row) => !blocked.has(exceptionSignature(row)));
