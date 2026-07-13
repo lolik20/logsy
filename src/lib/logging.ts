@@ -52,6 +52,18 @@ export function exceptionSignature(e: {
   return `${e.type}\u0000${e.message ?? ""}\u0000${e.route ?? ""}`;
 }
 
+// Признаки автоматического клиента (краулеры, превью-боты, headless-браузеры,
+// HTTP-библиотеки) в строке User-Agent. Такие клиенты исполняют наш SDK, но их
+// «сессии» — мусор, поэтому события от них не сохраняем.
+const BOT_UA_RE =
+  /bot|crawler|spider|crawl|slurp|mediapartners|adsbot|bingpreview|headless|phantomjs|puppeteer|playwright|selenium|webdriver|lighthouse|pagespeed|gtmetrix|pingdom|uptimerobot|monitoring|facebookexternalhit|whatsapp|telegrambot|vkshare|skypeuripreview|discordbot|twitterbot|linkedinbot|embedly|preview|curl|wget|python-requests|axios|node-fetch|go-http-client|okhttp|java\/|apache-httpclient|libwww-perl|scrapy|zabbix/i;
+
+/** Похоже ли на бота/автоматического клиента по строке User-Agent. */
+export function isBotUserAgent(userAgent: string | null | undefined): boolean {
+  if (!userAgent) return false;
+  return BOT_UA_RE.test(userAgent);
+}
+
 /** Начало текущих суток (UTC) — ключ для суточного счётчика квоты. */
 export function startOfDayUtc(now: Date = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
