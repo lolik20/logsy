@@ -38,6 +38,20 @@ export function truncate(value: string | null | undefined, max = MAX_TEXT_CHARS)
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
+/**
+ * Сигнатура события для сопоставления с правилами-исключениями: тип + сообщение + маршрут.
+ * Правило-исключение хранит уже усечённые значения (создаётся из сохранённого события),
+ * поэтому при приёме батча сигнатуру считаем от таких же усечённых полей — тогда
+ * совпадение точное. Разделитель \u0000 (NUL) не встречается в текстовых полях.
+ */
+export function exceptionSignature(e: {
+  type: string;
+  message?: string | null;
+  route?: string | null;
+}): string {
+  return `${e.type}\u0000${e.message ?? ""}\u0000${e.route ?? ""}`;
+}
+
 /** Начало текущих суток (UTC) — ключ для суточного счётчика квоты. */
 export function startOfDayUtc(now: Date = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
