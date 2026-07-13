@@ -49,7 +49,7 @@ export default async function SessionPage({
     ["ERROR", "UNHANDLED_REJECTION", "HTTP_ERROR"].includes(e.type),
   ).length;
 
-  // Игнор-лист проекта — чтобы показать, какие события уже добавлены в исключения.
+  // Активные правила-исключения проекта — чтобы отметить уже исключённые события.
   const exceptions = await prisma.logException.findMany({
     where: { projectId: session.projectId },
     select: { type: true, message: true, route: true },

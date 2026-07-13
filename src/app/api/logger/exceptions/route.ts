@@ -1,7 +1,12 @@
-// Управление игнор-листом сервиса логирования. Пользователь из карточки события
-// добавляет его сигнатуру (тип + сообщение + маршрут) в исключения — и будущие
-// такие же события не сохраняются (фильтрация в /api/logger/ingest). DELETE снимает
-// правило. Доступ — только владельцу проекта (или администратору).
+// Управление игнор-листом сервиса логирования. Правило-исключение действует на весь
+// проект: его сигнатура (тип + сообщение + маршрут) не привязана к сессии. Пока правило
+// активно, новые такие события не сохраняются (фильтр в /api/logger/ingest). Уже
+// записанные события остаются как есть.
+//
+// POST   { eventId } — добавить сигнатуру события в исключения.
+// DELETE { eventId } | { id } — снять правило (по событию или по id правила).
+//
+// Доступ — только владельцу проекта (или администратору).
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -10,13 +15,29 @@ import { getUserId, isAdmin } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-const schema = z.object({ eventId: z.string().min(1) });
+const postSchema = z.object({ eventId: z.string().min(1) });
+const deleteSchema = z.union([
+  z.object({ eventId: z.string().min(1) }),
+  z.object({ id: z.string().min(1) }),
+]);
 
-/** Находит событие и проверяет, что текущий пользователь имеет к нему доступ. */
-async function loadEvent(eventId: string) {
+type Denied = { ok: false; error: string; status: number };
+
+/** Проверяет, что текущий пользователь — владелец проекта (или админ). null — доступ есть. */
+async function accessError(projectUserId: string): Promise<Denied | null> {
   const userId = await getUserId();
-  if (!userId) return { error: "Не авторизован", status: 401 as const };
+  if (!userId) return { ok: false, error: "Не авторизован", status: 401 };
+  const admin = await isAdmin();
+  if (projectUserId !== userId && !admin) return { ok: false, error: "Нет доступа", status: 403 };
+  return null;
+}
 
+type EventMatch = { projectId: string; type: string; message: string | null; route: string | null };
+
+/** Сигнатура события (на весь проект) — общий фильтр для правил-исключений. */
+async function signatureForEvent(
+  eventId: string,
+): Promise<Denied | { ok: true; match: EventMatch }> {
   const event = await prisma.logEvent.findUnique({
     where: { id: eventId },
     select: {
@@ -27,66 +48,62 @@ async function loadEvent(eventId: string) {
       session: { select: { project: { select: { userId: true } } } },
     },
   });
-  if (!event) return { error: "Событие не найдено", status: 404 as const };
+  if (!event) return { ok: false, error: "Событие не найдено", status: 404 };
 
-  const admin = await isAdmin();
-  if (event.session.project.userId !== userId && !admin) {
-    return { error: "Нет доступа", status: 403 as const };
-  }
-  return { event };
-}
+  const denied = await accessError(event.session.project.userId);
+  if (denied) return denied;
 
-export async function POST(req: Request) {
-  const parsed = schema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
-  }
-
-  const res = await loadEvent(parsed.data.eventId);
-  if ("error" in res) return NextResponse.json({ error: res.error }, { status: res.status });
-  const { event } = res;
-
-  // Идемпотентно: если правило уже есть — возвращаем его, дубликат не создаём.
-  const existing = await prisma.logException.findFirst({
-    where: {
+  return {
+    ok: true,
+    match: {
       projectId: event.projectId,
       type: event.type,
       message: event.message,
       route: event.route,
     },
-  });
-  const exception =
-    existing ??
-    (await prisma.logException.create({
-      data: {
-        projectId: event.projectId,
-        type: event.type,
-        message: event.message,
-        route: event.route,
-      },
-    }));
+  };
+}
+
+export async function POST(req: Request) {
+  const parsed = postSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
+  }
+
+  const res = await signatureForEvent(parsed.data.eventId);
+  if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
+  const { match } = res;
+
+  // Идемпотентно: если правило уже есть — переиспользуем его, дубликат не создаём.
+  const existing = await prisma.logException.findFirst({ where: match });
+  const exception = existing ?? (await prisma.logException.create({ data: match }));
 
   return NextResponse.json({ exception });
 }
 
 export async function DELETE(req: Request) {
-  const parsed = schema.safeParse(await req.json().catch(() => null));
+  const parsed = deleteSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
   }
 
-  const res = await loadEvent(parsed.data.eventId);
-  if ("error" in res) return NextResponse.json({ error: res.error }, { status: res.status });
-  const { event } = res;
+  // Снятие по id правила — из блока «Исключения» на странице логов.
+  if ("id" in parsed.data) {
+    const exception = await prisma.logException.findUnique({
+      where: { id: parsed.data.id },
+      select: { id: true, project: { select: { userId: true } } },
+    });
+    if (!exception) return NextResponse.json({ error: "Правило не найдено" }, { status: 404 });
 
-  await prisma.logException.deleteMany({
-    where: {
-      projectId: event.projectId,
-      type: event.type,
-      message: event.message,
-      route: event.route,
-    },
-  });
+    const denied = await accessError(exception.project.userId);
+    if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status });
+    await prisma.logException.delete({ where: { id: exception.id } });
+    return NextResponse.json({ ok: true });
+  }
 
+  // Снятие по событию — переключатель кнопки напротив события.
+  const res = await signatureForEvent(parsed.data.eventId);
+  if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
+  await prisma.logException.deleteMany({ where: res.match });
   return NextResponse.json({ ok: true });
 }

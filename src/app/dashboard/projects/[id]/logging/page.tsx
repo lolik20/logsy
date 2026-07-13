@@ -5,6 +5,7 @@ import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { LogDateFilter } from "@/components/LogDateFilter";
 import { AutoRefresh } from "@/components/AutoRefresh";
+import { ProjectExceptions } from "@/components/ProjectExceptions";
 import { ClearLogsButton } from "@/components/ClearLogsButton";
 import { isProjectServiceActive } from "@/lib/subscription";
 import { retentionDays } from "@/lib/logging";
@@ -85,6 +86,13 @@ export default async function LoggingPage({
     errors: list.reduce((n, s) => n + (errorCount.get(s.id) ?? 0), 0),
   }));
 
+  // Активные правила-исключения проекта (игнор-лист) — блок управления над списком сессий.
+  const exceptions = await prisma.logException.findMany({
+    where: { projectId: project.id },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, type: true, message: true, route: true },
+  });
+
   const snippet = `<script src="${appUrl()}/api/logger/sdk" async></script>`;
 
   return (
@@ -124,6 +132,8 @@ export default async function LoggingPage({
           {retentionDays(project.tier) === 1 ? "сутки" : "суток"}.
         </p>
       </div>
+
+      <ProjectExceptions exceptions={exceptions} />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Сессии пользователей</h2>
