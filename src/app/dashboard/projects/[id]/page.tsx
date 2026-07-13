@@ -5,6 +5,7 @@ import { getUserId, isAdmin } from "@/lib/session";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MonitorManager } from "@/components/MonitorManager";
 import { ProjectSslSettings } from "@/components/ProjectSslSettings";
+import { ProjectDomainSettings } from "@/components/ProjectDomainSettings";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
 import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
 import { ProjectServiceTabs } from "@/components/ProjectServiceTabs";
@@ -81,6 +82,27 @@ export default async function ProjectPage({
               sslIssuer={project.sslIssuer}
               sslCheckedAt={
                 project.sslCheckedAt ? project.sslCheckedAt.toISOString() : null
+              }
+            />
+          </div>
+
+          <div className="mb-6">
+            <ProjectDomainSettings
+              projectId={project.id}
+              domain={project.domain}
+              checkDomain={project.checkDomain}
+              domainStatus={project.domainStatus}
+              domainExpiresAt={
+                project.domainExpiresAt
+                  ? project.domainExpiresAt.toISOString()
+                  : null
+              }
+              domainDaysLeft={project.domainDaysLeft}
+              domainRegistrar={project.domainRegistrar}
+              domainCheckedAt={
+                project.domainCheckedAt
+                  ? project.domainCheckedAt.toISOString()
+                  : null
               }
             />
           </div>

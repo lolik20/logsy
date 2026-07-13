@@ -3,6 +3,7 @@ import { sendMail } from "@/lib/mailer";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { isProjectServiceActive } from "@/lib/subscription";
 import { runDueProjectSslChecks } from "@/lib/ssl-checker";
+import { runDueProjectDomainChecks } from "@/lib/domain-checker";
 import { runDueSubscriptionExpiryChecks } from "@/lib/subscription-expiry";
 
 export const INTERVAL_MS: Record<string, number> = {
@@ -361,6 +362,12 @@ export async function runDueChecks(): Promise<number> {
   // включена проверка и активна подписка).
   await runDueProjectSslChecks(now).catch((e) =>
     console.error("[Logsy] Ошибка проверки SSL проектов:", e),
+  );
+
+  // А также сроки регистрации доменов проектов (RDAP/WHOIS): предупреждаем,
+  // пока домен не сняли с делегирования из-за неоплаченной регистрации.
+  await runDueProjectDomainChecks(now).catch((e) =>
+    console.error("[Logsy] Ошибка проверки регистрации доменов:", e),
   );
 
   // И напоминаем пользователям, у кого подписка истекает менее чем через сутки.
