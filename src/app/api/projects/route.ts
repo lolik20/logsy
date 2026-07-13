@@ -50,13 +50,29 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ project });
   } catch (e) {
-    // Гонка по уникальному домену.
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      return NextResponse.json(
-        { error: "Этот домен уже используется в другом проекте." },
-        { status: 409 },
-      );
+    if (e instanceof Prisma.PrismaClientKnownRequestError) {
+      // Гонка по уникальному домену.
+      if (e.code === "P2002") {
+        return NextResponse.json(
+          { error: "Этот домен уже используется в другом проекте." },
+          { status: 409 },
+        );
+      }
+      // FK на userId: пользователя из сессии нет в БД (например, база была
+      // пересоздана, а cookie-сессия осталась от старого аккаунта).
+      if (e.code === "P2003") {
+        return NextResponse.json(
+          { error: "Аккаунт не найден. Выйдите и войдите заново." },
+          { status: 401 },
+        );
+      }
     }
-    throw e;
+    // Любая другая непредвиденная ошибка — отдаём текст в JSON, чтобы панель его показала.
+    console.error("POST /api/projects failed:", e);
+    const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+    return NextResponse.json(
+      { error: `Не удалось создать проект: ${message}` },
+      { status: 500 },
+    );
   }
 }
