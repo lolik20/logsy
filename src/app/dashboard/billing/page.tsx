@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { getUserId } from "@/lib/session";
+import { getUserId, isAdmin } from "@/lib/session";
 import { BillingManager } from "@/components/BillingManager";
 import {
   describeSubscription,
-  isSubscriptionActive,
+  isServiceActive,
   isTrialActive,
+  resolveSitesLimit,
+  formatSitesLimit,
 } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
@@ -16,15 +18,17 @@ export default async function BillingPage({
 }) {
   const paid = searchParams?.paid;
   const userId = (await getUserId())!;
+  const admin = await isAdmin();
   const [sub, projectCount] = await Promise.all([
     prisma.subscription.findUnique({ where: { userId } }),
     prisma.project.count({ where: { userId } }),
   ]);
 
-  const sitesLimit = sub?.sitesLimit ?? 1;
-  const active = isSubscriptionActive(sub);
+  const sitesLimit = resolveSitesLimit(sub, admin);
+  const sitesLimitLabel = formatSitesLimit(sitesLimit);
+  const active = isServiceActive(sub, admin);
   const trial = isTrialActive(sub);
-  const status = describeSubscription(sub);
+  const status = describeSubscription(sub, admin);
   const periodEnd = status.periodEnd;
 
   const statusLabel = status.label;
@@ -70,17 +74,27 @@ export default async function BillingPage({
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <Card label="Статус" value={statusValue} />
-        <Card label="Лимит сайтов" value={`${sitesLimit}`} />
-        <Card label="Используется" value={`${projectCount} из ${sitesLimit}`} />
+        <Card label="Лимит сайтов" value={sitesLimitLabel} />
+        <Card
+          label="Используется"
+          value={`${projectCount} из ${sitesLimitLabel}`}
+        />
       </div>
 
       {periodEnd && active && !trial && (
         <p className="mt-3 text-sm text-slate-500">Оплачено до {periodEnd}</p>
       )}
 
-      <div className="mt-8">
-        <BillingManager currentSites={sitesLimit} />
-      </div>
+      {admin ? (
+        <div className="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          У вас роль администратора — безлимитная подписка на неограниченное
+          число сайтов. Оплата не требуется.
+        </div>
+      ) : (
+        <div className="mt-8">
+          <BillingManager currentSites={sitesLimit} />
+        </div>
+      )}
     </div>
   );
 }

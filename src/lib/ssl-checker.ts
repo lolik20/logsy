@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
-import { isSubscriptionActive } from "@/lib/subscription";
+import { isServiceActive } from "@/lib/subscription";
 import { checkSslCertificate, sslStatusFromDays, SslInfo } from "@/lib/ssl";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -164,7 +164,7 @@ export async function checkProjectSsl(project: ProjectSslRow): Promise<void> {
  */
 export async function runDueProjectSslChecks(now: Date): Promise<number> {
   const projects = await prisma.project.findMany({
-    include: { user: { select: { subscription: true } } },
+    include: { user: { select: { role: true, subscription: true } } },
   });
 
   let checked = 0;
@@ -187,7 +187,8 @@ export async function runDueProjectSslChecks(now: Date): Promise<number> {
         }
         return;
       }
-      if (!isSubscriptionActive(p.user.subscription, now)) return;
+      if (!isServiceActive(p.user.subscription, p.user.role === "ADMIN", now))
+        return;
       if (!isSslCheckDue(p, now)) return;
       checked += 1;
       await checkProjectSsl(p).catch((e) =>

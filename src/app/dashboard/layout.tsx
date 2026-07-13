@@ -12,17 +12,18 @@ export default async function DashboardLayout({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
+  const admin = session.user.role === "ADMIN";
   const sub = session.user.id
     ? await prisma.subscription.findUnique({ where: { userId: session.user.id } })
     : null;
-  const subscription = describeSubscription(sub);
+  const subscription = describeSubscription(sub, admin);
 
   return (
     <div className="flex min-h-screen">
       <DashboardSidebar
         email={session.user.email ?? ""}
         subscription={subscription}
-        isAdmin={session.user.role === "ADMIN"}
+        isAdmin={admin}
       />
       <div className="min-w-0 flex-1">
         <main className="mx-auto max-w-5xl px-4 pb-8 pt-20 sm:px-6 md:py-8">

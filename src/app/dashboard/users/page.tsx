@@ -65,8 +65,8 @@ export default async function UsersPage() {
               </tr>
             )}
             {users.map((u) => {
-              const sub = describeSubscription(u.subscription);
               const isAdminUser = u.role === "ADMIN";
+              const sub = describeSubscription(u.subscription, isAdminUser);
               return (
                 <tr
                   key={u.id}
