@@ -90,7 +90,7 @@ export default async function LoggingPage({
   const exceptions = await prisma.logException.findMany({
     where: { projectId: project.id },
     orderBy: { createdAt: "desc" },
-    select: { id: true, type: true, message: true, route: true },
+    select: { id: true, type: true, endpoint: true },
   });
 
   const snippet = `<script src="${appUrl()}/api/logger/sdk" async></script>`;
