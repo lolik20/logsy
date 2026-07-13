@@ -411,6 +411,15 @@ export default async function LandingPage() {
       <footer className="border-t border-slate-200 py-8 text-center text-sm text-slate-500 dark:border-slate-800">
         <p>© {new Date().getFullYear()} Logsy — мониторинг доступности сайтов.</p>
         <p className="mt-2">ИП Федоткин Максим Сергеевич, ИНН 920358422008</p>
+        <p className="mt-2">
+          Поддержка:{" "}
+          <a
+            href="mailto:support@logsy.ru"
+            className="text-brand hover:underline"
+          >
+            support@logsy.ru
+          </a>
+        </p>
       </footer>
     </main>
   );

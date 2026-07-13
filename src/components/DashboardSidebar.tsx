@@ -70,6 +70,14 @@ function LogoutIcon({ className }: IconProps) {
   );
 }
 
+function TelegramIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M21.94 4.6 18.9 19.05c-.23 1.01-.83 1.26-1.68.79l-4.65-3.43-2.24 2.16c-.25.25-.46.46-.94.46l.33-4.74 8.63-7.8c.38-.33-.08-.52-.58-.19l-10.67 6.72-4.6-1.44c-1-.31-1.02-1 .21-1.48l17.99-6.93c.83-.31 1.56.2 1.29 1.43Z" />
+    </svg>
+  );
+}
+
 function MenuIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -216,6 +224,16 @@ function SidebarContent({
       </nav>
 
       <BalanceStatus subscription={subscription} />
+
+      <a
+        href="https://t.me/tritex_manager"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mx-3 mb-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+      >
+        <TelegramIcon className="h-5 w-5 shrink-0 text-brand" />
+        <span>Техподдержка</span>
+      </a>
 
       <div className="border-t border-slate-200 p-3 dark:border-slate-800">
         <div className="truncate px-3 pb-2 pt-1 text-xs text-slate-400">
