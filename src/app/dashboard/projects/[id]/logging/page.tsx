@@ -5,6 +5,7 @@ import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { LogDateFilter } from "@/components/LogDateFilter";
 import { AutoRefresh } from "@/components/AutoRefresh";
+import { ClearLogsButton } from "@/components/ClearLogsButton";
 import { isProjectServiceActive } from "@/lib/subscription";
 import { retentionDays } from "@/lib/logging";
 
@@ -124,9 +125,12 @@ export default async function LoggingPage({
         </p>
       </div>
 
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Сессии пользователей</h2>
-        <LogDateFilter value={dateStr} />
+        <div className="flex items-center gap-3">
+          <LogDateFilter value={dateStr} />
+          <ClearLogsButton projectId={project.id} />
+        </div>
       </div>
 
       {sessions.length === 0 ? (
