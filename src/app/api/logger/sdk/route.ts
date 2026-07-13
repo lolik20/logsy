@@ -241,6 +241,92 @@ const SDK = `(function(){
       };
     }
 
+    // ---- Пользовательские события: начало сессии, клики, ввод, навигация ----
+
+    // Короткое описание DOM-элемента: <тег>#id «текст/подпись». Используется в
+    // сообщениях о кликах и вводе, чтобы в логе было видно, по чему кликнули.
+    function elDesc(el) {
+      try {
+        if (!el || el.nodeType !== 1) return "";
+        var tag = el.tagName ? el.tagName.toLowerCase() : "?";
+        var id = el.id ? "#" + el.id : "";
+        var label = "";
+        var txt = (el.innerText || el.textContent || "").replace(/\\s+/g, " ").trim();
+        if (txt) {
+          label = txt.slice(0, 60);
+        } else if (el.getAttribute) {
+          label = el.getAttribute("aria-label") || el.getAttribute("title") ||
+                  el.getAttribute("name") || el.getAttribute("placeholder") || "";
+        }
+        return "<" + tag + ">" + id + (label ? " «" + label + "»" : "");
+      } catch (e) { return ""; }
+    }
+
+    // Начало сессии — один раз на вкладку/визит (флаг в sessionStorage переживает
+    // переходы между страницами внутри вкладки, но не новый визит).
+    var freshSession = false;
+    try {
+      if (!sessionStorage.getItem("logsy_started")) {
+        sessionStorage.setItem("logsy_started", "1");
+        freshSession = true;
+      }
+    } catch (e) { freshSession = true; }
+    if (freshSession) {
+      push({
+        type: "SESSION_START",
+        message: "Начало сессии" + (document.referrer ? " · источник: " + document.referrer : ""),
+        url: location.href
+      });
+    }
+
+    // Первый просмотр страницы — как переход. Далее ловим SPA-навигацию.
+    var lastUrl = location.href;
+    push({ type: "NAVIGATION", message: "Открыта страница: " + location.pathname, url: location.href });
+
+    function logNav() {
+      var u = location.href;
+      if (u === lastUrl) return;
+      lastUrl = u;
+      push({ type: "NAVIGATION", message: "Переход: " + location.pathname + location.search, url: u });
+    }
+    try {
+      var _ps = history.pushState, _rs = history.replaceState;
+      if (_ps) history.pushState = function() { var r = _ps.apply(this, arguments); try { logNav(); } catch (e) {} return r; };
+      if (_rs) history.replaceState = function() { var r = _rs.apply(this, arguments); try { logNav(); } catch (e) {} return r; };
+      window.addEventListener("popstate", function() { try { logNav(); } catch (e) {} });
+      window.addEventListener("hashchange", function() { try { logNav(); } catch (e) {} });
+    } catch (e) {}
+
+    // Клики (в т.ч. по кнопкам/ссылкам). Ищем ближайший осмысленный элемент —
+    // кнопку/ссылку/роль button, иначе сам таргет.
+    document.addEventListener("click", function(e) {
+      try {
+        var t = e.target;
+        var el = (t && t.closest)
+          ? (t.closest("button, a, [role=button], input[type=submit], input[type=button], label, [onclick]") || t)
+          : t;
+        push({ type: "CLICK", message: "Клик: " + (elDesc(el) || "элемент"), url: location.href });
+      } catch (err) {}
+    }, true);
+
+    // Ввод в поля. По событию change (значение зафиксировано на blur) — без шума
+    // на каждое нажатие клавиши. Пароли не логируем.
+    document.addEventListener("change", function(e) {
+      try {
+        var el = e.target;
+        if (!el || !el.tagName) return;
+        var tag = el.tagName.toLowerCase();
+        if (tag !== "input" && tag !== "textarea" && tag !== "select") return;
+        var type = (el.type || "").toLowerCase();
+        var name = el.name || el.id || (el.getAttribute && el.getAttribute("placeholder")) || type || tag;
+        var val;
+        if (type === "password") val = "[скрыто]";
+        else if (type === "checkbox" || type === "radio") val = el.checked ? "✓ вкл" : "✗ выкл";
+        else val = String(el.value == null ? "" : el.value).slice(0, 100);
+        push({ type: "INPUT", message: "Ввод: " + name + " = " + val, url: location.href });
+      } catch (err) {}
+    }, true);
+
     // ---- Периодическая отправка и флаш при уходе со страницы ----
     setInterval(function(){ flush(false); }, FLUSH_MS);
     document.addEventListener("visibilitychange", function() {

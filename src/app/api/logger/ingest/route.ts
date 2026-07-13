@@ -21,7 +21,16 @@ export const dynamic = "force-dynamic";
 const MAX_EVENTS_PER_BATCH = 50;
 
 const eventSchema = z.object({
-  type: z.enum(["ERROR", "UNHANDLED_REJECTION", "SLOW_REQUEST", "HTTP_ERROR"]),
+  type: z.enum([
+    "ERROR",
+    "UNHANDLED_REJECTION",
+    "SLOW_REQUEST",
+    "HTTP_ERROR",
+    "SESSION_START",
+    "NAVIGATION",
+    "CLICK",
+    "INPUT",
+  ]),
   message: z.string().max(4000).optional().nullable(),
   stack: z.string().max(8000).optional().nullable(),
   url: z.string().max(2000).optional().nullable(),
