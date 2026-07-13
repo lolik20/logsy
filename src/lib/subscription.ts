@@ -40,6 +40,38 @@ export function isSubscriptionActive(
   return false;
 }
 
+/**
+ * Активен ли сервис для пользователя с учётом роли. Администратор всегда имеет
+ * доступ (безлимитная подписка), для остальных — по правилам подписки.
+ */
+export function isServiceActive(
+  sub: SubscriptionLike | null | undefined,
+  isAdmin = false,
+  now: Date = new Date(),
+): boolean {
+  return isAdmin || isSubscriptionActive(sub, now);
+}
+
+/** Признак безлимитного числа сайтов. */
+export const UNLIMITED_SITES = Infinity;
+
+/**
+ * Лимит сайтов для пользователя с учётом роли. Для администратора — без
+ * ограничений (UNLIMITED_SITES).
+ */
+export function resolveSitesLimit(
+  sub: { sitesLimit?: number | null } | null | undefined,
+  isAdmin = false,
+): number {
+  if (isAdmin) return UNLIMITED_SITES;
+  return sub?.sitesLimit ?? 1;
+}
+
+/** Отображение лимита сайтов: «∞» для безлимита, число — в остальных случаях. */
+export function formatSitesLimit(limit: number): string {
+  return Number.isFinite(limit) ? String(limit) : "∞";
+}
+
 /** Идёт ли сейчас именно пробный период (для показа плашек в интерфейсе). */
 export function isTrialActive(
   sub: SubscriptionLike | null | undefined,
@@ -75,8 +107,19 @@ export type SubscriptionStatus = {
  */
 export function describeSubscription(
   sub: SubscriptionLike | null | undefined,
+  isAdmin = false,
   now: Date = new Date(),
 ): SubscriptionStatus {
+  // У администратора — безлимитная подписка без срока действия.
+  if (isAdmin) {
+    return {
+      label: "Безлимит",
+      tone: "active",
+      periodEnd: null,
+      showPeriodEnd: false,
+    };
+  }
+
   const active = isSubscriptionActive(sub, now);
   const trial = isTrialActive(sub, now);
   const periodEnd = sub?.currentPeriodEnd

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
-import { isSubscriptionActive } from "@/lib/subscription";
+import { isServiceActive } from "@/lib/subscription";
 import { runDueProjectSslChecks } from "@/lib/ssl-checker";
 
 export const INTERVAL_MS: Record<string, number> = {
@@ -331,7 +331,7 @@ export async function runDueChecks(): Promise<number> {
     where: { isActive: true },
     include: {
       project: {
-        select: { user: { select: { subscription: true } } },
+        select: { user: { select: { role: true, subscription: true } } },
       },
     },
   });
@@ -340,7 +340,13 @@ export async function runDueChecks(): Promise<number> {
   // Проверяем только мониторы пользователей с активной подпиской (или идущим
   // пробным периодом). Истёк триал / нет оплаты — мониторинг останавливается.
   const due = monitors.filter(
-    (m) => isDue(m) && isSubscriptionActive(m.project.user.subscription, now),
+    (m) =>
+      isDue(m) &&
+      isServiceActive(
+        m.project.user.subscription,
+        m.project.user.role === "ADMIN",
+        now,
+      ),
   );
   await Promise.all(due.map((m) => checkMonitor(m).catch((e) => console.error(e))));
 
