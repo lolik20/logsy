@@ -123,7 +123,7 @@ export default async function SessionPage({
                   {e.durationMs != null ? `${e.durationMs} мс` : "—"}
                 </td>
                 <td className="px-4 py-2">
-                  {e.stack || e.reqBody || (e.route && e.message) ? (
+                  {e.stack || e.reqBody || e.query || (e.route && e.message) ? (
                     <details>
                       <summary className="cursor-pointer text-brand">Показать</summary>
                       {e.message && (
@@ -136,15 +136,37 @@ export default async function SessionPage({
                           Страница: {e.url}
                         </div>
                       )}
+                      {e.query && (
+                        <div className="mt-2">
+                          <div className="text-xs font-medium text-slate-500">
+                            Query-параметры
+                          </div>
+                          <div className="mt-1 space-y-0.5">
+                            {parseQuery(e.query).map(([k, v], i) => (
+                              <div key={`${k}-${i}`} className="font-mono text-xs">
+                                <span className="text-slate-500">{k}:</span> {v}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {e.reqBody && (
-                        <pre className="mt-2 overflow-x-auto rounded bg-slate-50 p-2 text-xs dark:bg-slate-800">
-                          {e.reqBody}
-                        </pre>
+                        <div className="mt-2">
+                          <div className="text-xs font-medium text-slate-500">
+                            Payload (тело запроса)
+                          </div>
+                          <pre className="mt-1 overflow-x-auto rounded bg-slate-50 p-2 text-xs dark:bg-slate-800">
+                            {e.reqBody}
+                          </pre>
+                        </div>
                       )}
                       {e.stack && (
-                        <pre className="mt-2 overflow-x-auto rounded bg-slate-50 p-2 text-xs dark:bg-slate-800">
-                          {e.stack}
-                        </pre>
+                        <div className="mt-2">
+                          <div className="text-xs font-medium text-slate-500">Стек</div>
+                          <pre className="mt-1 overflow-x-auto rounded bg-slate-50 p-2 text-xs dark:bg-slate-800">
+                            {e.stack}
+                          </pre>
+                        </div>
                       )}
                     </details>
                   ) : (
@@ -158,6 +180,16 @@ export default async function SessionPage({
       </div>
     </div>
   );
+}
+
+/** Разбирает query-строку в пары ключ/значение; при сбое возвращает как есть. */
+function parseQuery(q: string): [string, string][] {
+  try {
+    const entries = Array.from(new URLSearchParams(q).entries());
+    return entries.length ? entries : [[q, ""]];
+  } catch {
+    return [[q, ""]];
+  }
 }
 
 function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
