@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
 import { sendTelegramMessage } from "@/lib/telegram";
-import { isServiceActive } from "@/lib/subscription";
+import { isProjectServiceActive } from "@/lib/subscription";
 import { runDueProjectSslChecks } from "@/lib/ssl-checker";
 import { runDueSubscriptionExpiryChecks } from "@/lib/subscription-expiry";
 
@@ -337,22 +337,23 @@ export async function runDueChecks(): Promise<number> {
     where: { isActive: true },
     include: {
       project: {
-        select: { user: { select: { role: true, subscription: true } } },
+        select: {
+          billingStatus: true,
+          currentPeriodEnd: true,
+          trialEndsAt: true,
+          user: { select: { role: true } },
+        },
       },
     },
   });
 
   const now = new Date();
-  // Проверяем только мониторы пользователей с активной подпиской (или идущим
-  // пробным периодом). Истёк триал / нет оплаты — мониторинг останавливается.
+  // Проверяем только мониторы проектов с активным тарифом (или идущим пробным
+  // периодом). Истёк триал / нет оплаты — мониторинг проекта останавливается.
   const due = monitors.filter(
     (m) =>
       isDue(m) &&
-      isServiceActive(
-        m.project.user.subscription,
-        m.project.user.role === "ADMIN",
-        now,
-      ),
+      isProjectServiceActive(m.project, m.project.user.role === "ADMIN", now),
   );
   await Promise.all(due.map((m) => checkMonitor(m).catch((e) => console.error(e))));
 

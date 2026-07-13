@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
-import { describeSubscription } from "@/lib/subscription";
 
 export default async function DashboardLayout({
   children,
@@ -13,16 +12,21 @@ export default async function DashboardLayout({
   if (!session?.user) redirect("/login");
 
   const admin = session.user.role === "ADMIN";
-  const sub = session.user.id
-    ? await prisma.subscription.findUnique({ where: { userId: session.user.id } })
-    : null;
-  const subscription = describeSubscription(sub, admin);
+
+  // Проекты пользователя — для двухуровневого меню (проект → сервис).
+  const projects = session.user.id
+    ? await prisma.project.findMany({
+        where: { userId: session.user.id },
+        select: { id: true, name: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
 
   return (
     <div className="flex min-h-screen">
       <DashboardSidebar
         email={session.user.email ?? ""}
-        subscription={subscription}
+        projects={projects}
         isAdmin={admin}
       />
       <div className="min-w-0 flex-1">

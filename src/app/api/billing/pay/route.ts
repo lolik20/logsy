@@ -3,15 +3,16 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { initPayment, tbankConfigured, type ReceiptItem } from "@/lib/tbank";
-import { getPlan, perSitePriceRub, totalPriceRub } from "@/lib/pricing";
+import { getPlan, getTier, tierPriceRub } from "@/lib/pricing";
 
-// Инициация оплаты тарифа Pro (300 ₽ за сайт/мес) через Т-Кассу.
-// Создаёт платёж методом Init с чеком (Receipt: УСН + email пользователя)
-// и возвращает PaymentURL для редиректа на страницу оплаты.
-// Период тарифа: 1 месяц (без скидки) | 3 месяца (−10%) | год (−20%).
+// Инициация оплаты тарифа проекта через Т-Кассу.
+// Тарификация — за проект: T300 | T1000 | T3000. Период: 1 мес (без скидки) |
+// 3 мес (−10%) | год (−20%). Создаёт платёж методом Init с чеком (Receipt: УСН +
+// email пользователя) и возвращает PaymentURL для редиректа на страницу оплаты.
 
 const schema = z.object({
-  sites: z.coerce.number().int().min(1).max(100).default(1),
+  projectId: z.string().min(1),
+  tier: z.enum(["T300", "T1000", "T3000"]),
   period: z.enum(["1m", "3m", "12m"]).default("1m"),
 });
 
@@ -30,55 +31,73 @@ export async function POST(req: Request) {
     );
   }
 
+  const parsed = schema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
+  }
+  const { projectId, period } = parsed.data;
+  const tier = getTier(parsed.data.tier)!;
+  const plan = getPlan(period)!;
+
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user?.email) {
     return NextResponse.json({ error: "У пользователя не указан email для чека" }, { status: 400 });
   }
 
-  const parsed = schema.safeParse(await req.json().catch(() => ({})));
-  const sites = parsed.success ? parsed.data.sites : 1;
-  const plan = getPlan(parsed.success ? parsed.data.period : "1m")!;
+  // Проект должен принадлежать пользователю.
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true, userId: true, name: true },
+  });
+  if (!project || project.userId !== userId) {
+    return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
+  }
 
-  const amountRub = totalPriceRub(plan, sites);
+  const amountRub = tierPriceRub(tier, plan);
   const amountKopecks = amountRub * 100;
-  const pricePerSiteKopecks = perSitePriceRub(plan) * 100;
 
   // Создаём запись платежа — её id используем как OrderId.
   const payment = await prisma.payment.create({
-    data: { userId, orderId: "", sites, months: plan.months, amountRub, status: "NEW" },
+    data: {
+      userId,
+      projectId,
+      tier: tier.id,
+      orderId: "",
+      months: plan.months,
+      amountRub,
+      status: "NEW",
+    },
   });
   const orderId = payment.id;
   await prisma.payment.update({ where: { id: payment.id }, data: { orderId } });
 
   const items: ReceiptItem[] = [
     {
-      Name: `Подписка Logsy Pro — ${sites} ${pluralSite(sites)}, ${plan.label}`,
-      Price: pricePerSiteKopecks,
-      Quantity: sites,
+      Name: `Logsy «${project.name}» — тариф ${tier.name}, ${plan.label}`,
+      Price: amountKopecks,
+      Quantity: 1,
       Amount: amountKopecks,
       Tax: "none", // УСН — без НДС
     },
   ];
 
   const base = appUrl();
+  const returnUrl = `${base}/dashboard/projects/${projectId}/tariff`;
 
   try {
     const result = await initPayment({
       amountKopecks,
       orderId,
-      description: `Тариф Pro, ${plan.label}, ${sites} ${pluralSite(sites)}, ${amountRub} ₽`,
+      description: `Тариф ${tier.name} для «${project.name}», ${plan.label}, ${amountRub} ₽`,
       email: user.email,
       items,
-      successUrl: `${base}/dashboard/billing?paid=1`,
-      failUrl: `${base}/dashboard/billing?paid=0`,
+      successUrl: `${returnUrl}?paid=1`,
+      failUrl: `${returnUrl}?paid=0`,
       notificationUrl: `${base}/api/billing/tbank/notification`,
     });
 
     if (!result.Success || !result.PaymentURL) {
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: { status: "REJECTED" },
-      });
+      await prisma.payment.update({ where: { id: payment.id }, data: { status: "REJECTED" } });
       return NextResponse.json(
         { error: result.Message || result.Details || "Не удалось создать платёж" },
         { status: 502 },
@@ -92,21 +111,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ url: result.PaymentURL });
   } catch (e) {
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: { status: "REJECTED" },
-    });
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: "REJECTED" } });
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Ошибка при обращении к Т-Кассе" },
       { status: 502 },
     );
   }
-}
-
-function pluralSite(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return "сайт";
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "сайта";
-  return "сайтов";
 }
