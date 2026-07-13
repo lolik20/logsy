@@ -112,12 +112,15 @@ export default async function LoggingPage({
         </div>
       )}
 
-      {/* Инструкция по подключению SDK */}
-      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+      {/* Инструкция по подключению SDK — скрыта по умолчанию */}
+      <details className="group mb-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-slate-600 dark:text-slate-300">
           Подключение
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
+          <span className="text-xs font-normal text-slate-400 transition-transform group-open:rotate-180">
+            ▾
+          </span>
+        </summary>
+        <p className="mt-3 text-sm text-slate-500">
           Вставьте один тег в <code className="font-mono">&lt;head&gt;</code> сайта{" "}
           <span className="font-mono">{project.domain}</span> — скрипт заработает
           автоматически. Ключ не нужен: события принимаются только с этого домена.
@@ -131,7 +134,7 @@ export default async function LoggingPage({
           хранятся {retentionDays(project.tier)}{" "}
           {retentionDays(project.tier) === 1 ? "сутки" : "суток"}.
         </p>
-      </div>
+      </details>
 
       <ProjectExceptions exceptions={exceptions} />
 
