@@ -175,13 +175,11 @@ export default async function LoggingPage({
                 <span className="text-slate-500">
                   {new Date(g.startedAt).toLocaleTimeString("ru-RU")}
                 </span>
-                {g.errors > 0 ? (
+                {g.errors > 0 && (
                   <span className="flex items-center gap-1.5 font-semibold text-red-600">
                     <span className="h-2 w-2 rounded-full bg-red-600" />
                     {g.errors}
                   </span>
-                ) : (
-                  <span className="text-slate-400">нет ошибок</span>
                 )}
               </div>
             </Link>
