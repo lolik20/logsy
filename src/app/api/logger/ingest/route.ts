@@ -27,6 +27,7 @@ const eventSchema = z.object({
     "SLOW_REQUEST",
     "HTTP_ERROR",
     "SESSION_START",
+    "SESSION_END",
     "NAVIGATION",
     "CLICK",
     "INPUT",

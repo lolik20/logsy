@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { LogDateFilter } from "@/components/LogDateFilter";
+import { LogErrorFilter } from "@/components/LogErrorFilter";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { ProjectExceptions } from "@/components/ProjectExceptions";
 import { ClearLogsButton } from "@/components/ClearLogsButton";
@@ -31,7 +32,7 @@ export default async function LoggingPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { date?: string };
+  searchParams: { date?: string; errors?: string };
 }) {
   const userId = (await getUserId())!;
   const admin = await isAdmin();
@@ -79,13 +80,17 @@ export default async function LoggingPage({
     if (arr) arr.push(s);
     else ipGroupsMap.set(key, [s]);
   }
-  const ipGroups = Array.from(ipGroupsMap.entries()).map(([ip, list]) => ({
+  const allIpGroups = Array.from(ipGroupsMap.entries()).map(([ip, list]) => ({
     ip,
     list,
     // Сессии отсортированы по времени убыв. — берём начало самой свежей сессии IP.
     startedAt: list[0].startedAt,
     errors: list.reduce((n, s) => n + (errorCount.get(s.id) ?? 0), 0),
   }));
+
+  // Фильтр «с ошибками»: при ?errors=1 показываем только группы, где были ошибки.
+  const onlyErrors = searchParams?.errors === "1";
+  const ipGroups = onlyErrors ? allIpGroups.filter((g) => g.errors > 0) : allIpGroups;
 
   // Активные правила-исключения проекта (игнор-лист) — блок управления над списком сессий.
   const exceptions = await prisma.logException.findMany({
@@ -141,15 +146,18 @@ export default async function LoggingPage({
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Сессии пользователей</h2>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <LogErrorFilter />
           <LogDateFilter value={dateStr} />
           <ClearLogsButton projectId={project.id} />
         </div>
       </div>
 
-      {sessions.length === 0 ? (
+      {ipGroups.length === 0 ? (
         <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500 dark:border-slate-700">
-          За выбранную дату сессий нет.
+          {onlyErrors
+            ? "За выбранную дату сессий с ошибками нет."
+            : "За выбранную дату сессий нет."}
         </p>
       ) : (
         <div className="space-y-2">
@@ -165,10 +173,13 @@ export default async function LoggingPage({
               </div>
               <div className="flex items-center gap-4 text-sm">
                 <span className="text-slate-500">
-                  {new Date(g.startedAt).toLocaleString("ru-RU")}
+                  {new Date(g.startedAt).toLocaleTimeString("ru-RU")}
                 </span>
                 {g.errors > 0 ? (
-                  <span className="text-red-600">{g.errors} ошибок</span>
+                  <span className="flex items-center gap-1.5 font-semibold text-red-600">
+                    <span className="h-2 w-2 rounded-full bg-red-600" />
+                    {g.errors}
+                  </span>
                 ) : (
                   <span className="text-slate-400">нет ошибок</span>
                 )}
