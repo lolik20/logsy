@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { StatusBadge } from "@/components/StatusBadge";
 import { MonitorActions } from "@/components/MonitorActions";
-import { MonitorEdit } from "@/components/MonitorEdit";
 import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
 import { statusSignature } from "@/lib/status";
 
@@ -99,19 +98,12 @@ export default async function MonitorPage({
 
       {isowner && (
         <div className="mt-4">
-          <MonitorEdit
-            id={monitor.id}
-            name={monitor.name}
-            url={monitor.url}
-            port={monitor.port}
-            method={monitor.method}
-            interval={monitor.interval}
-            expectedStatus={monitor.expectedStatus}
-            timeoutMs={monitor.timeoutMs}
-            headers={monitor.headers}
-            bodyType={monitor.bodyType}
-            body={monitor.body}
-          />
+          <Link
+            href={`/dashboard/monitors/${monitor.id}/edit`}
+            className="inline-block rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:border-brand hover:text-brand dark:border-slate-700"
+          >
+            Изменить
+          </Link>
         </div>
       )}
 

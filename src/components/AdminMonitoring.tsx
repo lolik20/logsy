@@ -2,7 +2,6 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { StatusBadge } from "@/components/StatusBadge";
 import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
-import { ProjectManager } from "@/components/ProjectManager";
 import { statusSignature } from "@/lib/status";
 
 // Панель мониторинга для администратора: проекты всех пользователей с
@@ -58,7 +57,12 @@ export async function AdminMonitoring() {
 
       {/* Администратор может создавать свои проекты без ограничений тарифа. */}
       <div className="mb-8">
-        <ProjectManager canAdd />
+        <Link
+          href="/dashboard/projects/new"
+          className="inline-block rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+        >
+          + Добавить проект
+        </Link>
       </div>
 
       {usersWithProjects.length === 0 && (

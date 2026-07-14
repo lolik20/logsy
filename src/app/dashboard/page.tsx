@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
-import { ProjectManager } from "@/components/ProjectManager";
 import { StatusBadge } from "@/components/StatusBadge";
 import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
 import { statusSignature } from "@/lib/status";
@@ -57,7 +56,12 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <ProjectManager canAdd />
+      <Link
+        href="/dashboard/projects/new"
+        className="inline-block rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+      >
+        + Добавить проект
+      </Link>
 
       <div className="mt-6 grid gap-4">
         {projects.length === 0 && (

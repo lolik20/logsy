@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-export function ProjectManager({ canAdd }: { canAdd: boolean }) {
+/** Форма создания проекта. Раньше открывалась инлайн на странице «Проекты», теперь
+ *  живёт на отдельной странице /dashboard/projects/new. */
+export function ProjectCreateForm() {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,30 +28,8 @@ export function ProjectManager({ canAdd }: { canAdd: boolean }) {
       setError(data.error || "Не удалось создать проект");
       return;
     }
-    setName("");
-    setDomain("");
-    setOpen(false);
+    router.push("/dashboard");
     router.refresh();
-  }
-
-  if (!open) {
-    return (
-      <div>
-        <button
-          onClick={() => setOpen(true)}
-          disabled={!canAdd}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
-          title={canAdd ? "" : "Достигнут лимит тарифа — оформите подписку"}
-        >
-          + Добавить проект
-        </button>
-        {!canAdd && (
-          <p className="mt-2 text-sm text-slate-500">
-            Достигнут лимит сайтов по тарифу. Увеличьте лимит в разделе «Тарифы».
-          </p>
-        )}
-      </div>
-    );
   }
 
   return (
@@ -83,13 +63,12 @@ export function ProjectManager({ canAdd }: { canAdd: boolean }) {
         >
           {loading ? "Создаём…" : "Создать"}
         </button>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
+        <Link
+          href="/dashboard"
           className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-700"
         >
           Отмена
-        </button>
+        </Link>
       </div>
     </form>
   );

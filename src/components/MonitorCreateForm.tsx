@@ -1,7 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Faq } from "@/components/Faq";
+
+const MONITOR_FAQ = [
+  {
+    q: "Что указать в поле «URL запроса»?",
+    a: "Хост берётся из домена проекта — вам нужно ввести только путь, например /health или /api/status. Для проверки главной страницы оставьте /.",
+  },
+  {
+    q: "Какой HTTP-метод выбрать?",
+    a: "Для обычной проверки доступности подойдёт GET. POST/PUT/DELETE нужны, если эндпоинт ждёт запрос с телом — тогда появится поле для тела запроса.",
+  },
+  {
+    q: "Что такое периодичность и ожидаемый код?",
+    a: "Периодичность — как часто мы опрашиваем адрес. Ожидаемый код — HTTP-статус, который считается «всё хорошо» (обычно 200). Если ответ другой — монитор пометится как упавший.",
+  },
+  {
+    q: "Зачем заголовки и порт?",
+    a: "Заголовки нужны для защищённых эндпоинтов (например Authorization). Порт указывайте, только если сервис слушает нестандартный порт — иначе используется 80/443.",
+  },
+];
 
 const METHODS = ["GET", "POST", "PUT", "DELETE"] as const;
 const INTERVALS: { value: string; label: string }[] = [
@@ -15,6 +36,7 @@ const BODY_TYPES: { value: string; label: string }[] = [
   { value: "XML", label: "XML" },
   { value: "FORM", label: "Form-data" },
 ];
+
 const BODY_PLACEHOLDER: Record<string, string> = {
   JSON: '{\n  "key": "value"\n}',
   XML: "<request>\n  <key>value</key>\n</request>",
@@ -24,78 +46,41 @@ const BODY_PLACEHOLDER: Record<string, string> = {
 
 type HeaderRow = { key: string; value: string };
 
-// Разбирает сохранённый URL на неизменяемый префикс (схема + хост) и путь.
-// Хост менять нельзя, поэтому в форме редактируется только путь.
-function splitUrl(url: string): { origin: string; path: string } {
-  try {
-    const u = new URL(url);
-    return { origin: u.origin, path: u.pathname + u.search + u.hash };
-  } catch {
-    return { origin: url, path: "" };
-  }
-}
-
-// Собирает полный URL из зафиксированного префикса и введённого пути.
-function composeUrl(origin: string, input: string): string {
+// Собирает полный URL из домена проекта и пути, введённого пользователем.
+// Если пользователь ввёл полный URL (со схемой) — берём как есть.
+export function composeUrl(domain: string, input: string): string {
   const v = input.trim();
+  if (/^https?:\/\//i.test(v)) return v;
   const path = v === "" ? "" : v.startsWith("/") ? v : "/" + v;
-  return `${origin}${path}`;
+  return `https://${domain}${path}`;
 }
 
-export interface MonitorEditProps {
-  id: string;
-  name: string;
-  url: string;
-  port: number | null;
-  method: string;
-  interval: string;
-  expectedStatus: number;
-  timeoutMs: number;
-  headers: string | null;
-  bodyType: string;
-  body: string | null;
-}
-
-function headersToRows(headers: string | null): HeaderRow[] {
-  if (!headers) return [{ key: "", value: "" }];
-  try {
-    const obj = JSON.parse(headers) as Record<string, string>;
-    const rows = Object.entries(obj).map(([key, value]) => ({
-      key,
-      value: String(value),
-    }));
-    return rows.length > 0 ? rows : [{ key: "", value: "" }];
-  } catch {
-    return [{ key: "", value: "" }];
-  }
-}
-
-export function MonitorEdit(props: MonitorEditProps) {
+/** Форма создания монитора. Раньше открывалась инлайн на странице проекта, теперь
+ *  живёт на отдельной странице /dashboard/projects/[id]/monitors/new. */
+export function MonitorCreateForm({
+  projectId,
+  projectDomain,
+}: {
+  projectId: string;
+  projectDomain: string;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const { origin, path: initialPath } = splitUrl(props.url);
-  const [name, setName] = useState(props.name);
-  const [path, setPath] = useState(initialPath);
-  const [port, setPort] = useState(
-    props.port != null ? String(props.port) : "",
-  );
-  const [method, setMethod] = useState<(typeof METHODS)[number]>(
-    props.method as (typeof METHODS)[number],
-  );
-  const [interval, setInterval] = useState(props.interval);
-  const [expectedStatus, setExpectedStatus] = useState(
-    String(props.expectedStatus),
-  );
-  const [timeoutMs, setTimeoutMs] = useState(String(props.timeoutMs));
-  const [headerRows, setHeaderRows] = useState<HeaderRow[]>(
-    headersToRows(props.headers),
-  );
-  const [bodyType, setBodyType] = useState(props.bodyType);
-  const [body, setBody] = useState(props.body ?? "");
+  const [name, setName] = useState("");
+  const [path, setPath] = useState("/");
+  const [port, setPort] = useState("");
+  const [method, setMethod] = useState<(typeof METHODS)[number]>("GET");
+  const [interval, setInterval] = useState("1m");
+  const [expectedStatus, setExpectedStatus] = useState("200");
+  const [headerRows, setHeaderRows] = useState<HeaderRow[]>([
+    { key: "", value: "" },
+  ]);
+  const [bodyType, setBodyType] = useState("NONE");
+  const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const methodAllowsBody = method !== "GET";
+  const backHref = `/dashboard/projects/${projectId}`;
 
   function updateHeader(i: number, field: keyof HeaderRow, val: string) {
     setHeaderRows((rows) =>
@@ -113,17 +98,17 @@ export function MonitorEdit(props: MonitorEditProps) {
       if (r.key.trim()) headers[r.key.trim()] = r.value;
     }
 
-    const res = await fetch(`/api/monitors/${props.id}`, {
-      method: "PATCH",
+    const res = await fetch("/api/monitors", {
+      method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        projectId,
         name,
-        url: composeUrl(origin, path),
+        url: composeUrl(projectDomain, path),
         port: port.trim() === "" ? null : Number(port),
         method,
         interval,
         expectedStatus: Number(expectedStatus),
-        timeoutMs: Number(timeoutMs),
         headers,
         bodyType: methodAllowsBody ? bodyType : "NONE",
         body: methodAllowsBody ? body : "",
@@ -132,46 +117,36 @@ export function MonitorEdit(props: MonitorEditProps) {
     setLoading(false);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(data.error || "Не удалось сохранить");
+      setError(data.error || "Не удалось создать монитор");
       return;
     }
-    setOpen(false);
+    router.push(backHref);
     router.refresh();
   }
 
   const inputCls =
     "rounded-lg border border-slate-300 bg-transparent px-3 py-2 outline-none focus:border-brand dark:border-slate-700";
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:border-brand hover:text-brand dark:border-slate-700"
-      >
-        Изменить
-      </button>
-    );
-  }
-
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-6 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+      className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
     >
-      <h3 className="mb-4 font-semibold">Редактирование монитора</h3>
+      <h3 className="mb-4 font-semibold">Новый монитор</h3>
+      <Faq items={MONITOR_FAQ} className="mb-4" title="Как заполнить форму" />
       <div className="grid gap-3 sm:grid-cols-2">
         <input
           required
-          placeholder="Название"
+          placeholder="Название (напр. Главная страница)"
           value={name}
           onChange={(e) => setName(e.target.value)}
           className={inputCls}
         />
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1 text-sm sm:col-span-1">
           <span className="text-slate-500">URL запроса</span>
           <div className="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-brand dark:border-slate-700">
             <span className="flex items-center whitespace-nowrap bg-slate-100 px-3 text-sm text-slate-500 dark:bg-slate-800">
-              {origin}
+              https://{projectDomain}
             </span>
             <input
               placeholder="/путь для проверки"
@@ -180,9 +155,6 @@ export function MonitorEdit(props: MonitorEditProps) {
               className="min-w-0 flex-1 bg-transparent px-3 py-2 outline-none"
             />
           </div>
-          <span className="text-xs text-slate-400">
-            Хост менять нельзя — редактируется только путь.
-          </span>
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-slate-500">Порт (необязательно)</span>
@@ -193,7 +165,7 @@ export function MonitorEdit(props: MonitorEditProps) {
             value={port}
             onChange={(e) => setPort(e.target.value)}
             placeholder={
-              origin.startsWith("http://")
+              composeUrl(projectDomain, path).startsWith("http://")
                 ? "по умолчанию 80"
                 : "по умолчанию 443"
             }
@@ -239,20 +211,9 @@ export function MonitorEdit(props: MonitorEditProps) {
             className={inputCls}
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-slate-500">Таймаут, мс</span>
-          <input
-            type="number"
-            min={1000}
-            max={60000}
-            value={timeoutMs}
-            onChange={(e) => setTimeoutMs(e.target.value)}
-            className={inputCls}
-          />
-        </label>
       </div>
 
-      {/* Заголовки */}
+      {/* Заголовки запроса */}
       <div className="mt-5">
         <div className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-300">
           Заголовки запроса
@@ -261,13 +222,13 @@ export function MonitorEdit(props: MonitorEditProps) {
           {headerRows.map((row, i) => (
             <div key={i} className="flex gap-2">
               <input
-                placeholder="Название"
+                placeholder="Название (напр. Authorization)"
                 value={row.key}
                 onChange={(e) => updateHeader(i, "key", e.target.value)}
                 className={`${inputCls} flex-1`}
               />
               <input
-                placeholder="Значение"
+                placeholder="Значение (напр. Bearer …)"
                 value={row.value}
                 onChange={(e) => updateHeader(i, "value", e.target.value)}
                 className={`${inputCls} flex-1`}
@@ -298,7 +259,7 @@ export function MonitorEdit(props: MonitorEditProps) {
         </button>
       </div>
 
-      {/* Тело */}
+      {/* Тело запроса — только для методов, которые его допускают */}
       {methodAllowsBody && (
         <div className="mt-5">
           <div className="mb-2 flex items-center gap-3">
@@ -326,6 +287,17 @@ export function MonitorEdit(props: MonitorEditProps) {
               className={`${inputCls} w-full font-mono text-sm`}
             />
           )}
+          {bodyType !== "NONE" && (
+            <p className="mt-1 text-xs text-slate-400">
+              Content-Type проставится автоматически (
+              {bodyType === "JSON"
+                ? "application/json"
+                : bodyType === "XML"
+                  ? "application/xml"
+                  : "application/x-www-form-urlencoded"}
+              ), если не задан вручную в заголовках.
+            </p>
+          )}
         </div>
       )}
 
@@ -336,15 +308,14 @@ export function MonitorEdit(props: MonitorEditProps) {
           disabled={loading}
           className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
         >
-          {loading ? "Сохраняем…" : "Сохранить"}
+          {loading ? "Создаём…" : "Создать"}
         </button>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
+        <Link
+          href={backHref}
           className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-700"
         >
           Отмена
-        </button>
+        </Link>
       </div>
     </form>
   );

@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { StatusBadge } from "@/components/StatusBadge";
-import { MonitorManager } from "@/components/MonitorManager";
 import { ProjectSslSettings } from "@/components/ProjectSslSettings";
 import { ProjectDomainSettings } from "@/components/ProjectDomainSettings";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
@@ -107,7 +106,12 @@ export default async function ProjectPage({
             />
           </div>
 
-          <MonitorManager projectId={project.id} projectDomain={project.domain} />
+          <Link
+            href={`/dashboard/projects/${project.id}/monitors/new`}
+            className="inline-block rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+          >
+            + Добавить монитор
+          </Link>
         </>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
