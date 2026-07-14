@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
-import { accountUsage, truncate, endpointOf, exceptionKey, MAX_BODY_CHARS } from "@/lib/logging";
+import { accountUsage, truncate, endpointOf, exceptionKey, isBotUserAgent, MAX_BODY_CHARS } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +113,14 @@ export async function POST(req: Request) {
   const parsed = batchSchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400, headers });
+  }
+
+  // Отсеиваем ботов (краулеры, превью-боты, headless): их «сессии» — мусор.
+  // UA берём из тела батча (navigator.userAgent), а если его нет — из заголовка.
+  // Не пишем сессию/события и не расходуем квоту; отвечаем 200, чтобы не провоцировать ретраи.
+  const uaForBotCheck = parsed.data.userAgent ?? req.headers.get("user-agent");
+  if (isBotUserAgent(uaForBotCheck)) {
+    return NextResponse.json({ stored: false, reason: "bot" }, { status: 200, headers });
   }
 
   // Квота тарифа: учитываем принятый объём за сутки. При превышении — не пишем,
