@@ -137,3 +137,73 @@ export function describeSubscription(
     showPeriodEnd: active && !!periodEnd,
   };
 }
+
+// ------------------------- Биллинг на уровне проекта -------------------------
+// Тарификация переехала с per-user подписки на per-project тариф. Ниже — аналоги
+// проверок активности и описания статуса, но для конкретного проекта.
+
+export type ProjectBillingLike = {
+  billingStatus: string; // TRIAL | ACTIVE | INACTIVE
+  currentPeriodEnd: Date | null;
+  trialEndsAt: Date | null;
+};
+
+/**
+ * Активен ли сервис для проекта прямо сейчас (работает мониторинг/логирование):
+ *  - TRIAL  — пробный период ещё не истёк (trialEndsAt в будущем);
+ *  - ACTIVE — оплаченный период ещё не закончился;
+ *  - иначе  — неактивен.
+ * Администратор имеет доступ всегда.
+ */
+export function isProjectServiceActive(
+  project: ProjectBillingLike | null | undefined,
+  isAdmin = false,
+  now: Date = new Date(),
+): boolean {
+  if (isAdmin) return true;
+  if (!project) return false;
+
+  if (project.billingStatus === "TRIAL") {
+    return !!project.trialEndsAt && project.trialEndsAt.getTime() > now.getTime();
+  }
+  if (project.billingStatus === "ACTIVE") {
+    return !project.currentPeriodEnd || project.currentPeriodEnd.getTime() > now.getTime();
+  }
+  return false;
+}
+
+/** Идёт ли сейчас пробный период проекта. */
+export function isProjectTrialActive(
+  project: ProjectBillingLike | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  return (
+    project?.billingStatus === "TRIAL" &&
+    !!project.trialEndsAt &&
+    project.trialEndsAt.getTime() > now.getTime()
+  );
+}
+
+/**
+ * Описание статуса тарифа проекта для интерфейса (плашки в меню и на вкладке «Тариф»).
+ */
+export function describeProjectBilling(
+  project: ProjectBillingLike | null | undefined,
+  isAdmin = false,
+  now: Date = new Date(),
+): SubscriptionStatus {
+  if (isAdmin) {
+    return { label: "Безлимит", tone: "active", periodEnd: null, showPeriodEnd: false };
+  }
+
+  const active = isProjectServiceActive(project, false, now);
+  const trial = isProjectTrialActive(project, now);
+  const endDate =
+    project?.billingStatus === "TRIAL" ? project?.trialEndsAt : project?.currentPeriodEnd;
+  const periodEnd = endDate ? new Date(endDate).toLocaleDateString("ru-RU") : null;
+
+  const label = trial ? "Пробный период" : active ? "Активен" : "Не активен";
+  const tone: SubscriptionTone = trial ? "trial" : active ? "active" : "inactive";
+
+  return { label, tone, periodEnd, showPeriodEnd: active && !!periodEnd };
+}

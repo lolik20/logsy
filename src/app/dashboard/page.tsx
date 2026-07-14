@@ -33,20 +33,16 @@ export default async function DashboardPage() {
     return <AdminMonitoring />;
   }
 
-  const [projects, sub] = await Promise.all([
-    prisma.project.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        monitors: {
-          select: { id: true, lastStatus: true, lastCheckedAt: true },
-        },
+  const projects = await prisma.project.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    include: {
+      monitors: {
+        select: { id: true, lastStatus: true, lastCheckedAt: true },
       },
-    }),
-    prisma.subscription.findUnique({ where: { userId } }),
-  ]);
+    },
+  });
 
-  const limit = sub?.sitesLimit ?? 1;
   const signature = statusSignature(projects.flatMap((p) => p.monitors));
 
   return (
@@ -56,12 +52,12 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Проекты</h1>
           <p className="text-sm text-slate-500">
-            Сайтов: {projects.length} из {limit} по тарифу
+            Тарификация — за проект. Новый проект получает пробный период.
           </p>
         </div>
       </div>
 
-      <ProjectManager canAdd={projects.length < limit} />
+      <ProjectManager canAdd />
 
       <div className="mt-6 grid gap-4">
         {projects.length === 0 && (

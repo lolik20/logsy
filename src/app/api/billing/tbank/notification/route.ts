@@ -31,40 +31,33 @@ export async function POST(req: Request) {
     data: { status, paymentId: paymentId ?? payment.paymentId },
   });
 
-  // Успешная оплата — активируем/продлеваем подписку. Делаем один раз.
-  if (status === "CONFIRMED" && payment.status !== "CONFIRMED") {
-    const existing = await prisma.subscription.findUnique({
-      where: { userId: payment.userId },
+  // Успешная оплата — активируем/продлеваем тариф проекта. Делаем один раз.
+  if (status === "CONFIRMED" && payment.status !== "CONFIRMED" && payment.projectId) {
+    const project = await prisma.project.findUnique({
+      where: { id: payment.projectId },
+      select: { currentPeriodEnd: true },
     });
 
-    // Оплаченные месяцы добавляем к текущей дате окончания, если подписка
-    // ещё действует (продление), иначе отсчитываем от сегодняшнего дня.
-    const now = new Date();
-    const startFrom =
-      existing?.currentPeriodEnd && existing.currentPeriodEnd.getTime() > now.getTime()
-        ? new Date(existing.currentPeriodEnd)
-        : now;
-    const periodEnd = new Date(startFrom);
-    periodEnd.setMonth(periodEnd.getMonth() + payment.months);
+    if (project) {
+      // Оплаченные месяцы добавляем к текущей дате окончания, если тариф ещё
+      // действует (продление), иначе отсчитываем от сегодняшнего дня.
+      const now = new Date();
+      const startFrom =
+        project.currentPeriodEnd && project.currentPeriodEnd.getTime() > now.getTime()
+          ? new Date(project.currentPeriodEnd)
+          : now;
+      const periodEnd = new Date(startFrom);
+      periodEnd.setMonth(periodEnd.getMonth() + payment.months);
 
-    await prisma.subscription.upsert({
-      where: { userId: payment.userId },
-      create: {
-        userId: payment.userId,
-        plan: "PAID",
-        sitesLimit: payment.sites,
-        priceRub: payment.amountRub,
-        status: "active",
-        currentPeriodEnd: periodEnd,
-      },
-      update: {
-        plan: "PAID",
-        sitesLimit: payment.sites,
-        priceRub: payment.amountRub,
-        status: "active",
-        currentPeriodEnd: periodEnd,
-      },
-    });
+      await prisma.project.update({
+        where: { id: payment.projectId },
+        data: {
+          tier: payment.tier ?? "T300",
+          billingStatus: "ACTIVE",
+          currentPeriodEnd: periodEnd,
+        },
+      });
+    }
   }
 
   return new NextResponse("OK");

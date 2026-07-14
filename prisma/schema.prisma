@@ -77,7 +77,9 @@ model Project {
   id        String    @id @default(cuid())
   userId    String
   name      String
-  domain    String
+  // Домен проекта. Уникален глобально: по нему сервис логирования однозначно
+  // определяет проект по заголовку Origin входящего запроса (keyless-модель).
+  domain    String    @unique
   createdAt DateTime  @default(now())
 
   // Контроль срока действия SSL-сертификата домена проекта.
@@ -91,8 +93,36 @@ model Project {
   // Нужен, чтобы каждое оповещение (за неделю/3 дня/1 день/1 час/истёк) ушло один раз.
   sslAlertHours Int?
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  monitors  Monitor[]
+  // Контроль срока регистрации домена проекта (данные регистратора по RDAP/WHOIS).
+  checkDomain     Boolean   @default(true)
+  domainStatus    String    @default("PENDING") // VALID | EXPIRING | EXPIRED | ERROR | OFF | PENDING
+  domainExpiresAt DateTime? // дата окончания срока регистрации домена
+  domainDaysLeft  Int?      // сколько полных дней осталось до окончания регистрации
+  domainRegistrar String?   // регистратор домена (по данным RDAP)
+  domainCheckedAt DateTime? // когда срок регистрации проверяли в последний раз
+  // Порог (в днях) последнего отправленного предупреждения: 30 | 14 | 7 | 3 | 1 | 0.
+  // Нужен, чтобы каждое оповещение (за 30/14/7/3/1 день/истёк) ушло один раз.
+  domainAlertDays Int?
+
+  // ---- Тарификация на уровне проекта (перевод биллинга с per-user на per-project) ----
+  // Тариф проекта: T300 (базовый) | T1000 | T3000. null — тариф ещё не выбран (идёт триал).
+  tier          String?
+  // TRIAL — идёт пробный период; ACTIVE — оплачен; INACTIVE — истёк/не оплачен.
+  billingStatus String    @default("TRIAL")
+  // Конец оплаченного периода (для ACTIVE).
+  currentPeriodEnd DateTime?
+  // Конец пробного периода (для TRIAL).
+  trialEndsAt   DateTime?
+  // Значение currentPeriodEnd, для которого уже отправлено предупреждение об истечении
+  // (чтобы напоминание ушло один раз за период). Аналог поля в Subscription.
+  expiryAlertSentFor DateTime?
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monitors      Monitor[]
+  logSessions   LogSession[]
+  logUsage      LogUsage[]
+  logExceptions LogException[]
+  payments      Payment[]
 
   @@index([userId])
 }
@@ -137,6 +167,87 @@ model CheckResult {
   @@index([monitorId, createdAt])
 }
 
+// ------------------------------- Сервис логирования -------------------------------
+// Клиентский SDK на сайте проекта ловит фронт-ошибки и сетевые запросы, группирует их
+// в пользовательские сессии и батчами шлёт на /api/logger/ingest. Проект определяется
+// по Origin запроса (домен проекта). Данные хранятся ограниченный срок (ретеншн по тарифу).
+
+model LogSession {
+  id         String   @id @default(cuid())
+  projectId  String
+  // Идентификатор сессии, сгенерированный на клиенте (sessionStorage).
+  sessionKey String
+  userAgent  String?
+  ip         String?
+  startedAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  events  LogEvent[]
+
+  @@unique([projectId, sessionKey])
+  @@index([projectId, startedAt])
+}
+
+model LogEvent {
+  id         String   @id @default(cuid())
+  // projectId денормализован, чтобы очистка по ретеншну и учёт квоты шли одним deleteMany/count.
+  projectId  String
+  sessionId  String
+  // ERROR | UNHANDLED_REJECTION | SLOW_REQUEST | HTTP_ERROR
+  type       String
+  message    String?
+  stack      String?
+  url        String?  // URL страницы, где произошло событие
+  route      String?  // URL/маршрут сетевого запроса (с query-строкой)
+  query      String?  // query-параметры запроса (усечено)
+  method     String?
+  statusCode Int?
+  durationMs Int?
+  reqBody    String?  // тело запроса / payload (усечено)
+  resBody    String?  // тело ответа сервера (усечено; только для ошибок запросов)
+  meta       String?  // произвольный JSON (расширяемость; hook под запись экрана)
+  createdAt  DateTime @default(now())
+
+  session LogSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([sessionId, createdAt])
+}
+
+// Исключения (игнор-лист) сервиса логирования. Каждое правило — сигнатура события
+// (тип + сообщение + маршрут), которую проект попросил не сохранять. Создаётся из
+// карточки события кнопкой «В исключения». При приёме батча события с совпадающей
+// сигнатурой отбрасываются (см. exceptionSignature в src/lib/logging.ts).
+model LogException {
+  id        String   @id @default(cuid())
+  projectId String
+  // Тип события: ERROR | UNHANDLED_REJECTION | SLOW_REQUEST | HTTP_ERROR.
+  type      String
+  // Endpoint (путь запроса без query-строки), который проект попросил игнорировать.
+  // События с таким типом и endpoint не сохраняются (фильтр в /api/logger/ingest).
+  endpoint  String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, type, endpoint])
+  @@index([projectId])
+}
+
+// Суточный счётчик числа новых пользовательских сессий на проект — для контроля квоты тарифа.
+model LogUsage {
+  id        String   @id @default(cuid())
+  projectId String
+  day       DateTime @db.Date
+  sessions  Int      @default(0)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, day])
+  @@index([projectId, day])
+}
+
 model Contact {
   id        String   @id @default(cuid())
   userId    String
@@ -156,7 +267,7 @@ model Alert {
   monitorId String
   contactId String
   message   String
-  kind      String   @default("DOWN") // DOWN | RECOVERY | SSL | SUBSCRIPTION
+  kind      String   @default("DOWN") // DOWN | RECOVERY | SSL | DOMAIN | SUBSCRIPTION
   sentAt    DateTime @default(now())
 
   monitor Monitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
@@ -188,11 +299,15 @@ model Subscription {
 model Payment {
   id         String   @id @default(cuid())
   userId     String
+  // Проект, тариф которого оплачивается (per-project биллинг).
+  projectId  String?
+  // Тариф, активируемый после оплаты: T300 | T1000 | T3000.
+  tier       String?
   // OrderId, переданный в Т-Кассу (совпадает с id этой записи).
   orderId    String   @unique
   // PaymentId, присвоенный Т-Кассой.
   paymentId  String?
-  // Кол-во сайтов, которое активируется после оплаты.
+  // Кол-во сайтов (вырожденное поле, оставлено для совместимости со старыми оплатами).
   sites      Int      @default(1)
   // Длительность оплаченного периода в месяцах (1 | 3 | 12).
   months     Int      @default(1)
@@ -203,7 +318,9 @@ model Payment {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([projectId])
 }

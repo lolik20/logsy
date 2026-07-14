@@ -46,3 +46,94 @@ export function totalPriceRub(plan: PlanInfo, sites: number): number {
 export function basePriceRub(plan: PlanInfo, sites: number): number {
   return PRICE_PER_SITE_RUB * plan.months * sites;
 }
+
+// ------------------------------- Тарифы за проект -------------------------------
+// Тарификация теперь идёт за проект (а не за сайт мониторинга): три уровня, в каждый
+// входит uptime-мониторинг, логирование с суточной квотой по числу сессий и алертинг.
+// Скидки за длительный период переиспользуются из BILLING_PLANS.
+
+export type TierId = "T300" | "T1000" | "T3000";
+
+export type TierInfo = {
+  id: TierId;
+  /** Цена за месяц, ₽. */
+  monthlyRub: number;
+  /** Название тарифа для интерфейса. */
+  name: string;
+  /** Суточная квота на число пользовательских сессий. */
+  sessionsPerDay: number;
+  /** Сколько суток хранятся логи. */
+  retentionDays: number;
+  /** Короткое человекочитаемое описание квоты сессий. */
+  sessionsLabel: string;
+  /** Список того, что входит в тариф (для карточек цен). */
+  features: string[];
+};
+
+export const TIERS: TierInfo[] = [
+  {
+    id: "T300",
+    monthlyRub: 300,
+    name: "Старт",
+    sessionsPerDay: 1000,
+    retentionDays: 1,
+    sessionsLabel: "до 1000 сессий в сутки",
+    features: [
+      "Uptime-мониторинг",
+      "Логирование фронт-ошибок и сессий",
+      "до 1000 сессий в сутки",
+      "Хранение логов 1 сутки",
+      "Алертинг",
+    ],
+  },
+  {
+    id: "T1000",
+    monthlyRub: 1000,
+    name: "Про",
+    sessionsPerDay: 5000,
+    retentionDays: 3,
+    sessionsLabel: "до 5000 сессий в сутки",
+    features: [
+      "Uptime-мониторинг",
+      "Логирование фронт-ошибок и сессий",
+      "до 5000 сессий в сутки",
+      "Хранение логов 3 суток",
+      "Алерты",
+    ],
+  },
+  {
+    id: "T3000",
+    monthlyRub: 3000,
+    name: "Бизнес",
+    sessionsPerDay: 10000,
+    retentionDays: 3,
+    sessionsLabel: "до 10 000 сессий в сутки",
+    features: [
+      "Uptime-мониторинг",
+      "Логирование фронт-ошибок и сессий",
+      "до 10 000 сессий в сутки",
+      "Хранение логов 3 суток",
+      "AI-анализ ошибок",
+      "Алерты",
+      "Приоритетная поддержка",
+    ],
+  },
+];
+
+export function getTier(id: string | null | undefined): TierInfo | undefined {
+  return TIERS.find((t) => t.id === id);
+}
+
+/**
+ * Цена тарифа за весь период (со скидкой за длительность), ₽.
+ * Скидка берётся из BILLING_PLANS (1м — 0%, 3м — −10%, год — −20%),
+ * так же как в perSitePriceRub, чтобы позиция чека делилась ровно.
+ */
+export function tierPriceRub(tier: TierInfo, plan: PlanInfo): number {
+  return Math.round(tier.monthlyRub * plan.months * (1 - plan.discountPercent / 100));
+}
+
+/** Цена тарифа за период без скидки (для зачёркнутой цены), ₽. */
+export function tierBasePriceRub(tier: TierInfo, plan: PlanInfo): number {
+  return tier.monthlyRub * plan.months;
+}

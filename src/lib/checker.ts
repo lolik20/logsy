@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
 import { sendTelegramMessage } from "@/lib/telegram";
-import { isServiceActive } from "@/lib/subscription";
+import { isProjectServiceActive } from "@/lib/subscription";
 import { runDueProjectSslChecks } from "@/lib/ssl-checker";
+import { runDueProjectDomainChecks } from "@/lib/domain-checker";
 import { runDueSubscriptionExpiryChecks } from "@/lib/subscription-expiry";
 
 export const INTERVAL_MS: Record<string, number> = {
@@ -337,22 +338,23 @@ export async function runDueChecks(): Promise<number> {
     where: { isActive: true },
     include: {
       project: {
-        select: { user: { select: { role: true, subscription: true } } },
+        select: {
+          billingStatus: true,
+          currentPeriodEnd: true,
+          trialEndsAt: true,
+          user: { select: { role: true } },
+        },
       },
     },
   });
 
   const now = new Date();
-  // Проверяем только мониторы пользователей с активной подпиской (или идущим
-  // пробным периодом). Истёк триал / нет оплаты — мониторинг останавливается.
+  // Проверяем только мониторы проектов с активным тарифом (или идущим пробным
+  // периодом). Истёк триал / нет оплаты — мониторинг проекта останавливается.
   const due = monitors.filter(
     (m) =>
       isDue(m) &&
-      isServiceActive(
-        m.project.user.subscription,
-        m.project.user.role === "ADMIN",
-        now,
-      ),
+      isProjectServiceActive(m.project, m.project.user.role === "ADMIN", now),
   );
   await Promise.all(due.map((m) => checkMonitor(m).catch((e) => console.error(e))));
 
@@ -360,6 +362,12 @@ export async function runDueChecks(): Promise<number> {
   // включена проверка и активна подписка).
   await runDueProjectSslChecks(now).catch((e) =>
     console.error("[Logsy] Ошибка проверки SSL проектов:", e),
+  );
+
+  // А также сроки регистрации доменов проектов (RDAP/WHOIS): предупреждаем,
+  // пока домен не сняли с делегирования из-за неоплаченной регистрации.
+  await runDueProjectDomainChecks(now).catch((e) =>
+    console.error("[Logsy] Ошибка проверки регистрации доменов:", e),
   );
 
   // И напоминаем пользователям, у кого подписка истекает менее чем через сутки.

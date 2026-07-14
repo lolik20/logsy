@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getUserId, isAdmin } from "@/lib/session";
-import {
-  isSubscriptionActive,
-  isServiceActive,
-  resolveSitesLimit,
-} from "@/lib/subscription";
+import { getUserId } from "@/lib/session";
+import { trialEndFrom } from "@/lib/subscription";
 
 const schema = z.object({
   name: z.string().min(1, "Укажите название").max(120),
@@ -25,65 +22,57 @@ export async function POST(req: Request) {
     );
   }
 
-  const admin = await isAdmin();
-  const sub = await prisma.subscription.findUnique({ where: { userId } });
-
-  // Пробный период истёк или подписка не оплачена — новые сайты недоступны.
-  // Администратор не ограничен подпиской.
-  if (!isServiceActive(sub, admin)) {
-    return NextResponse.json(
-      {
-        error:
-          "Бесплатный период закончился или подписка не активна. " +
-          "Оформите подписку в разделе «Тарифы», чтобы продолжить.",
-      },
-      { status: 402 },
-    );
-  }
-
-  // Проверка лимита тарифа: количество сайтов не больше sitesLimit.
-  // Для администратора лимит безлимитный (Infinity), поэтому проверка не сработает.
-  const limit = resolveSitesLimit(sub, admin);
-  const count = await prisma.project.count({ where: { userId } });
-  if (count >= limit) {
-    return NextResponse.json(
-      {
-        error: `Достигнут лимит тарифа (${limit} сайт(ов)). Оформите подписку в разделе «Тарифы».`,
-      },
-      { status: 402 },
-    );
-  }
-
   const domain = parsed.data.domain.trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
 
-  // Антифрод по домену: если такой сайт уже мониторит другой аккаунт, добавить
-  // его можно только на платном тарифе (после оплаты). Так один и тот же домен
-  // нельзя бесплатно «размножать» по разным аккаунтам с пробным периодом.
-  // Администратору доступен любой домен без ограничений антифрода.
-  const paid = admin || (sub?.plan === "PAID" && isSubscriptionActive(sub));
-  if (!paid) {
-    const takenByOther = await prisma.project.findFirst({
-      where: {
-        domain: { equals: domain, mode: "insensitive" },
-        userId: { not: userId },
-      },
-      select: { id: true },
-    });
-    if (takenByOther) {
-      return NextResponse.json(
-        {
-          error:
-            "Этот домен уже отслеживается на другом аккаунте. Добавить его " +
-            "можно только на платном тарифе — оформите подписку в разделе «Тарифы».",
-        },
-        { status: 402 },
-      );
-    }
+  // Домен уникален глобально: по нему сервис логирования определяет проект по Origin.
+  // Если такой домен уже заведён (в любом аккаунте) — создать нельзя.
+  const taken = await prisma.project.findFirst({
+    where: { domain: { equals: domain, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (taken) {
+    return NextResponse.json(
+      { error: "Этот домен уже используется в другом проекте." },
+      { status: 409 },
+    );
   }
 
-  const project = await prisma.project.create({
-    data: { userId, name: parsed.data.name.trim(), domain },
-  });
-
-  return NextResponse.json({ project });
+  // Новый проект получает собственный пробный период (тарификация — за проект).
+  try {
+    const project = await prisma.project.create({
+      data: {
+        userId,
+        name: parsed.data.name.trim(),
+        domain,
+        billingStatus: "TRIAL",
+        trialEndsAt: trialEndFrom(),
+      },
+    });
+    return NextResponse.json({ project });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError) {
+      // Гонка по уникальному домену.
+      if (e.code === "P2002") {
+        return NextResponse.json(
+          { error: "Этот домен уже используется в другом проекте." },
+          { status: 409 },
+        );
+      }
+      // FK на userId: пользователя из сессии нет в БД (например, база была
+      // пересоздана, а cookie-сессия осталась от старого аккаунта).
+      if (e.code === "P2003") {
+        return NextResponse.json(
+          { error: "Аккаунт не найден. Выйдите и войдите заново." },
+          { status: 401 },
+        );
+      }
+    }
+    // Любая другая непредвиденная ошибка — отдаём текст в JSON, чтобы панель его показала.
+    console.error("POST /api/projects failed:", e);
+    const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+    return NextResponse.json(
+      { error: `Не удалось создать проект: ${message}` },
+      { status: 500 },
+    );
+  }
 }
