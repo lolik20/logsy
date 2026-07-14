@@ -2,18 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { KIND_LABEL, URL_MODE_LABEL, type ExceptionKind, type UrlMode } from "@/lib/exceptions";
 
 export type ProjectException = {
   id: string;
-  type: string;
-  endpoint: string;
-};
-
-const TYPE_LABEL: Record<string, string> = {
-  ERROR: "JS-ошибка",
-  UNHANDLED_REJECTION: "Promise reject",
-  HTTP_ERROR: "Ошибка запроса",
-  SLOW_REQUEST: "Медленный запрос",
+  kind: string;
+  urlMode: string;
+  url: string;
 };
 
 /**
@@ -49,7 +44,7 @@ export function ProjectExceptions({ exceptions }: { exceptions: ProjectException
           Исключения ({exceptions.length})
         </summary>
         <p className="mt-1 text-xs text-slate-400">
-          События такого типа на этом endpoint не сохраняются во всём проекте.
+          События, подходящие под правило, не сохраняются во всём проекте.
           «Вернуть» — снова начать их записывать.
         </p>
         <ul className="mt-3 space-y-2">
@@ -60,10 +55,13 @@ export function ProjectExceptions({ exceptions }: { exceptions: ProjectException
             >
               <div className="min-w-0">
                 <span className="mr-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-800">
-                  {TYPE_LABEL[e.type] ?? e.type}
+                  {KIND_LABEL[e.kind as ExceptionKind] ?? e.kind}
+                </span>
+                <span className="mr-1 text-xs text-slate-400">
+                  URL {URL_MODE_LABEL[e.urlMode as UrlMode] ?? e.urlMode}
                 </span>
                 <span className="break-all font-mono text-xs text-slate-600 dark:text-slate-300">
-                  {e.endpoint}
+                  {e.url}
                 </span>
               </div>
               <button

@@ -215,23 +215,27 @@ model LogEvent {
   @@index([sessionId, createdAt])
 }
 
-// Исключения (игнор-лист) сервиса логирования. Каждое правило — сигнатура события
-// (тип + сообщение + маршрут), которую проект попросил не сохранять. Создаётся из
-// карточки события кнопкой «В исключения». При приёме батча события с совпадающей
-// сигнатурой отбрасываются (см. exceptionSignature в src/lib/logging.ts).
+// Исключения (игнор-лист) сервиса логирования. Каждое правило описывается двумя
+// условиями, которые пользователь задаёт в модалке «В исключения»: категорией события
+// (медленный запрос / ошибка) и условием по URL (содержит / равно). При приёме батча
+// события, подходящие под правило, отбрасываются (см. matchesException в
+// src/lib/exceptions.ts и фильтр в /api/logger/ingest).
 model LogException {
   id        String   @id @default(cuid())
   projectId String
-  // Тип события: ERROR | UNHANDLED_REJECTION | SLOW_REQUEST | HTTP_ERROR.
-  type      String
-  // Endpoint (путь запроса без query-строки), который проект попросил игнорировать.
-  // События с таким типом и endpoint не сохраняются (фильтр в /api/logger/ingest).
-  endpoint  String
+  // Категория события: SLOW_REQUEST (медленный запрос) | ERROR (ошибка — объединяет
+  // ERROR, UNHANDLED_REJECTION и HTTP_ERROR).
+  kind      String
+  // Режим сопоставления URL: CONTAINS (содержит подстроку) | EQUALS (совпадает).
+  urlMode   String
+  // Строка URL для сопоставления. Для EQUALS сравнивается с endpoint события (путь без
+  // query), для CONTAINS ищется как подстрока в URL запроса/страницы события.
+  url       String
   createdAt DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@unique([projectId, type, endpoint])
+  @@unique([projectId, kind, urlMode, url])
   @@index([projectId])
 }
 
