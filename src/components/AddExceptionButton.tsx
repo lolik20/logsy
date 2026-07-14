@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 /**
- * Кнопка «В исключения» напротив события лога. Добавляет сигнатуру события в игнор-лист
- * проекта (POST /api/logger/exceptions) — будущие такие же события не сохраняются.
- * Повторный клик снимает правило (DELETE). Уже сохранённые события не удаляются.
+ * Кнопка «В исключения» напротив события лога. Добавляет сигнатуру события (тип +
+ * сообщение + маршрут) в игнор-лист проекта — новые такие события перестают
+ * сохраняться во всём проекте. Уже записанные события остаются. Повторный клик
+ * снимает правило.
  */
 export function AddExceptionButton({
   eventId,
@@ -21,9 +22,8 @@ export function AddExceptionButton({
 
   async function toggle() {
     setLoading(true);
-    const method = excluded ? "DELETE" : "POST";
     const res = await fetch("/api/logger/exceptions", {
-      method,
+      method: excluded ? "DELETE" : "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ eventId }),
     });
@@ -43,7 +43,7 @@ export function AddExceptionButton({
       title={
         excluded
           ? "Такие события снова будут сохраняться"
-          : "Больше не сохранять такие события"
+          : "Больше не сохранять такие события во всём проекте"
       }
       className={`whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-medium disabled:opacity-60 ${
         excluded

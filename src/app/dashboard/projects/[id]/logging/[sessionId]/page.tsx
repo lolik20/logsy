@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
-import { exceptionSignature } from "@/lib/logging";
+import { endpointOf, exceptionKey } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +12,10 @@ const TYPE_LABEL: Record<string, string> = {
   UNHANDLED_REJECTION: "Promise reject",
   HTTP_ERROR: "Ошибка запроса",
   SLOW_REQUEST: "Медленный запрос",
+  SESSION_START: "Начало сессии",
+  NAVIGATION: "Переход",
+  CLICK: "Клик",
+  INPUT: "Ввод",
 };
 
 const TYPE_TONE: Record<string, string> = {
@@ -19,6 +23,10 @@ const TYPE_TONE: Record<string, string> = {
   UNHANDLED_REJECTION: "text-red-600",
   HTTP_ERROR: "text-orange-600",
   SLOW_REQUEST: "text-amber-600",
+  SESSION_START: "text-emerald-600",
+  NAVIGATION: "text-blue-600",
+  CLICK: "text-slate-600 dark:text-slate-300",
+  INPUT: "text-slate-600 dark:text-slate-300",
 };
 
 export default async function SessionPage({
@@ -49,12 +57,12 @@ export default async function SessionPage({
     ["ERROR", "UNHANDLED_REJECTION", "HTTP_ERROR"].includes(e.type),
   ).length;
 
-  // Игнор-лист проекта — чтобы показать, какие события уже добавлены в исключения.
+  // Активные правила-исключения проекта — чтобы отметить уже исключённые события.
   const exceptions = await prisma.logException.findMany({
     where: { projectId: session.projectId },
-    select: { type: true, message: true, route: true },
+    select: { type: true, endpoint: true },
   });
-  const blocked = new Set(exceptions.map(exceptionSignature));
+  const blocked = new Set(exceptions.map(exceptionKey));
 
   return (
     <div>
@@ -133,7 +141,7 @@ export default async function SessionPage({
                   {e.durationMs != null ? `${e.durationMs} мс` : "—"}
                 </td>
                 <td className="px-4 py-2">
-                  {e.stack || e.reqBody || e.query || (e.route && e.message) ? (
+                  {e.stack || e.reqBody || e.resBody || e.query || (e.route && e.message) ? (
                     <details>
                       <summary className="cursor-pointer text-brand">Показать</summary>
                       {e.message && (
@@ -170,6 +178,16 @@ export default async function SessionPage({
                           </pre>
                         </div>
                       )}
+                      {e.resBody && (
+                        <div className="mt-2">
+                          <div className="text-xs font-medium text-slate-500">
+                            Ответ сервера
+                          </div>
+                          <pre className="mt-1 overflow-x-auto rounded bg-slate-50 p-2 text-xs dark:bg-slate-800">
+                            {e.resBody}
+                          </pre>
+                        </div>
+                      )}
                       {e.stack && (
                         <div className="mt-2">
                           <div className="text-xs font-medium text-slate-500">Стек</div>
@@ -184,10 +202,16 @@ export default async function SessionPage({
                   )}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <AddExceptionButton
-                    eventId={e.id}
-                    excluded={blocked.has(exceptionSignature(e))}
-                  />
+                  {endpointOf(e.route) ? (
+                    <AddExceptionButton
+                      eventId={e.id}
+                      excluded={blocked.has(
+                        exceptionKey({ type: e.type, endpoint: endpointOf(e.route)! }),
+                      )}
+                    />
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
                 </td>
               </tr>
             ))}

@@ -39,17 +39,20 @@ export function truncate(value: string | null | undefined, max = MAX_TEXT_CHARS)
 }
 
 /**
- * Сигнатура события для сопоставления с правилами-исключениями: тип + сообщение + маршрут.
- * Правило-исключение хранит уже усечённые значения (создаётся из сохранённого события),
- * поэтому при приёме батча сигнатуру считаем от таких же усечённых полей — тогда
- * совпадение точное. Разделитель \u0000 (NUL) не встречается в текстовых полях.
+ * Endpoint события — путь запроса без query-строки и хэша. Правила-исключения работают
+ * по паре (тип + endpoint): игнорируется весь endpoint, а не запрос с конкретными
+ * параметрами. Для событий без маршрута (например, JS-ошибок) возвращает null —
+ * такие события исключить нельзя.
  */
-export function exceptionSignature(e: {
-  type: string;
-  message?: string | null;
-  route?: string | null;
-}): string {
-  return `${e.type}\u0000${e.message ?? ""}\u0000${e.route ?? ""}`;
+export function endpointOf(route: string | null | undefined): string | null {
+  if (!route) return null;
+  const ep = route.split(/[?#]/)[0].trim();
+  return ep || null;
+}
+
+/** Ключ правила-исключения: тип события + endpoint. Разделитель NUL не встречается в тексте. */
+export function exceptionKey(e: { type: string; endpoint: string }): string {
+  return `${e.type}\u0000${e.endpoint}`;
 }
 
 // Признаки автоматического клиента (краулеры, превью-боты, headless-браузеры,

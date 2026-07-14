@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
-import { accountUsage, truncate, exceptionSignature, isBotUserAgent, MAX_BODY_CHARS } from "@/lib/logging";
+import { accountUsage, truncate, endpointOf, exceptionKey, isBotUserAgent, MAX_BODY_CHARS } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,16 @@ export const dynamic = "force-dynamic";
 const MAX_EVENTS_PER_BATCH = 50;
 
 const eventSchema = z.object({
-  type: z.enum(["ERROR", "UNHANDLED_REJECTION", "SLOW_REQUEST", "HTTP_ERROR"]),
+  type: z.enum([
+    "ERROR",
+    "UNHANDLED_REJECTION",
+    "SLOW_REQUEST",
+    "HTTP_ERROR",
+    "SESSION_START",
+    "NAVIGATION",
+    "CLICK",
+    "INPUT",
+  ]),
   message: z.string().max(4000).optional().nullable(),
   stack: z.string().max(8000).optional().nullable(),
   url: z.string().max(2000).optional().nullable(),
@@ -31,6 +40,7 @@ const eventSchema = z.object({
   statusCode: z.number().int().optional().nullable(),
   durationMs: z.number().int().optional().nullable(),
   reqBody: z.string().max(8000).optional().nullable(),
+  resBody: z.string().max(8000).optional().nullable(),
   ts: z.number().int().optional().nullable(),
 });
 
@@ -139,14 +149,13 @@ export async function POST(req: Request) {
     select: { id: true },
   });
 
-  // Игнор-лист проекта: события с совпадающей сигнатурой (тип+сообщение+маршрут)
-  // не сохраняем. Сигнатуру считаем от усечённых значений — так же, как хранится
-  // правило (оно создаётся из уже сохранённого, усечённого события).
+  // Игнор-лист проекта: события с совпадающей парой (тип + endpoint) не сохраняем.
+  // Endpoint — путь запроса без query-строки; события без маршрута исключить нельзя.
   const exceptions = await prisma.logException.findMany({
     where: { projectId: project.id },
-    select: { type: true, message: true, route: true },
+    select: { type: true, endpoint: true },
   });
-  const blocked = new Set(exceptions.map(exceptionSignature));
+  const blocked = new Set(exceptions.map(exceptionKey));
 
   const rows = events
     .map((e) => ({
@@ -162,9 +171,13 @@ export async function POST(req: Request) {
       statusCode: e.statusCode ?? null,
       durationMs: e.durationMs ?? null,
       reqBody: truncate(e.reqBody, MAX_BODY_CHARS),
+      resBody: truncate(e.resBody, MAX_BODY_CHARS),
       createdAt: e.ts ? new Date(e.ts) : undefined,
     }))
-    .filter((row) => !blocked.has(exceptionSignature(row)));
+    .filter((row) => {
+      const endpoint = endpointOf(row.route);
+      return !(endpoint && blocked.has(exceptionKey({ type: row.type, endpoint })));
+    });
 
   if (rows.length) {
     await prisma.logEvent.createMany({ data: rows });

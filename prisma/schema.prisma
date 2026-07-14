@@ -205,6 +205,7 @@ model LogEvent {
   statusCode Int?
   durationMs Int?
   reqBody    String?  // тело запроса / payload (усечено)
+  resBody    String?  // тело ответа сервера (усечено; только для ошибок запросов)
   meta       String?  // произвольный JSON (расширяемость; hook под запись экрана)
   createdAt  DateTime @default(now())
 
@@ -223,14 +224,14 @@ model LogException {
   projectId String
   // Тип события: ERROR | UNHANDLED_REJECTION | SLOW_REQUEST | HTTP_ERROR.
   type      String
-  // Сообщение события (для JS-ошибок), либо null.
-  message   String?
-  // Маршрут сетевого запроса (для HTTP/медленных запросов), либо null.
-  route     String?
+  // Endpoint (путь запроса без query-строки), который проект попросил игнорировать.
+  // События с таким типом и endpoint не сохраняются (фильтр в /api/logger/ingest).
+  endpoint  String
   createdAt DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@unique([projectId, type, endpoint])
   @@index([projectId])
 }
 
