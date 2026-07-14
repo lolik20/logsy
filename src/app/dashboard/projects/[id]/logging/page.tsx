@@ -59,16 +59,21 @@ export default async function LoggingPage({
     include: { _count: { select: { events: true } } },
   });
 
-  // Число «ошибочных» событий на каждую сессию (для колонки «Ошибки»).
+  // Число «ошибочных» и «медленных» событий на каждую сессию — для индикаторов в карточке.
   const ids = sessions.map((s) => s.id);
-  const errorGroups = ids.length
+  const typeGroups = ids.length
     ? await prisma.logEvent.groupBy({
-        by: ["sessionId"],
-        where: { sessionId: { in: ids }, type: { in: ERROR_TYPES } },
+        by: ["sessionId", "type"],
+        where: { sessionId: { in: ids }, type: { in: [...ERROR_TYPES, "SLOW_REQUEST"] } },
         _count: { _all: true },
       })
     : [];
-  const errorCount = new Map(errorGroups.map((g) => [g.sessionId, g._count._all]));
+  const errorCount = new Map<string, number>();
+  const slowCount = new Map<string, number>();
+  for (const g of typeGroups) {
+    const target = g.type === "SLOW_REQUEST" ? slowCount : errorCount;
+    target.set(g.sessionId, (target.get(g.sessionId) ?? 0) + g._count._all);
+  }
 
   // Группируем сессии по IP пользователя. Сессии уже отсортированы по времени убыв.,
   // поэтому группы идут в порядке появления самой свежей сессии.
@@ -86,6 +91,7 @@ export default async function LoggingPage({
     // Сессии отсортированы по времени убыв. — берём начало самой свежей сессии IP.
     startedAt: list[0].startedAt,
     errors: list.reduce((n, s) => n + (errorCount.get(s.id) ?? 0), 0),
+    slow: list.reduce((n, s) => n + (slowCount.get(s.id) ?? 0), 0),
   }));
 
   // Фильтр «с ошибками»: при ?errors=1 показываем только группы, где были ошибки.
@@ -167,21 +173,25 @@ export default async function LoggingPage({
               href={`/dashboard/projects/${project.id}/logging/combined?ip=${encodeURIComponent(g.ip)}&date=${dateStr}`}
               className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-brand hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/50"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-slate-500">
+                  {new Date(g.startedAt).toLocaleTimeString("ru-RU")}
+                </span>
                 <span className="text-xs uppercase tracking-wide text-slate-400">IP</span>
                 <span className="font-mono text-sm font-semibold">{g.ip}</span>
               </div>
-              <div className="flex items-center gap-4 text-sm">
-                <span className="text-slate-500">
-                  {new Date(g.startedAt).toLocaleTimeString("ru-RU")}
-                </span>
-                {g.errors > 0 ? (
-                  <span className="flex items-center gap-1.5 font-semibold text-red-600">
+              <div className="flex items-center gap-3 text-sm font-semibold">
+                {g.errors > 0 && (
+                  <span className="flex items-center gap-1.5 text-red-600">
                     <span className="h-2 w-2 rounded-full bg-red-600" />
                     {g.errors}
                   </span>
-                ) : (
-                  <span className="text-slate-400">нет ошибок</span>
+                )}
+                {g.slow > 0 && (
+                  <span className="flex items-center gap-1.5 text-amber-500">
+                    <span className="h-2 w-2 rounded-full bg-amber-400" />
+                    {g.slow}
+                  </span>
                 )}
               </div>
             </Link>
