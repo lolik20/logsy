@@ -226,7 +226,7 @@ function SidebarContent({
       <BalanceStatus subscription={subscription} />
 
       <a
-        href="https://t.me/tritex_manager"
+        href="https://telegram.me/tritex_manager"
         target="_blank"
         rel="noopener noreferrer"
         className="mx-3 mb-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
