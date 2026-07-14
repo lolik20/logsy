@@ -27,10 +27,21 @@ const SDK = `(function(){
     // Оригинальный fetch — сохраняем до обёртки, чтобы IP-запрос не логировался.
     var _origFetch = window.fetch ? window.fetch.bind(window) : null;
 
-    var SLOW_MS = 500;       // порог «медленного» запроса
+    var SLOW_MS = 1000;      // порог «медленного» запроса (мс)
     var FLUSH_MS = 10000;    // интервал отправки батча
     var MAX_BODY = 2000;     // предел размера тела запроса
     var MAX_BUFFER = 50;     // предел числа событий в батче
+
+    // Порог «медленного» запроса можно переопределить прямо на теге скрипта:
+    //   <script src=".../api/logger/sdk" data-slow-ms="2000" async></script>
+    // Так каждый сайт задаёт свой порог, а сам скрипт остаётся общим и кэшируемым.
+    try {
+      var slowAttr = (self && self.getAttribute) ? self.getAttribute("data-slow-ms") : null;
+      if (slowAttr != null && slowAttr !== "") {
+        var slowNum = parseInt(slowAttr, 10);
+        if (!isNaN(slowNum) && slowNum >= 0) SLOW_MS = slowNum;
+      }
+    } catch (e) {}
 
     // Идентификатор пользователя: один на браузер (localStorage), поэтому все
     // события пользователя группируются в ОДНУ сессию — и между вкладками, и
@@ -172,7 +183,7 @@ const SDK = `(function(){
       });
     });
 
-    // Решает, надо ли отправить сетевое событие: ошибка бэкенда (>=400) или медленный (>500мс).
+    // Решает, надо ли отправить сетевое событие: ошибка бэкенда (>=400) или медленный (> SLOW_MS).
     // resBody — тело ответа сервера (только для ошибок), чтобы в логе был не просто код,
     // а реальный текст ответа бэкенда.
     function record(method, url, status, durationMs, reqBody, failed, resBody) {

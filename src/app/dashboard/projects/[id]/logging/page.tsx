@@ -165,9 +165,12 @@ export default async function LoggingPage({
           {snippet}
         </pre>
         <p className="mt-2 text-xs text-slate-400">
-          Скрипт ловит JS-ошибки, упавшие и медленные (&gt;500 мс) запросы,
-          группирует их в сессии и отправляет батчами раз в 10 секунд. Логи
-          хранятся {retentionDays(project.tier)}{" "}
+          Скрипт ловит JS-ошибки, упавшие и медленные (&gt;1000 мс) запросы,
+          группирует их в сессии и отправляет батчами раз в 10 секунд. Порог
+          «медленного» запроса можно изменить атрибутом{" "}
+          <code className="font-mono">data-slow-ms</code> на теге скрипта
+          (например <span className="font-mono">data-slow-ms=&quot;2000&quot;</span>).
+          Логи хранятся {retentionDays(project.tier)}{" "}
           {retentionDays(project.tier) === 1 ? "сутки" : "суток"}.
         </p>
       </details>
