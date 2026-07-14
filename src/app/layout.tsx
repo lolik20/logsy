@@ -25,6 +25,10 @@ export default function RootLayout({
     <html lang="ru" className={inter.variable}>
       <body className="font-sans">
         <Providers>{children}</Providers>
+        {/* Logsy self-logging SDK — сервис логирует сам себя.
+            Проект определяется по Origin запроса, поэтому домен Logsy
+            должен быть заведён как проект в самом сервисе. */}
+        <Script src="/api/logger/sdk" strategy="afterInteractive" />
         {/* Yandex.Metrika counter */}
         <Script id="yandex-metrika" strategy="afterInteractive">
           {`
