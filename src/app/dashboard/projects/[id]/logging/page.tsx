@@ -167,21 +167,19 @@ export default async function LoggingPage({
               href={`/dashboard/projects/${project.id}/logging/combined?ip=${encodeURIComponent(g.ip)}&date=${dateStr}`}
               className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-brand hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/50"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-slate-500">
+                  {new Date(g.startedAt).toLocaleTimeString("ru-RU")}
+                </span>
                 <span className="text-xs uppercase tracking-wide text-slate-400">IP</span>
                 <span className="font-mono text-sm font-semibold">{g.ip}</span>
               </div>
-              <div className="flex items-center gap-4 text-sm">
-                <span className="text-slate-500">
-                  {new Date(g.startedAt).toLocaleTimeString("ru-RU")}
+              {g.errors > 0 && (
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-red-600">
+                  <span className="h-2 w-2 rounded-full bg-red-600" />
+                  {g.errors}
                 </span>
-                {g.errors > 0 && (
-                  <span className="flex items-center gap-1.5 font-semibold text-red-600">
-                    <span className="h-2 w-2 rounded-full bg-red-600" />
-                    {g.errors}
-                  </span>
-                )}
-              </div>
+              )}
             </Link>
           ))}
         </div>
