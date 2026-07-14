@@ -64,8 +64,8 @@ export default async function ProjectTariffPage({
         />
         <Card label="Тариф" value={tierLabel} />
         <Card
-          label="Логи в день"
-          value={tier ? tier.logsLabel.replace("до ", "") : "100 МБ (триал)"}
+          label="Сессий в сутки"
+          value={tier ? tier.sessionsLabel.replace("до ", "") : "1000 (триал)"}
         />
       </div>
 

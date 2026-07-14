@@ -406,7 +406,7 @@ export default async function LandingPage() {
                     <span className="text-4xl font-extrabold">{t.monthlyRub} ₽</span>
                     <span className="text-slate-500">/ проект в месяц</span>
                   </div>
-                  <div className="mt-2 text-sm font-medium text-slate-500">{t.logsLabel}</div>
+                  <div className="mt-2 text-sm font-medium text-slate-500">{t.sessionsLabel}</div>
 
                   <ul className="mt-5 flex-1 space-y-2.5 text-sm">
                     {t.features.map((item) => (

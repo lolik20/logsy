@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
-import { accountUsage, truncate, endpointOf, exceptionKey, isBotUserAgent, MAX_BODY_CHARS } from "@/lib/logging";
+import { accountNewSession, truncate, endpointOf, exceptionKey, isBotUserAgent, MAX_BODY_CHARS } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
 
@@ -102,7 +102,6 @@ export async function POST(req: Request) {
   const headers = corsHeaders(origin);
 
   const raw = await req.text();
-  const bytes = Buffer.byteLength(raw);
 
   let json: unknown;
   try {
@@ -124,17 +123,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ stored: false, reason: "bot" }, { status: 200, headers });
   }
 
-  // Квота тарифа: учитываем принятый объём за сутки. При превышении — не пишем,
-  // но отвечаем 200, чтобы SDK не устраивал шторм ретраев.
-  const usage = await accountUsage(project.id, project.tier, bytes);
-  if (usage.overQuota) {
-    return NextResponse.json({ stored: false, reason: "quota" }, { status: 200, headers });
-  }
-
   const { sessionKey, userAgent, ip, events } = parsed.data;
   // IP от скрипта (публичный, через сторонний сервис) приоритетнее заголовков;
   // если его нет — берём из X-Forwarded-For / X-Real-IP.
   const resolvedIp = truncate(ip, 64) ?? getClientIp(req);
+
+  // Квота тарифа считается по числу пользовательских сессий за сутки. Расходует квоту
+  // только НОВАЯ сессия (существующая, начатая ранее, уже учтена и продолжает писаться).
+  const existing = await prisma.logSession.findUnique({
+    where: { projectId_sessionKey: { projectId: project.id, sessionKey } },
+    select: { id: true },
+  });
+  if (!existing) {
+    const usage = await accountNewSession(project.id, project.tier);
+    if (usage.overQuota) {
+      // Квота исчерпана — новую сессию не создаём. Отвечаем 200, чтобы SDK не ретраил.
+      return NextResponse.json({ stored: false, reason: "quota" }, { status: 200, headers });
+    }
+  }
 
   // Апсертим сессию (обновляем lastSeenAt и IP), затем пишем события пачкой.
   const session = await prisma.logSession.upsert({
