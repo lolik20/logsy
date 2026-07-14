@@ -177,7 +177,10 @@ export default async function LoggingPage({
       <DepartureAnalytics departures={departures} projectId={project.id} />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Сессии пользователей</h2>
+        <h2 className="text-lg font-semibold">
+          Сессии пользователей
+          <span className="ml-2 text-slate-400">{ipGroups.length}</span>
+        </h2>
         <div className="flex flex-wrap items-center gap-3">
           <LogErrorFilter />
           <LogDateFilter value={dateStr} />

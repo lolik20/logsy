@@ -34,14 +34,12 @@ export function DepartureAnalytics({
   // Группировки для топов.
   const exitPages = new Map<string, number>();
   const lastActions = new Map<string, number>();
-  const chains = new Map<string, number>();
 
   for (const d of departures) {
     bump(exitPages, d.exitPage);
     if (d.actions.length) {
       // Последнее (ближайшее к уходу) действие — самое информативное.
       bump(lastActions, normalizeActionLabel(d.actions[d.actions.length - 1]));
-      bump(chains, d.actions.map(normalizeActionLabel).join(" → "));
     }
   }
 
@@ -64,13 +62,12 @@ export function DepartureAnalytics({
         </p>
       ) : (
         <>
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-3">
             <Stat label="Уходов" value={String(total)} />
             <Stat label="Страниц ухода" value={String(exitPages.size)} />
-            <Stat label="С действиями" value={String(withActions)} />
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
             <TopList
               title="Страницы ухода"
               entries={topEntries(exitPages)}
@@ -80,11 +77,6 @@ export function DepartureAnalytics({
             <TopList
               title="Последнее действие"
               entries={topEntries(lastActions)}
-              total={withActions}
-            />
-            <TopList
-              title="Цепочки действий"
-              entries={topEntries(chains)}
               total={withActions}
             />
           </div>
