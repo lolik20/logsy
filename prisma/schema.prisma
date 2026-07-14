@@ -179,6 +179,13 @@ model LogSession {
   sessionKey String
   userAgent  String?
   ip         String?
+  // Метки перехода, зафиксированные при старте сессии: UTM-параметры (utm_source,
+  // utm_medium, utm_campaign, utm_term, utm_content) и рекламные идентификаторы клика
+  // (yclid/ysclid — Яндекс, gclid — Google, fbclid — Facebook, etext — Яндекс.Директ).
+  // JSON-объект { ключ: значение } из query-строки лендинга. null — прямой/органический
+  // переход без меток. Фиксируется по first-touch: при старте новой сессии, а если её
+  // ещё не было — при первом переходе, принёсшем метки; далее не перезаписывается.
+  utm        String?
   startedAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
 
