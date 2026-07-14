@@ -13,7 +13,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
-import { accountNewSession, truncate, endpointOf, exceptionKey, isBotUserAgent, MAX_BODY_CHARS } from "@/lib/logging";
+import { accountNewSession, truncate, isBotUserAgent, MAX_BODY_CHARS } from "@/lib/logging";
+import { matchesException } from "@/lib/exceptions";
 
 export const dynamic = "force-dynamic";
 
@@ -156,13 +157,12 @@ export async function POST(req: Request) {
     select: { id: true },
   });
 
-  // Игнор-лист проекта: события с совпадающей парой (тип + endpoint) не сохраняем.
-  // Endpoint — путь запроса без query-строки; события без маршрута исключить нельзя.
+  // Игнор-лист проекта: события, подходящие под любое правило-исключение (категория
+  // события + условие по URL), не сохраняем. См. matchesException в src/lib/exceptions.ts.
   const exceptions = await prisma.logException.findMany({
     where: { projectId: project.id },
-    select: { type: true, endpoint: true },
+    select: { kind: true, urlMode: true, url: true },
   });
-  const blocked = new Set(exceptions.map(exceptionKey));
 
   const rows = events
     .map((e) => ({
@@ -181,10 +181,7 @@ export async function POST(req: Request) {
       resBody: truncate(e.resBody, MAX_BODY_CHARS),
       createdAt: e.ts ? new Date(e.ts) : undefined,
     }))
-    .filter((row) => {
-      const endpoint = endpointOf(row.route);
-      return !(endpoint && blocked.has(exceptionKey({ type: row.type, endpoint })));
-    });
+    .filter((row) => !exceptions.some((rule) => matchesException(row, rule)));
 
   if (rows.length) {
     await prisma.logEvent.createMany({ data: rows });

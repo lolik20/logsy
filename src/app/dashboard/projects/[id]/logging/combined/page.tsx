@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
-import { endpointOf, exceptionKey } from "@/lib/logging";
+import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
 
@@ -79,12 +79,11 @@ export default async function CombinedIpPage({
   const uaSet = new Set(sessions.map((s) => s.userAgent ?? ""));
   const commonUa = uaSet.size === 1 ? sessions[0].userAgent : null;
 
-  // Игнор-лист проекта — чтобы показать, какие события уже в исключениях.
+  // Игнор-лист проекта — чтобы показать, какие события уже подходят под правило.
   const exceptions = await prisma.logException.findMany({
     where: { projectId: project.id },
-    select: { type: true, endpoint: true },
+    select: { kind: true, urlMode: true, url: true },
   });
-  const blocked = new Set(exceptions.map(exceptionKey));
 
   return (
     <div>
@@ -234,12 +233,13 @@ export default async function CombinedIpPage({
                   )}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  {endpointOf(e.route) ? (
+                  {eventKind(e.type) && eventUrl(e) ? (
                     <AddExceptionButton
-                      eventId={e.id}
-                      excluded={blocked.has(
-                        exceptionKey({ type: e.type, endpoint: endpointOf(e.route)! }),
-                      )}
+                      projectId={project.id}
+                      eventType={e.type}
+                      route={e.route}
+                      url={e.url}
+                      excluded={exceptions.some((rule) => matchesException(e, rule))}
                     />
                   ) : (
                     <span className="text-slate-300">—</span>
