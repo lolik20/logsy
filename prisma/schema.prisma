@@ -235,12 +235,12 @@ model LogException {
   @@index([projectId])
 }
 
-// Суточный счётчик объёма принятых логов на проект — для контроля квоты тарифа.
+// Суточный счётчик числа новых пользовательских сессий на проект — для контроля квоты тарифа.
 model LogUsage {
   id        String   @id @default(cuid())
   projectId String
   day       DateTime @db.Date
-  bytes     BigInt   @default(0)
+  sessions  Int      @default(0)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 

@@ -6,18 +6,16 @@ import { prisma } from "@/lib/prisma";
 /** Уровни тарифа проекта. */
 export type Tier = "T300" | "T1000" | "T3000";
 
-const MB = 1024 * 1024;
-
-/** Суточная квота на объём принятых логов по тарифу, в байтах. */
-export function dailyQuotaBytes(tier: string | null | undefined): number {
+/** Суточная квота на число новых пользовательских сессий по тарифу. */
+export function dailySessionQuota(tier: string | null | undefined): number {
   switch (tier) {
     case "T3000":
-      return 5 * 1024 * MB; // 5 ГБ
+      return 10000;
     case "T1000":
-      return 1024 * MB; // 1 ГБ
+      return 5000;
     case "T300":
     default:
-      return 100 * MB; // 100 МБ (базовый и триал)
+      return 1000; // базовый и триал
   }
 }
 
@@ -73,24 +71,23 @@ export function startOfDayUtc(now: Date = new Date()): Date {
 }
 
 /**
- * Учесть принятый объём логов за сегодня и вернуть, не превышена ли квота.
+ * Учесть новую пользовательскую сессию за сегодня и вернуть, не превышена ли суточная
+ * квота тарифа по числу сессий. Вызывается только для сессий, которых сегодня ещё не было.
  * Инкремент атомарный (upsert + increment). Возвращает { overQuota } — если true,
- * события за этот батч сохранять не нужно.
+ * сессию и её события сохранять не нужно.
  */
-export async function accountUsage(
+export async function accountNewSession(
   projectId: string,
   tier: string | null | undefined,
-  bytes: number,
   now: Date = new Date(),
-): Promise<{ overQuota: boolean; totalBytes: number }> {
+): Promise<{ overQuota: boolean; totalSessions: number }> {
   const day = startOfDayUtc(now);
   const row = await prisma.logUsage.upsert({
     where: { projectId_day: { projectId, day } },
-    create: { projectId, day, bytes: BigInt(bytes) },
-    update: { bytes: { increment: BigInt(bytes) } },
+    create: { projectId, day, sessions: 1 },
+    update: { sessions: { increment: 1 } },
   });
-  const total = Number(row.bytes);
-  return { overQuota: total > dailyQuotaBytes(tier), totalBytes: total };
+  return { overQuota: row.sessions > dailySessionQuota(tier), totalSessions: row.sessions };
 }
 
 /**
