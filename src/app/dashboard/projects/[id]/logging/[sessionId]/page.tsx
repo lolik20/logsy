@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
-import { endpointOf, exceptionKey } from "@/lib/logging";
+import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
 
@@ -36,12 +36,11 @@ export default async function SessionPage({
     ["ERROR", "UNHANDLED_REJECTION", "HTTP_ERROR"].includes(e.type),
   ).length;
 
-  // Активные правила-исключения проекта — чтобы отметить уже исключённые события.
+  // Активные правила-исключения проекта — чтобы отметить уже подходящие события.
   const exceptions = await prisma.logException.findMany({
     where: { projectId: session.projectId },
-    select: { type: true, endpoint: true },
+    select: { kind: true, urlMode: true, url: true },
   });
-  const blocked = new Set(exceptions.map(exceptionKey));
 
   return (
     <div>
@@ -199,12 +198,13 @@ export default async function SessionPage({
                   )}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  {endpointOf(e.route) ? (
+                  {eventKind(e.type) && eventUrl(e) ? (
                     <AddExceptionButton
-                      eventId={e.id}
-                      excluded={blocked.has(
-                        exceptionKey({ type: e.type, endpoint: endpointOf(e.route)! }),
-                      )}
+                      projectId={session.project.id}
+                      eventType={e.type}
+                      route={e.route}
+                      url={e.url}
+                      excluded={exceptions.some((rule) => matchesException(e, rule))}
                     />
                   ) : (
                     <span className="text-slate-300">—</span>

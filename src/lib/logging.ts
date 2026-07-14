@@ -36,23 +36,6 @@ export function truncate(value: string | null | undefined, max = MAX_TEXT_CHARS)
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
-/**
- * Endpoint события — путь запроса без query-строки и хэша. Правила-исключения работают
- * по паре (тип + endpoint): игнорируется весь endpoint, а не запрос с конкретными
- * параметрами. Для событий без маршрута (например, JS-ошибок) возвращает null —
- * такие события исключить нельзя.
- */
-export function endpointOf(route: string | null | undefined): string | null {
-  if (!route) return null;
-  const ep = route.split(/[?#]/)[0].trim();
-  return ep || null;
-}
-
-/** Ключ правила-исключения: тип события + endpoint. Разделитель NUL не встречается в тексте. */
-export function exceptionKey(e: { type: string; endpoint: string }): string {
-  return `${e.type}\u0000${e.endpoint}`;
-}
-
 // Разрешённый набор меток перехода, которые SDK фиксирует при старте сессии:
 // стандартные UTM-параметры и рекламные идентификаторы клика (Яндекс/Google/Facebook,
 // в т.ч. etext текстовых объявлений Яндекс.Директа). Остальные query-параметры лендинга
