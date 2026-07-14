@@ -4,30 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { endpointOf, exceptionKey } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
+import { EventTypeIcon } from "@/components/EventTypeIcon";
 
 export const dynamic = "force-dynamic";
-
-const TYPE_LABEL: Record<string, string> = {
-  ERROR: "JS-ошибка",
-  UNHANDLED_REJECTION: "Promise reject",
-  HTTP_ERROR: "Ошибка запроса",
-  SLOW_REQUEST: "Медленный запрос",
-  SESSION_START: "Начало сессии",
-  NAVIGATION: "Переход",
-  CLICK: "Клик",
-  INPUT: "Ввод",
-};
-
-const TYPE_TONE: Record<string, string> = {
-  ERROR: "text-red-600",
-  UNHANDLED_REJECTION: "text-red-600",
-  HTTP_ERROR: "text-orange-600",
-  SLOW_REQUEST: "text-amber-600",
-  SESSION_START: "text-emerald-600",
-  NAVIGATION: "text-blue-600",
-  CLICK: "text-slate-600 dark:text-slate-300",
-  INPUT: "text-slate-600 dark:text-slate-300",
-};
 
 export default async function SessionPage({
   params,
@@ -75,8 +54,8 @@ export default async function SessionPage({
 
       <h1 className="mt-2 text-2xl font-bold">Сессия</h1>
       <p className="text-sm text-slate-500">
-        {new Date(session.startedAt).toLocaleString("ru-RU")} —{" "}
-        {new Date(session.lastSeenAt).toLocaleString("ru-RU")}
+        {new Date(session.startedAt).toLocaleTimeString("ru-RU")} —{" "}
+        {new Date(session.lastSeenAt).toLocaleTimeString("ru-RU")}
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -119,8 +98,8 @@ export default async function SessionPage({
                 <td className="px-4 py-2 whitespace-nowrap text-slate-500">
                   {new Date(e.createdAt).toLocaleTimeString("ru-RU")}
                 </td>
-                <td className={`px-4 py-2 whitespace-nowrap font-medium ${TYPE_TONE[e.type] ?? ""}`}>
-                  {TYPE_LABEL[e.type] ?? e.type}
+                <td className="px-4 py-2 whitespace-nowrap">
+                  <EventTypeIcon type={e.type} />
                 </td>
                 <td className="px-4 py-2 max-w-[280px]">
                   {e.route ? (

@@ -328,11 +328,22 @@ const SDK = `(function(){
     }, true);
 
     // ---- Периодическая отправка и флаш при уходе со страницы ----
+    // Перед выходом с сайта фиксируем отказ в сессии (SESSION_END) — один раз, затем
+    // отправляем накопленный батч beacon'ом, чтобы событие точно ушло при закрытии.
+    var _left = false;
+    function leave() {
+      if (_left) return;
+      _left = true;
+      push({ type: "SESSION_END", message: "Выход с сайта: " + location.pathname, url: location.href });
+      flush(true);
+    }
     setInterval(function(){ flush(false); }, FLUSH_MS);
+    // Скрытие вкладки (переключение) — только флашим накопленное, без отметки об уходе.
     document.addEventListener("visibilitychange", function() {
       if (document.visibilityState === "hidden") flush(true);
     });
-    window.addEventListener("pagehide", function(){ flush(true); });
+    // Реальный уход со страницы (закрытие/навигация прочь) — фиксируем отказ в сессии.
+    window.addEventListener("pagehide", leave);
 
     // Seam под запись экрана — реализуем позже.
     window.LOGSY = { _rec: null, flush: function(){ flush(false); } };
