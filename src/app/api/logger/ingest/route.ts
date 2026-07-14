@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
 import { accountNewSession, truncate, isBotUserAgent, normalizeUtm, MAX_BODY_CHARS } from "@/lib/logging";
 import { matchesException } from "@/lib/exceptions";
+import { resolveCountry } from "@/lib/geo";
 
 export const dynamic = "force-dynamic";
 
@@ -138,7 +139,7 @@ export async function POST(req: Request) {
   // только НОВАЯ сессия (существующая, начатая ранее, уже учтена и продолжает писаться).
   const existing = await prisma.logSession.findUnique({
     where: { projectId_sessionKey: { projectId: project.id, sessionKey } },
-    select: { id: true, utm: true },
+    select: { id: true, utm: true, country: true },
   });
   if (!existing) {
     const usage = await accountNewSession(project.id, project.tier);
@@ -147,6 +148,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ stored: false, reason: "quota" }, { status: 200, headers });
     }
   }
+
+  // Страну по IP определяем один раз: для новой сессии или если у существующей она ещё
+  // не сохранена (best-effort, не блокирует запись — при ошибке остаётся null).
+  const country =
+    !existing || !existing.country ? await resolveCountry(resolvedIp) : null;
 
   // Апсертим сессию (обновляем lastSeenAt и IP), затем пишем события пачкой.
   // Метки перехода фиксируем по first-touch: пишем при создании сессии, а если метки
@@ -159,12 +165,14 @@ export async function POST(req: Request) {
       sessionKey,
       userAgent: truncate(userAgent, 512),
       ip: resolvedIp,
+      country,
       utm: utmJson,
       lastSeenAt: new Date(),
     },
     update: {
       lastSeenAt: new Date(),
       ip: resolvedIp,
+      ...(existing && !existing.country && country ? { country } : {}),
       ...(existing && !existing.utm && utmJson ? { utm: utmJson } : {}),
     },
     select: { id: true },

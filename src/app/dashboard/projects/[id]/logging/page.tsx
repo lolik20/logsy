@@ -11,6 +11,7 @@ import { ClearLogsButton } from "@/components/ClearLogsButton";
 import { DepartureAnalytics } from "@/components/DepartureAnalytics";
 import { isProjectServiceActive } from "@/lib/subscription";
 import { retentionDays } from "@/lib/logging";
+import { flagEmoji } from "@/lib/geo";
 import { ACTION_TYPES, collectDepartures, type Departure } from "@/lib/breadcrumbs";
 
 export const dynamic = "force-dynamic";
@@ -114,6 +115,8 @@ export default async function LoggingPage({
     list,
     // Сессии отсортированы по времени убыв. — берём начало самой свежей сессии IP.
     startedAt: list[0].startedAt,
+    // Страна пользователя по IP: берём первый определённый код среди сессий группы.
+    country: list.find((s) => s.country)?.country ?? null,
     errors: list.reduce((n, s) => n + (errorCount.get(s.id) ?? 0), 0),
     slow: list.reduce((n, s) => n + (slowCount.get(s.id) ?? 0), 0),
   }));
@@ -177,7 +180,10 @@ export default async function LoggingPage({
       <DepartureAnalytics departures={departures} projectId={project.id} />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Сессии пользователей</h2>
+        <h2 className="text-lg font-semibold">
+          Сессии пользователей
+          <span className="ml-2 text-slate-400">{ipGroups.length}</span>
+        </h2>
         <div className="flex flex-wrap items-center gap-3">
           <LogErrorFilter />
           <LogDateFilter value={dateStr} />
@@ -203,6 +209,15 @@ export default async function LoggingPage({
                 <span className="text-sm text-slate-500">
                   {new Date(g.startedAt).toLocaleTimeString("ru-RU")}
                 </span>
+                {g.country && (
+                  <span
+                    className="text-base leading-none"
+                    title={g.country}
+                    aria-label={g.country}
+                  >
+                    {flagEmoji(g.country)}
+                  </span>
+                )}
                 <span className="text-xs uppercase tracking-wide text-slate-400">IP</span>
                 <span className="font-mono text-sm font-semibold">{g.ip}</span>
               </div>

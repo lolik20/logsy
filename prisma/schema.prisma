@@ -179,6 +179,9 @@ model LogSession {
   sessionKey String
   userAgent  String?
   ip         String?
+  // ISO-3166 alpha-2 код страны пользователя, определённый по IP при создании
+  // сессии (см. resolveCountry в src/lib/geo.ts). null — не удалось определить.
+  country    String?
   // Метки перехода, зафиксированные при старте сессии: UTM-параметры (utm_source,
   // utm_medium, utm_campaign, utm_term, utm_content) и рекламные идентификаторы клика
   // (yclid/ysclid — Яндекс, gclid — Google, fbclid — Facebook, etext — Яндекс.Директ).
