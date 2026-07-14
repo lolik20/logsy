@@ -53,6 +53,46 @@ export function exceptionKey(e: { type: string; endpoint: string }): string {
   return `${e.type}\u0000${e.endpoint}`;
 }
 
+// Разрешённый набор меток перехода, которые SDK фиксирует при старте сессии:
+// стандартные UTM-параметры и рекламные идентификаторы клика (Яндекс/Google/Facebook,
+// в т.ч. etext текстовых объявлений Яндекс.Директа). Остальные query-параметры лендинга
+// не сохраняем — только этот список, чтобы не тащить в БД произвольные данные.
+export const UTM_KEYS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "yclid",
+  "ysclid",
+  "gclid",
+  "fbclid",
+  "etext",
+] as const;
+
+/** Максимальная длина значения метки перехода (etext Яндекс.Директа бывает длинным). */
+export const MAX_UTM_VALUE_CHARS = 512;
+
+/**
+ * Нормализует метки перехода из батча SDK для колонки LogSession.utm: оставляет только
+ * известные ключи (UTM_KEYS), усекает значения и сериализует в JSON. Возвращает null,
+ * если валидных меток нет (прямой/органический переход) — доверять клиенту нельзя,
+ * поэтому фильтрация ключей идёт на сервере.
+ */
+export function normalizeUtm(
+  input: Record<string, string> | null | undefined,
+): string | null {
+  if (!input) return null;
+  const out: Record<string, string> = {};
+  for (const key of UTM_KEYS) {
+    const value = input[key];
+    if (typeof value === "string" && value.trim()) {
+      out[key] = value.length > MAX_UTM_VALUE_CHARS ? value.slice(0, MAX_UTM_VALUE_CHARS) : value;
+    }
+  }
+  return Object.keys(out).length ? JSON.stringify(out) : null;
+}
+
 // Признаки автоматического клиента (краулеры, превью-боты, headless-браузеры,
 // HTTP-библиотеки) в строке User-Agent. Такие клиенты исполняют наш SDK, но их
 // «сессии» — мусор, поэтому события от них не сохраняем.

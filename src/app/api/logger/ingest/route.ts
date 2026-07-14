@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
-import { accountNewSession, truncate, endpointOf, exceptionKey, isBotUserAgent, MAX_BODY_CHARS } from "@/lib/logging";
+import { accountNewSession, truncate, endpointOf, exceptionKey, isBotUserAgent, normalizeUtm, MAX_BODY_CHARS } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +50,9 @@ const batchSchema = z.object({
   userAgent: z.string().max(512).optional().nullable(),
   // Публичный IP пользователя, определённый скриптом через сторонний сервис.
   ip: z.string().max(64).optional().nullable(),
+  // Метки перехода из query-строки лендинга (UTM + рекламные click id). Ключи
+  // фильтруются на сервере (normalizeUtm), значения ограничиваем по длине здесь.
+  utm: z.record(z.string().max(1024)).optional().nullable(),
   events: z.array(eventSchema).min(1).max(MAX_EVENTS_PER_BATCH),
 });
 
@@ -123,16 +126,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ stored: false, reason: "bot" }, { status: 200, headers });
   }
 
-  const { sessionKey, userAgent, ip, events } = parsed.data;
+  const { sessionKey, userAgent, ip, utm, events } = parsed.data;
   // IP от скрипта (публичный, через сторонний сервис) приоритетнее заголовков;
   // если его нет — берём из X-Forwarded-For / X-Real-IP.
   const resolvedIp = truncate(ip, 64) ?? getClientIp(req);
+  // Метки перехода: оставляем только известные ключи и сериализуем в JSON.
+  const utmJson = normalizeUtm(utm);
 
   // Квота тарифа считается по числу пользовательских сессий за сутки. Расходует квоту
   // только НОВАЯ сессия (существующая, начатая ранее, уже учтена и продолжает писаться).
   const existing = await prisma.logSession.findUnique({
     where: { projectId_sessionKey: { projectId: project.id, sessionKey } },
-    select: { id: true },
+    select: { id: true, utm: true },
   });
   if (!existing) {
     const usage = await accountNewSession(project.id, project.tier);
@@ -143,6 +148,9 @@ export async function POST(req: Request) {
   }
 
   // Апсертим сессию (обновляем lastSeenAt и IP), затем пишем события пачкой.
+  // Метки перехода фиксируем по first-touch: пишем при создании сессии, а если метки
+  // ещё не сохранены и текущий переход их принёс — дозаписываем. Уже сохранённые метки
+  // не перезаписываем (чтобы вернувшийся пользователь не «переклеился» на новую кампанию).
   const session = await prisma.logSession.upsert({
     where: { projectId_sessionKey: { projectId: project.id, sessionKey } },
     create: {
@@ -150,9 +158,14 @@ export async function POST(req: Request) {
       sessionKey,
       userAgent: truncate(userAgent, 512),
       ip: resolvedIp,
+      utm: utmJson,
       lastSeenAt: new Date(),
     },
-    update: { lastSeenAt: new Date(), ip: resolvedIp },
+    update: {
+      lastSeenAt: new Date(),
+      ip: resolvedIp,
+      ...(existing && !existing.utm && utmJson ? { utm: utmJson } : {}),
+    },
     select: { id: true },
   });
 

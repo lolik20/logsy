@@ -66,6 +66,21 @@ const SDK = `(function(){
     var ua = navigator.userAgent;
     var buffer = [];
 
+    // Метки перехода (UTM + рекламные идентификаторы клика) из query-строки лендинга.
+    // Считаем ОДИН раз при загрузке скрипта — это URL первого захода. При дальнейшей
+    // SPA-навигации метки из адреса пропадают, но сессии на сервере они уже присвоены.
+    // Сервер сам отфильтрует ключи по своему списку — здесь берём известный набор.
+    var MARK_KEYS = ["utm_source","utm_medium","utm_campaign","utm_term","utm_content",
+                     "yclid","ysclid","gclid","fbclid","etext"];
+    var marks = null;
+    try {
+      var mp = new URLSearchParams(location.search);
+      for (var mi = 0; mi < MARK_KEYS.length; mi++) {
+        var mv = mp.get(MARK_KEYS[mi]);
+        if (mv) { (marks = marks || {})[MARK_KEYS[mi]] = String(mv).slice(0, 512); }
+      }
+    } catch (e) {}
+
     // Приводит тело запроса разных типов к строке (payload для логирования).
     function clip(v) {
       if (v == null) return null;
@@ -119,7 +134,7 @@ const SDK = `(function(){
 
     function flush(useBeacon) {
       if (!buffer.length) return;
-      var batch = { sessionKey: sid, userAgent: ua, ip: clientIp, events: buffer.splice(0, buffer.length) };
+      var batch = { sessionKey: sid, userAgent: ua, ip: clientIp, utm: marks, events: buffer.splice(0, buffer.length) };
       var body = JSON.stringify(batch);
       try {
         // text/plain — чтобы запрос был CORS-simple и без preflight.
