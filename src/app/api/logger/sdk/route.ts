@@ -273,6 +273,13 @@ const SDK = `(function(){
           label = el.getAttribute("aria-label") || el.getAttribute("title") ||
                   el.getAttribute("name") || el.getAttribute("placeholder") || "";
         }
+        // Фолбэк для «обезличенных» элементов (кнопка с одной иконкой, пустой div
+        // и т.п.): текста и подписей нет — берём первые 10 символов внутренней
+        // разметки, чтобы в логе было хоть какое-то содержимое, а не голый <тег>.
+        if (!label) {
+          var html = (el.innerHTML || "").replace(/\\s+/g, " ").trim();
+          if (html) label = html.slice(0, 10);
+        }
         return "<" + tag + ">" + id + (label ? " «" + label + "»" : "");
       } catch (e) { return ""; }
     }
