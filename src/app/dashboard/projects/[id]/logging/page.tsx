@@ -8,8 +8,10 @@ import { LogErrorFilter } from "@/components/LogErrorFilter";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { ProjectExceptions } from "@/components/ProjectExceptions";
 import { ClearLogsButton } from "@/components/ClearLogsButton";
+import { DepartureAnalytics } from "@/components/DepartureAnalytics";
 import { isProjectServiceActive } from "@/lib/subscription";
 import { retentionDays } from "@/lib/logging";
+import { ACTION_TYPES, collectDepartures, type Departure } from "@/lib/breadcrumbs";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +71,28 @@ export default async function LoggingPage({
       })
     : [];
   const errorCount = new Map(errorGroups.map((g) => [g.sessionId, g._count._all]));
+
+  // Аналитика отказов: события-действия и уходы (SESSION_END) сессий за день. Собираем
+  // по каждой сессии крошки перед уходом (см. collectDepartures в src/lib/breadcrumbs.ts).
+  const actionEvents = ids.length
+    ? await prisma.logEvent.findMany({
+        where: { sessionId: { in: ids }, type: { in: [...ACTION_TYPES, "SESSION_END"] } },
+        orderBy: [{ sessionId: "asc" }, { createdAt: "asc" }],
+        select: { id: true, sessionId: true, type: true, message: true, url: true, createdAt: true },
+      })
+    : [];
+  const eventsBySession = new Map<string, (typeof actionEvents)[number][]>();
+  for (const e of actionEvents) {
+    const arr = eventsBySession.get(e.sessionId);
+    if (arr) arr.push(e);
+    else eventsBySession.set(e.sessionId, [e]);
+  }
+  const departures: Departure[] = [];
+  for (const list of eventsBySession.values()) {
+    departures.push(...collectDepartures(list));
+  }
+  // Свежие уходы — первыми (список под спойлером и порядок восприятия).
+  departures.sort((a, b) => b.at.getTime() - a.at.getTime());
 
   // Группируем сессии по IP пользователя. Сессии уже отсортированы по времени убыв.,
   // поэтому группы идут в порядке появления самой свежей сессии.
@@ -143,6 +167,8 @@ export default async function LoggingPage({
       </details>
 
       <ProjectExceptions exceptions={exceptions} />
+
+      <DepartureAnalytics departures={departures} projectId={project.id} />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Сессии пользователей</h2>

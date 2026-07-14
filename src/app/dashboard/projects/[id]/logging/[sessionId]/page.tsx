@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
+import { collectDepartures } from "@/lib/breadcrumbs";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
 
@@ -35,6 +36,12 @@ export default async function SessionPage({
   const errorCount = session.events.filter((e) =>
     ["ERROR", "UNHANDLED_REJECTION", "HTTP_ERROR"].includes(e.type),
   ).length;
+
+  // Крошки перед уходом: id событий-действий, предшествующих каждому SESSION_END —
+  // подсвечиваем их в ленте (см. collectDepartures в src/lib/breadcrumbs.ts).
+  const breadcrumbIds = new Set(
+    collectDepartures(session.events).flatMap((d) => d.actions.map((a) => a.id)),
+  );
 
   // Активные правила-исключения проекта — чтобы отметить уже подходящие события.
   const exceptions = await prisma.logException.findMany({
@@ -93,12 +100,33 @@ export default async function SessionPage({
               </tr>
             )}
             {session.events.map((e) => (
-              <tr key={e.id} className="border-t border-slate-100 align-top dark:border-slate-800">
+              <tr
+                key={e.id}
+                className={`border-t border-slate-100 align-top dark:border-slate-800 ${
+                  e.type === "SESSION_END"
+                    ? "bg-slate-50 dark:bg-slate-800/40"
+                    : breadcrumbIds.has(e.id)
+                      ? "border-l-2 border-l-amber-400 bg-amber-50/40 dark:bg-amber-900/10"
+                      : ""
+                }`}
+              >
                 <td className="px-4 py-2 whitespace-nowrap text-slate-500">
                   {new Date(e.createdAt).toLocaleTimeString("ru-RU")}
                 </td>
                 <td className="px-4 py-2 whitespace-nowrap">
-                  <EventTypeIcon type={e.type} />
+                  <div className="flex items-center gap-1.5">
+                    <EventTypeIcon type={e.type} />
+                    {e.type === "SESSION_END" && (
+                      <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                        Отказ
+                      </span>
+                    )}
+                    {breadcrumbIds.has(e.id) && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        перед уходом
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-2 max-w-[280px]">
                   {e.route ? (
