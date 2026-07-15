@@ -426,7 +426,12 @@ const SDK = `(function(){
         + "background:#fff;color:#0f172a;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.28);"
         + "padding:16px;display:none;}"
         + ".panel.open{display:block;}"
-        + ".ttl{font-size:15px;font-weight:700;margin:0 0 4px;}"
+        + ".close{position:absolute;top:10px;right:10px;width:26px;height:26px;display:flex;"
+        + "align-items:center;justify-content:center;padding:0;border:0;background:transparent;"
+        + "color:#94a3b8;cursor:pointer;border-radius:8px;}"
+        + ".close:hover{background:#f1f5f9;color:#334155;}"
+        + ".close svg{width:16px;height:16px;}"
+        + ".ttl{font-size:15px;font-weight:700;margin:0 24px 4px 0;}"
         + ".sub{font-size:12px;color:#64748b;margin:0 0 10px;}"
         + "textarea{width:100%;min-height:88px;resize:vertical;border:1px solid #cbd5e1;"
         + "border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a;"
@@ -437,8 +442,6 @@ const SDK = `(function(){
         + ".send{background:#4f46e5;color:#fff;}"
         + ".send:hover{background:#4338ca;}"
         + ".send:disabled{opacity:.6;cursor:default;}"
-        + ".cancel{background:#f1f5f9;color:#334155;}"
-        + ".cancel:hover{background:#e2e8f0;}"
         + ".ok{font-size:13px;color:#059669;text-align:center;padding:8px 0;}"
         + ".foot{margin-top:10px;text-align:center;}"
         + ".foot a{font-size:11px;color:#94a3b8;text-decoration:none;}"
@@ -448,11 +451,13 @@ const SDK = `(function(){
       wrap.className = "wrap";
       wrap.innerHTML =
         '<div class="panel" role="dialog" aria-label="Сообщить об ошибке">'
+        + '<button type="button" class="close" aria-label="Закрыть">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        + '<path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>'
         + '<p class="ttl">Сообщить об ошибке</p>'
         + '<p class="sub">Опишите, что пошло не так — мы это увидим.</p>'
         + '<textarea maxlength="1000" placeholder="Что случилось?"></textarea>'
         + '<div class="row">'
-        + '<button type="button" class="act cancel">Отмена</button>'
         + '<button type="button" class="act send">Отправить</button>'
         + '</div>'
         + '<div class="foot"><a href="' + origin + '" target="_blank" rel="noopener noreferrer">Работает на Logsy</a></div>'
@@ -472,7 +477,7 @@ const SDK = `(function(){
       var fab = wrap.querySelector(".fab");
       var ta = wrap.querySelector("textarea");
       var sendBtn = wrap.querySelector(".send");
-      var cancelBtn = wrap.querySelector(".cancel");
+      var closeBtn = wrap.querySelector(".close");
 
       function openPanel() { panel.classList.add("open"); try { ta.focus(); } catch (e) {} }
       function closePanel() { panel.classList.remove("open"); }
@@ -480,7 +485,7 @@ const SDK = `(function(){
       fab.addEventListener("click", function () {
         if (panel.classList.contains("open")) closePanel(); else openPanel();
       });
-      cancelBtn.addEventListener("click", closePanel);
+      closeBtn.addEventListener("click", closePanel);
 
       sendBtn.addEventListener("click", function () {
         var text = (ta.value || "").trim();

@@ -168,7 +168,10 @@ function TopList({
   mono?: boolean;
 }) {
   return (
-    <div>
+    // min-w-0 обязателен: контейнер лежит в grid, а у grid-элементов min-width по
+    // умолчанию auto — без сброса длинные метки (URL/действия) не давали бы усечению
+    // (truncate) сработать и распирали бы страницу по горизонтали на мобильных.
+    <div className="min-w-0">
       <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
         {title}
       </div>
