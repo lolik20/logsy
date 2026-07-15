@@ -6,13 +6,14 @@ import { initPayment, tbankConfigured, type ReceiptItem } from "@/lib/tbank";
 import { getPlan, getTier, tierPriceRub } from "@/lib/pricing";
 
 // Инициация оплаты тарифа проекта через Т-Кассу.
-// Тарификация — за проект: T300 | T1000 | T3000. Период: 1 мес (без скидки) |
-// 3 мес (−10%) | год (−20%). Создаёт платёж методом Init с чеком (Receipt: УСН +
-// email пользователя) и возвращает PaymentURL для редиректа на страницу оплаты.
+// Тарификация — за проект: T1000 | T3000 (бесплатный тариф не оплачивается).
+// Период: 1 мес (без скидки) | 3 мес (−10%) | год (−20%). Создаёт платёж методом
+// Init с чеком (Receipt: УСН + email пользователя) и возвращает PaymentURL для
+// редиректа на страницу оплаты.
 
 const schema = z.object({
   projectId: z.string().min(1),
-  tier: z.enum(["T300", "T1000", "T3000"]),
+  tier: z.enum(["T1000", "T3000"]),
   period: z.enum(["1m", "3m", "12m"]).default("1m"),
 });
 

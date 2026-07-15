@@ -21,13 +21,9 @@ type ProjectExpiryRow = {
   };
 };
 
-/** Дата окончания текущего периода проекта (пробного или оплаченного). */
+/** Дата окончания оплаченного периода проекта. */
 function periodEndOf(p: ProjectExpiryRow): Date | null {
-  return p.billingStatus === "TRIAL" ? p.trialEndsAt : p.currentPeriodEnd;
-}
-
-function planPhrase(billingStatus: string): string {
-  return billingStatus === "TRIAL" ? "Пробный период" : "Тариф";
+  return p.currentPeriodEnd;
 }
 
 /**
@@ -39,7 +35,7 @@ async function notifyExpiry(project: ProjectExpiryRow, end: Date): Promise<void>
   if (contacts.length === 0) return;
 
   const when = end.toLocaleString("ru-RU");
-  const label = planPhrase(project.billingStatus);
+  const label = "Тариф";
   const subject = `⚠️ ${label} Logsy по проекту «${project.name}» истекает завтра`;
   const text =
     `${label} по проекту «${project.name}» истекает ${when} — меньше чем через сутки.\n` +
@@ -82,8 +78,8 @@ async function notifyExpiry(project: ProjectExpiryRow, end: Date): Promise<void>
 }
 
 /**
- * Обходит проекты, которым осталось меньше суток до окончания тарифа/триала, и
- * один раз за период шлёт напоминание по всем контактам владельца. Проекты
+ * Обходит проекты, которым осталось меньше суток до окончания оплаченного тарифа,
+ * и один раз за период шлёт напоминание по всем контактам владельца. Проекты
  * администраторов (безлимит) и неактивные пропускает.
  */
 export async function runDueSubscriptionExpiryChecks(now: Date): Promise<number> {
@@ -91,10 +87,8 @@ export async function runDueSubscriptionExpiryChecks(now: Date): Promise<number>
 
   const projects = (await prisma.project.findMany({
     where: {
-      OR: [
-        { billingStatus: "ACTIVE", currentPeriodEnd: { gt: now, lte: soon } },
-        { billingStatus: "TRIAL", trialEndsAt: { gt: now, lte: soon } },
-      ],
+      billingStatus: "ACTIVE",
+      currentPeriodEnd: { gt: now, lte: soon },
     },
     select: {
       id: true,

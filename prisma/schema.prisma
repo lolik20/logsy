@@ -111,13 +111,13 @@ model Project {
   feedbackEnabled Boolean @default(false)
 
   // ---- Тарификация на уровне проекта (перевод биллинга с per-user на per-project) ----
-  // Тариф проекта: T300 (базовый) | T1000 | T3000. null — тариф ещё не выбран (идёт триал).
+  // Платный тариф проекта: T1000 | T3000. null — бесплатный тариф (300 сессий/сутки, хранение 12 часов).
   tier          String?
-  // TRIAL — идёт пробный период; ACTIVE — оплачен; INACTIVE — истёк/не оплачен.
-  billingStatus String    @default("TRIAL")
+  // FREE — бесплатный тариф (по умолчанию); ACTIVE — оплачен; INACTIVE — истёк/не оплачен.
+  billingStatus String    @default("FREE")
   // Конец оплаченного периода (для ACTIVE).
   currentPeriodEnd DateTime?
-  // Конец пробного периода (для TRIAL).
+  // Устаревшее поле от отменённого пробного периода; больше не заполняется.
   trialEndsAt   DateTime?
   // Значение currentPeriodEnd, для которого уже отправлено предупреждение об истечении
   // (чтобы напоминание ушло один раз за период). Аналог поля в Subscription.
@@ -299,11 +299,11 @@ model Alert {
 model Subscription {
   id               String    @id @default(cuid())
   userId           String    @unique
-  plan             String    @default("FREE") // FREE | TRIAL | PAID
+  plan             String    @default("FREE") // FREE | PAID
   sitesLimit       Int       @default(1)
-  priceRub         Int       @default(300)
+  priceRub         Int       @default(0)
   status           String    @default("inactive") // active | inactive
-  // Для TRIAL — дата окончания пробного периода; для PAID — конец оплаченного периода.
+  // Для PAID — конец оплаченного периода.
   currentPeriodEnd DateTime?
   // Значение currentPeriodEnd, для которого уже отправлено предупреждение
   // «подписка истекает завтра». Нужно, чтобы оповещение ушло один раз за период:
@@ -321,7 +321,7 @@ model Payment {
   userId     String
   // Проект, тариф которого оплачивается (per-project биллинг).
   projectId  String?
-  // Тариф, активируемый после оплаты: T300 | T1000 | T3000.
+  // Тариф, активируемый после оплаты: T1000 | T3000.
   tier       String?
   // OrderId, переданный в Т-Кассу (совпадает с id этой записи).
   orderId    String   @unique

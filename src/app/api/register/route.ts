@@ -5,7 +5,7 @@ import { generatePassword, hashPassword } from "@/lib/password";
 import { createQuickAuthToken, buildQuickAuthUrl } from "@/lib/quick-auth";
 import { sendMail } from "@/lib/mailer";
 import { getClientIp } from "@/lib/request-ip";
-import { TRIAL_DAYS, TRIAL_SITES_LIMIT, trialEndFrom } from "@/lib/subscription";
+import { FREE_SITES_LIMIT } from "@/lib/subscription";
 
 const schema = z.object({
   email: z.string().email("Некорректный email"),
@@ -40,9 +40,6 @@ export async function POST(req: Request) {
   const password = generatePassword(12);
   const passwordHash = await hashPassword(password);
 
-  // Пробный период: 2 недели на 1 сайт бесплатно.
-  const trialEnd = trialEndFrom();
-
   await prisma.user.create({
     data: {
       email,
@@ -51,18 +48,16 @@ export async function POST(req: Request) {
       signupIp: ip,
       subscription: {
         create: {
-          plan: "TRIAL",
-          sitesLimit: TRIAL_SITES_LIMIT,
-          priceRub: 300,
+          plan: "FREE",
+          sitesLimit: FREE_SITES_LIMIT,
+          priceRub: 0,
           status: "active",
-          currentPeriodEnd: trialEnd,
         },
       },
     },
   });
 
   const appUrl = process.env.APP_URL || "http://localhost:3000";
-  const trialEndStr = trialEnd.toLocaleDateString("ru-RU");
 
   // Ссылка для быстрой авторизации: одноразовый вход без ввода пароля.
   const quickToken = await createQuickAuthToken(email);
@@ -74,8 +69,8 @@ export async function POST(req: Request) {
     text:
       `Здравствуйте!\n\n` +
       `Вы зарегистрировались в Logsy — сервисе мониторинга доступности сайтов.\n\n` +
-      `Вам активирован бесплатный пробный период на ${TRIAL_DAYS} дней ` +
-      `(1 сайт) — до ${trialEndStr}.\n\n` +
+      `Каждый проект работает на бесплатном тарифе: до 300 сессий в сутки ` +
+      `и хранение логов 12 часов. Платный тариф можно подключить в любой момент.\n\n` +
       `Быстрый вход (по ссылке, без пароля, действует 24 часа):\n` +
       `  ${quickAuthUrl}\n\n` +
       `Данные для входа вручную:\n` +

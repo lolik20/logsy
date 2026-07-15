@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { BILLING_PLANS, TIERS, tierPriceRub } from "@/lib/pricing";
+import { BILLING_PLANS, TIERS, tierPriceRub, FREE_TIER } from "@/lib/pricing";
 import { LandingNav } from "@/components/LandingNav";
 
 const features = [
@@ -125,7 +125,7 @@ export default async function LandingPage() {
           </Link>
         </div>
         <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-          2 недели бесплатно на каждый проект · без привязки карты
+          Бесплатный тариф навсегда · без привязки карты
         </p>
 
         {/* Парящая стеклянная карточка-превью статусов */}
@@ -376,10 +376,45 @@ export default async function LandingPage() {
         <h2 className="text-center text-3xl font-bold">Тарифы — за проект</h2>
         <p className="mx-auto mt-3 max-w-2xl text-center text-slate-600 dark:text-slate-400">
           Один тариф на проект: uptime-мониторинг, логирование и алерты в каждом.
-          Первые 2 недели — бесплатно, без карты. Скидка 10% за 3 месяца и 20% за год.
+          Начните бесплатно, без карты. Скидка 10% за 3 месяца и 20% за год.
         </p>
 
         <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {/* Бесплатный тариф */}
+          <div className="rounded-3xl bg-white/50 p-[1.5px] shadow-card transition-transform hover:-translate-y-1 dark:bg-white/10">
+            <div className="flex h-full flex-col rounded-[calc(1.5rem-1.5px)] bg-white/85 p-7 backdrop-blur-xl dark:bg-slate-900/85">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold uppercase tracking-wide text-brand">
+                  {FREE_TIER.name}
+                </span>
+                <span className="rounded-full bg-green-600 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  Навсегда
+                </span>
+              </div>
+              <div className="mt-3 flex items-baseline gap-1">
+                <span className="text-4xl font-extrabold">0 ₽</span>
+                <span className="text-slate-500">/ проект в месяц</span>
+              </div>
+              <div className="mt-2 text-sm font-medium text-slate-500">{FREE_TIER.sessionsLabel}</div>
+
+              <ul className="mt-5 flex-1 space-y-2.5 text-sm">
+                {FREE_TIER.features.map((item) => (
+                  <li key={item} className="flex items-start gap-2">
+                    <span className="text-brand">✓</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                href="/register"
+                className="mt-6 block rounded-xl border border-brand/40 px-6 py-3 text-center font-semibold text-brand shadow-card transition-transform hover:-translate-y-0.5 hover:bg-brand/5"
+              >
+                Начать бесплатно
+              </Link>
+            </div>
+          </div>
+
           {TIERS.map((t, idx) => {
             const highlighted = t.id === "T1000";
             return (
@@ -453,7 +488,7 @@ export default async function LandingPage() {
         </div>
 
         <p className="mt-6 text-center text-sm text-slate-500">
-          14 дней бесплатного пробного периода на каждый новый проект · без привязки карты
+          Бесплатный тариф на каждый новый проект — навсегда, без привязки карты
         </p>
       </section>
 

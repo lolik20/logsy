@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       await prisma.project.update({
         where: { id: payment.projectId },
         data: {
-          tier: payment.tier ?? "T300",
+          tier: payment.tier ?? "T1000",
           billingStatus: "ACTIVE",
           currentPeriodEnd: periodEnd,
         },

@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { ProjectBillingManager } from "@/components/ProjectBillingManager";
-import { describeProjectBilling, isProjectTrialActive } from "@/lib/subscription";
-import { getTier } from "@/lib/pricing";
+import { describeProjectBilling, isProjectFree } from "@/lib/subscription";
+import { getTier, FREE_TIER } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +24,9 @@ export default async function ProjectTariffPage({
 
   const isowner = project.userId === userId;
   const status = describeProjectBilling(project, admin);
-  const trial = isProjectTrialActive(project);
+  const free = isProjectFree(project);
   const tier = getTier(project.tier);
-  const tierLabel = tier ? tier.name : trial ? "Пробный период" : "—";
+  const tierLabel = tier ? tier.name : free ? FREE_TIER.name : "—";
 
   return (
     <div>
@@ -50,10 +50,11 @@ export default async function ProjectTariffPage({
         </div>
       )}
 
-      {trial && status.periodEnd && (
+      {free && (
         <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
-          🎁 Идёт пробный период — до <b>{status.periodEnd}</b>. Выберите тариф,
-          чтобы сервис продолжил работать после окончания.
+          🎁 Проект на бесплатном тарифе — {FREE_TIER.sessionsLabel}, хранение
+          логов 12 часов. Выберите платный тариф, чтобы поднять лимиты и увеличить
+          срок хранения.
         </div>
       )}
 
@@ -65,7 +66,7 @@ export default async function ProjectTariffPage({
         <Card label="Тариф" value={tierLabel} />
         <Card
           label="Сессий в сутки"
-          value={tier ? tier.sessionsLabel.replace("до ", "") : "1000 (триал)"}
+          value={(tier ?? FREE_TIER).sessionsLabel.replace("до ", "")}
         />
       </div>
 
