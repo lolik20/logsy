@@ -439,7 +439,10 @@ const SDK = `(function(){
         + ".send:disabled{opacity:.6;cursor:default;}"
         + ".cancel{background:#f1f5f9;color:#334155;}"
         + ".cancel:hover{background:#e2e8f0;}"
-        + ".ok{font-size:13px;color:#059669;text-align:center;padding:8px 0;}";
+        + ".ok{font-size:13px;color:#059669;text-align:center;padding:8px 0;}"
+        + ".foot{margin-top:10px;text-align:center;}"
+        + ".foot a{font-size:11px;color:#94a3b8;text-decoration:none;}"
+        + ".foot a:hover{color:#4f46e5;text-decoration:underline;}";
 
       var wrap = document.createElement("div");
       wrap.className = "wrap";
@@ -451,7 +454,9 @@ const SDK = `(function(){
         + '<div class="row">'
         + '<button type="button" class="act cancel">Отмена</button>'
         + '<button type="button" class="act send">Отправить</button>'
-        + '</div></div>'
+        + '</div>'
+        + '<div class="foot"><a href="' + origin + '" target="_blank" rel="noopener noreferrer">Работает на Logsy</a></div>'
+        + '</div>'
         + '<button type="button" class="fab" aria-label="Сообщить об ошибке">'
         + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
         + '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
@@ -484,7 +489,8 @@ const SDK = `(function(){
         flush(false);
         ta.value = "";
         // Показываем благодарность и закрываем форму.
-        panel.innerHTML = '<div class="ok">Спасибо! Сообщение отправлено.</div>';
+        panel.innerHTML = '<div class="ok">Спасибо! Сообщение отправлено.</div>'
+          + '<div class="foot"><a href="' + origin + '" target="_blank" rel="noopener noreferrer">Работает на Logsy</a></div>';
         setTimeout(closePanel, 1500);
       });
     }
