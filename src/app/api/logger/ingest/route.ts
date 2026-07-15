@@ -16,6 +16,7 @@ import { getClientIp } from "@/lib/request-ip";
 import { accountNewSession, truncate, isBotUserAgent, normalizeUtm, MAX_BODY_CHARS } from "@/lib/logging";
 import { matchesException } from "@/lib/exceptions";
 import { resolveCountry } from "@/lib/geo";
+import { notifyUserReports } from "@/lib/user-report";
 
 export const dynamic = "force-dynamic";
 
@@ -207,6 +208,19 @@ export async function POST(req: Request) {
 
   if (rows.length) {
     await prisma.logEvent.createMany({ data: rows });
+  }
+
+  // Обратная форма ошибок: о каждом сообщении пользователя (USER_REPORT) уведомляем
+  // владельца проекта на его контакты. Запускаем в фоне (best-effort), чтобы не
+  // задерживать ответ SDK; в долгоживущем процессе промис доедет до конца.
+  const reports = rows.filter((r) => r.type === "USER_REPORT");
+  if (reports.length) {
+    void notifyUserReports(
+      project.id,
+      reports.map((r) => ({ message: r.message, url: r.url })),
+    ).catch((err) =>
+      console.error("[Logsy] Ошибка уведомления о сообщении пользователя:", err),
+    );
   }
 
   return NextResponse.json({ stored: true, count: rows.length }, { status: 200, headers });

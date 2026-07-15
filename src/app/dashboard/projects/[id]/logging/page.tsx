@@ -9,6 +9,7 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { ProjectExceptions } from "@/components/ProjectExceptions";
 import { FeedbackFormSettings } from "@/components/FeedbackFormSettings";
 import { ClearLogsButton } from "@/components/ClearLogsButton";
+import { EventTypeIcon } from "@/components/EventTypeIcon";
 import { DepartureAnalytics } from "@/components/DepartureAnalytics";
 import { isProjectServiceActive } from "@/lib/subscription";
 import { retentionDays } from "@/lib/logging";
@@ -68,14 +69,23 @@ export default async function LoggingPage({
   const typeGroups = ids.length
     ? await prisma.logEvent.groupBy({
         by: ["sessionId", "type"],
-        where: { sessionId: { in: ids }, type: { in: [...ERROR_TYPES, "SLOW_REQUEST"] } },
+        where: {
+          sessionId: { in: ids },
+          type: { in: [...ERROR_TYPES, "SLOW_REQUEST", "USER_REPORT"] },
+        },
         _count: { _all: true },
       })
     : [];
   const errorCount = new Map<string, number>();
   const slowCount = new Map<string, number>();
+  const reportCount = new Map<string, number>();
   for (const g of typeGroups) {
-    const target = g.type === "SLOW_REQUEST" ? slowCount : errorCount;
+    const target =
+      g.type === "SLOW_REQUEST"
+        ? slowCount
+        : g.type === "USER_REPORT"
+          ? reportCount
+          : errorCount;
     target.set(g.sessionId, (target.get(g.sessionId) ?? 0) + g._count._all);
   }
 
@@ -120,6 +130,7 @@ export default async function LoggingPage({
     country: list.find((s) => s.country)?.country ?? null,
     errors: list.reduce((n, s) => n + (errorCount.get(s.id) ?? 0), 0),
     slow: list.reduce((n, s) => n + (slowCount.get(s.id) ?? 0), 0),
+    reports: list.reduce((n, s) => n + (reportCount.get(s.id) ?? 0), 0),
   }));
 
   // Фильтр «с ошибками»: при ?errors=1 показываем только группы, где были ошибки.
@@ -231,6 +242,15 @@ export default async function LoggingPage({
                 <span className="font-mono text-sm font-semibold">{g.ip}</span>
               </div>
               <div className="flex items-center gap-3 text-sm font-semibold">
+                {g.reports > 0 && (
+                  <span
+                    className="flex items-center gap-1 text-violet-600"
+                    title="Сообщения пользователя"
+                  >
+                    <EventTypeIcon type="USER_REPORT" />
+                    {g.reports}
+                  </span>
+                )}
                 {g.errors > 0 && (
                   <span className="flex items-center gap-1.5 text-red-600">
                     <span className="h-2 w-2 rounded-full bg-red-600" />
