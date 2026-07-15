@@ -6,6 +6,7 @@ import { getUserId } from "@/lib/session";
 const patchSchema = z.object({
   checkSsl: z.boolean().optional(),
   checkDomain: z.boolean().optional(),
+  feedbackEnabled: z.boolean().optional(),
 });
 
 export async function PATCH(
@@ -39,6 +40,7 @@ export async function PATCH(
     domainStatus?: string;
     domainCheckedAt?: null;
     domainAlertDays?: null;
+    feedbackEnabled?: boolean;
   } = {};
   if (parsed.data.checkSsl !== undefined) {
     data.checkSsl = parsed.data.checkSsl;
@@ -55,6 +57,9 @@ export async function PATCH(
       data.domainCheckedAt = null;
       data.domainAlertDays = null;
     }
+  }
+  if (parsed.data.feedbackEnabled !== undefined) {
+    data.feedbackEnabled = parsed.data.feedbackEnabled;
   }
 
   const updated = await prisma.project.update({

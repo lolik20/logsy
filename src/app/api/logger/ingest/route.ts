@@ -33,6 +33,7 @@ const eventSchema = z.object({
     "NAVIGATION",
     "CLICK",
     "INPUT",
+    "USER_REPORT",
   ]),
   message: z.string().max(4000).optional().nullable(),
   stack: z.string().max(8000).optional().nullable(),

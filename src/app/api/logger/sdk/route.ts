@@ -74,6 +74,19 @@ const SDK = `(function(){
       }
     } catch (e) {}
 
+    // Конфигурация проекта: включена ли обратная форма ошибок. SDK общий и кэшируется,
+    // поэтому флаг берём из эндпоинта конфига (проект определяется по Origin). Если
+    // включено — рисуем плавающую кнопку «Сообщить об ошибке».
+    var CONFIG_URL = origin + "/api/logger/config";
+    try {
+      if (_origFetch) {
+        _origFetch(CONFIG_URL, { credentials: "omit", mode: "cors" })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { if (d && d.feedback) { try { initFeedback(); } catch (e) {} } })
+          .catch(function () {});
+      }
+    } catch (e) {}
+
     var ua = navigator.userAgent;
     var buffer = [];
 
@@ -377,6 +390,104 @@ const SDK = `(function(){
     });
     // Реальный уход со страницы (закрытие/навигация прочь) — фиксируем отказ в сессии.
     window.addEventListener("pagehide", leave);
+
+    // ---- Обратная форма ошибок (кнопка «Сообщить об ошибке») ----
+    // Рисуется только если проект включил опцию (см. запрос конфига выше). Плавающая
+    // кнопка в правом нижнем углу (ПК и мобилка) открывает мини-форму с текстовым полем.
+    // Отправка кладёт событие USER_REPORT в буфер и сразу флашит — сообщение появляется
+    // в сессии пользователя в логировании. Вся разметка живёт в Shadow DOM, чтобы стили
+    // сайта клиента её не задели (и наоборот).
+    var feedbackReady = false;
+    function initFeedback() {
+      if (feedbackReady) return;
+      feedbackReady = true;
+      if (!document.body) {
+        // DOM ещё не готов — дождёмся.
+        window.addEventListener("DOMContentLoaded", function () { feedbackReady = false; initFeedback(); });
+        return;
+      }
+
+      var host = document.createElement("div");
+      host.setAttribute("data-logsy-feedback", "");
+      var root = host.attachShadow ? host.attachShadow({ mode: "open" }) : host;
+
+      var css = ""
+        + ":host,*{box-sizing:border-box;}"
+        + ".wrap{position:fixed;right:20px;bottom:20px;z-index:2147483000;"
+        + "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}"
+        + ".fab{display:flex;align-items:center;gap:8px;border:0;cursor:pointer;"
+        + "background:#4f46e5;color:#fff;border-radius:9999px;padding:12px 16px;"
+        + "font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);}"
+        + ".fab:hover{background:#4338ca;}"
+        + ".fab svg{width:18px;height:18px;}"
+        + ".fab .lbl{white-space:nowrap;}"
+        + "@media (max-width:640px){.fab{padding:12px;} .fab .lbl{display:none;}}"
+        + ".panel{position:absolute;right:0;bottom:60px;width:300px;max-width:calc(100vw - 40px);"
+        + "background:#fff;color:#0f172a;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.28);"
+        + "padding:16px;display:none;}"
+        + ".panel.open{display:block;}"
+        + ".ttl{font-size:15px;font-weight:700;margin:0 0 4px;}"
+        + ".sub{font-size:12px;color:#64748b;margin:0 0 10px;}"
+        + "textarea{width:100%;min-height:88px;resize:vertical;border:1px solid #cbd5e1;"
+        + "border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a;"
+        + "background:#fff;outline:none;}"
+        + "textarea:focus{border-color:#4f46e5;box-shadow:0 0 0 2px rgba(79,70,229,.2);}"
+        + ".row{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}"
+        + "button.act{border:0;cursor:pointer;border-radius:9999px;padding:8px 14px;font-size:13px;font-weight:600;}"
+        + ".send{background:#4f46e5;color:#fff;}"
+        + ".send:hover{background:#4338ca;}"
+        + ".send:disabled{opacity:.6;cursor:default;}"
+        + ".cancel{background:#f1f5f9;color:#334155;}"
+        + ".cancel:hover{background:#e2e8f0;}"
+        + ".ok{font-size:13px;color:#059669;text-align:center;padding:8px 0;}";
+
+      var wrap = document.createElement("div");
+      wrap.className = "wrap";
+      wrap.innerHTML =
+        '<div class="panel" role="dialog" aria-label="Сообщить об ошибке">'
+        + '<p class="ttl">Сообщить об ошибке</p>'
+        + '<p class="sub">Опишите, что пошло не так — мы это увидим.</p>'
+        + '<textarea maxlength="1000" placeholder="Что случилось?"></textarea>'
+        + '<div class="row">'
+        + '<button type="button" class="act cancel">Отмена</button>'
+        + '<button type="button" class="act send">Отправить</button>'
+        + '</div></div>'
+        + '<button type="button" class="fab" aria-label="Сообщить об ошибке">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        + '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
+        + '<span class="lbl">Сообщить об ошибке</span></button>';
+
+      var style = document.createElement("style");
+      style.textContent = css;
+      root.appendChild(style);
+      root.appendChild(wrap);
+      document.body.appendChild(host);
+
+      var panel = wrap.querySelector(".panel");
+      var fab = wrap.querySelector(".fab");
+      var ta = wrap.querySelector("textarea");
+      var sendBtn = wrap.querySelector(".send");
+      var cancelBtn = wrap.querySelector(".cancel");
+
+      function openPanel() { panel.classList.add("open"); try { ta.focus(); } catch (e) {} }
+      function closePanel() { panel.classList.remove("open"); }
+
+      fab.addEventListener("click", function () {
+        if (panel.classList.contains("open")) closePanel(); else openPanel();
+      });
+      cancelBtn.addEventListener("click", closePanel);
+
+      sendBtn.addEventListener("click", function () {
+        var text = (ta.value || "").trim();
+        if (!text) { try { ta.focus(); } catch (e) {} return; }
+        push({ type: "USER_REPORT", message: text.slice(0, 1000), url: location.href });
+        flush(false);
+        ta.value = "";
+        // Показываем благодарность и закрываем форму.
+        panel.innerHTML = '<div class="ok">Спасибо! Сообщение отправлено.</div>';
+        setTimeout(closePanel, 1500);
+      });
+    }
 
     // Seam под запись экрана — реализуем позже.
     window.LOGSY = { _rec: null, flush: function(){ flush(false); } };
