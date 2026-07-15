@@ -5,7 +5,7 @@ import { isProjectServiceActive } from "@/lib/subscription";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-type ContactRow = { id: string; type: string; value: string };
+type ContactRow = { id: string; type: string; value: string; verified: boolean };
 
 type ProjectExpiryRow = {
   id: string;
@@ -52,6 +52,8 @@ async function notifyExpiry(project: ProjectExpiryRow, end: Date): Promise<void>
   });
 
   for (const contact of contacts) {
+    // Email рассылаем только на подтверждённые адреса (верификация контактов).
+    if (contact.type === "EMAIL" && !contact.verified) continue;
     try {
       if (contact.type === "TELEGRAM") {
         await sendTelegramMessage(contact.value, `${subject}\n\n${text}`);
@@ -101,7 +103,7 @@ export async function runDueSubscriptionExpiryChecks(now: Date): Promise<number>
         select: {
           id: true,
           role: true,
-          contacts: { select: { id: true, type: true, value: true } },
+          contacts: { select: { id: true, type: true, value: true, verified: true } },
         },
       },
     },

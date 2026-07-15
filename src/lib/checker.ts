@@ -228,6 +228,8 @@ async function notify(
     `Время: ${new Date().toLocaleString("ru-RU")}\n`;
 
   for (const contact of contacts) {
+    // Email рассылаем только на подтверждённые адреса (верификация контактов).
+    if (contact.type === "EMAIL" && !contact.verified) continue;
     try {
       if (contact.type === "TELEGRAM") {
         await sendTelegramMessage(contact.value, `${subject}\n\n${text}`);
