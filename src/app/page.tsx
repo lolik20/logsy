@@ -270,8 +270,9 @@ export default async function LandingPage() {
               </h2>
               <p className="mx-auto mt-4 max-w-2xl text-slate-600 dark:text-slate-300">
                 Один тег в <code className="font-mono text-sm">&lt;head&gt;</code> — и Logsy
-                ловит JS-ошибки, упавшие и медленные запросы к вашему бэкенду и
-                собирает всё в сессии пользователей. Без SDK, сборки и настройки.
+                ловит JS-ошибки, упавшие и медленные запросы к вашему бэкенду,
+                строит карту загрузки страниц и собирает всё в сессии
+                пользователей. Без SDK, сборки и настройки.
               </p>
             </div>
 
@@ -295,7 +296,8 @@ export default async function LandingPage() {
               {[
                 { t: "Фронт-ошибки", s: "Ловим необработанные исключения и отклонённые промисы со стеком.", icon: "🐞" },
                 { t: "Ошибки бэкенда на фронте", s: "Видим упавшие 4xx/5xx запросы: маршрут, метод, payload, код ответа.", icon: "🔌" },
-                { t: "Медленные запросы", s: "Отмечаем всё, что грузится дольше 500 мс — узкие места видны сразу.", icon: "🐢" },
+                { t: "Медленные запросы", s: "Отмечаем всё, что грузится дольше заданного порога — узкие места видны сразу.", icon: "🐢" },
+                { t: "Карта загрузки страниц", s: "Бот обходит домен и строит дерево разделов: среднее время загрузки, медленные запросы и файлы по каждой странице.", icon: "🗺️" },
                 { t: "Сессии пользователей", s: "Все события группируются в сессию — виден весь путь до ошибки.", icon: "🧭" },
                 { t: "Обратная связь от пользователей", s: "Кнопка «Сообщить об ошибке» на сайте: посетитель опишет проблему — сообщение попадёт в его сессию и придёт вам на почту и в Telegram.", icon: "💬" },
                 { t: "Умный батчинг", s: "Собираем только критичное и шлём раз в 10 секунд — ноль нагрузки на сайт.", icon: "📦" },
@@ -487,6 +489,110 @@ export default async function LandingPage() {
                       >
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                       </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Карта загрузки страниц — блок со «скриншотом» дерева разделов */}
+            <div className="mt-12 grid items-center gap-8 md:grid-cols-2">
+              {/* Текст (на десктопе — справа) */}
+              <div className="md:order-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand dark:bg-brand/10">
+                  🗺️ Страницы
+                </span>
+                <h3 className="mt-3 text-2xl font-bold sm:text-3xl">
+                  Карта загрузки страниц сайта
+                </h3>
+                <p className="mt-3 text-slate-600 dark:text-slate-400">
+                  Бот сам обходит домен и строит дерево разделов. Сразу видно, где сайт
+                  тормозит и почему.
+                </p>
+                <ul className="mt-5 space-y-2.5 text-sm">
+                  {[
+                    "Среднее время загрузки по каждой странице",
+                    "Клик — и видны медленные запросы и файлы",
+                    "Счётчик ошибок и тормозов у каждого раздела",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <span className="mt-0.5 text-brand">✓</span>
+                      <span className="text-slate-600 dark:text-slate-300">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* «Скриншот»: карточка карты загрузки (на десктопе — слева) */}
+              <div className="md:order-1">
+                <div className="mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card dark:border-slate-700/70 dark:bg-slate-900">
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 px-4 py-3 dark:border-slate-700/70">
+                    <span className="text-xs font-semibold text-slate-500">
+                      Карта загрузки · example.ru
+                    </span>
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400 dark:bg-slate-800">
+                      42 страницы
+                    </span>
+                  </div>
+                  <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {[
+                      { name: "example.ru", pad: "pl-4", bar: "bg-emerald-500", w: "20%", ms: "0,8 с", msCls: "text-emerald-600" },
+                      { name: "/catalog", pad: "pl-6", tag: "каталог", errs: 2, slow: 3, bar: "bg-amber-500", w: "55%", ms: "2,1 с", msCls: "text-amber-600" },
+                      { name: "/catalog/item", pad: "pl-10", bar: "bg-red-500", w: "90%", ms: "3,4 с", msCls: "text-red-600", hi: true },
+                      { name: "/checkout", pad: "pl-6", errs: 1, bar: "bg-red-500", w: "100%", ms: "4,2 с", msCls: "text-red-600" },
+                      { name: "/about", pad: "pl-6", bar: "bg-emerald-500", w: "16%", ms: "0,6 с", msCls: "text-emerald-600" },
+                    ].map((r, i) => (
+                      <li
+                        key={i}
+                        className={`flex items-center gap-2 py-2.5 pr-4 ${r.pad} ${
+                          r.hi ? "bg-red-50/60 dark:bg-red-950/20" : ""
+                        }`}
+                      >
+                        <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-700 dark:text-slate-200">
+                          {r.name}
+                          {r.tag && (
+                            <span className="ml-1.5 rounded bg-slate-100 px-1 py-0.5 text-[9px] text-slate-400 dark:bg-slate-800">
+                              {r.tag}
+                            </span>
+                          )}
+                        </span>
+                        {(r.errs || r.slow) && (
+                          <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold">
+                            {r.errs ? (
+                              <span className="flex items-center gap-0.5 text-red-600">
+                                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                                {r.errs}
+                              </span>
+                            ) : null}
+                            {r.slow ? (
+                              <span className="flex items-center gap-0.5 text-amber-500">
+                                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                                {r.slow}
+                              </span>
+                            ) : null}
+                          </span>
+                        )}
+                        <span className="hidden h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-slate-100 sm:block dark:bg-slate-800">
+                          <span className={`block h-full rounded-full ${r.bar}`} style={{ width: r.w }} />
+                        </span>
+                        <span className={`w-12 shrink-0 text-right text-xs font-semibold ${r.msCls}`}>
+                          {r.ms}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {/* Развёрнутый критический файл под медленной страницей */}
+                  <div className="border-t border-slate-100 px-4 py-2.5 dark:border-slate-800">
+                    <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 dark:bg-slate-800/60">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="shrink-0 rounded bg-sky-100 px-1 py-0.5 text-[9px] font-semibold uppercase text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+                          img
+                        </span>
+                        <span className="truncate font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                          /img/hero-banner.png
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs font-semibold text-red-600">1,8 с</span>
                     </div>
                   </div>
                 </div>
