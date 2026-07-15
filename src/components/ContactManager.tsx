@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Contact = { id: string; type: string; value: string };
+type Contact = { id: string; type: string; value: string; verified: boolean };
 
 export function ContactManager({
   contacts,
@@ -16,7 +16,9 @@ export function ContactManager({
   const [email, setEmail] = useState("");
   const [chatId, setChatId] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState<"email" | "telegram" | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   async function add(
     type: "EMAIL" | "TELEGRAM",
@@ -24,6 +26,7 @@ export function ContactManager({
     onDone: () => void,
   ) {
     setError(null);
+    setNotice(null);
     setLoading(type === "EMAIL" ? "email" : "telegram");
     const res = await fetch("/api/contacts", {
       method: "POST",
@@ -36,8 +39,27 @@ export function ContactManager({
       setError(data.error || "Не удалось добавить канал");
       return;
     }
+    if (data.verificationSent) {
+      setNotice(
+        `На ${value.trim().toLowerCase()} отправлено письмо со ссылкой. Подтвердите адрес, чтобы получать алерты.`,
+      );
+    }
     onDone();
     router.refresh();
+  }
+
+  async function resend(id: string) {
+    setError(null);
+    setNotice(null);
+    setResendingId(id);
+    const res = await fetch(`/api/contacts/${id}/resend-verification`, { method: "POST" });
+    setResendingId(null);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(data.error || "Не удалось отправить письмо");
+      return;
+    }
+    setNotice("Письмо со ссылкой подтверждения отправлено повторно.");
   }
 
   async function remove(id: string) {
@@ -134,6 +156,7 @@ export function ContactManager({
       </section>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {notice && <p className="text-sm text-emerald-600">{notice}</p>}
 
       {/* Список подключённых каналов */}
       <section>
@@ -147,29 +170,57 @@ export function ContactManager({
               получать алерты.
             </p>
           )}
-          {contacts.map((c) => (
-            <div
-              key={c.id}
-              className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
-            >
-              <span className="flex items-center gap-2">
-                {c.type === "TELEGRAM" ? (
-                  <>
-                    <TelegramIcon className="h-4 w-4 text-[#229ED9]" />
-                    Telegram: {c.value}
-                  </>
-                ) : (
-                  <>✉️ {c.value}</>
-                )}
-              </span>
-              <button
-                onClick={() => remove(c.id)}
-                className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-red-400 hover:text-red-600 dark:border-slate-700 dark:text-slate-300"
+          {contacts.map((c) => {
+            const unverified = c.type === "EMAIL" && !c.verified;
+            return (
+              <div
+                key={c.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
               >
-                Удалить
-              </button>
-            </div>
-          ))}
+                <span className="flex min-w-0 items-center gap-2">
+                  {c.type === "TELEGRAM" ? (
+                    <>
+                      <TelegramIcon className="h-4 w-4 text-[#229ED9]" />
+                      <span className="truncate">Telegram: {c.value}</span>
+                    </>
+                  ) : (
+                    <span className="truncate">✉️ {c.value}</span>
+                  )}
+                  {unverified ? (
+                    <span
+                      className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                      title="Алерты на этот адрес не приходят, пока он не подтверждён"
+                    >
+                      не подтверждён
+                    </span>
+                  ) : (
+                    c.type === "EMAIL" && (
+                      <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                        подтверждён
+                      </span>
+                    )
+                  )}
+                </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  {unverified && (
+                    <button
+                      onClick={() => resend(c.id)}
+                      disabled={resendingId === c.id}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-brand hover:text-brand disabled:opacity-60 dark:border-slate-700 dark:text-slate-300"
+                    >
+                      {resendingId === c.id ? "Отправляем…" : "Отправить письмо повторно"}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => remove(c.id)}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-red-400 hover:text-red-600 dark:border-slate-700 dark:text-slate-300"
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
     </div>

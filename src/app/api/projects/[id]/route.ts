@@ -7,6 +7,8 @@ const patchSchema = z.object({
   checkSsl: z.boolean().optional(),
   checkDomain: z.boolean().optional(),
   feedbackEnabled: z.boolean().optional(),
+  // Порог «медленного» запроса в мс (0…60000). 0 — считать медленным любой запрос.
+  slowMs: z.number().int().min(0).max(60000).optional(),
 });
 
 export async function PATCH(
@@ -41,6 +43,7 @@ export async function PATCH(
     domainCheckedAt?: null;
     domainAlertDays?: null;
     feedbackEnabled?: boolean;
+    slowMs?: number;
   } = {};
   if (parsed.data.checkSsl !== undefined) {
     data.checkSsl = parsed.data.checkSsl;
@@ -60,6 +63,9 @@ export async function PATCH(
   }
   if (parsed.data.feedbackEnabled !== undefined) {
     data.feedbackEnabled = parsed.data.feedbackEnabled;
+  }
+  if (parsed.data.slowMs !== undefined) {
+    data.slowMs = parsed.data.slowMs;
   }
 
   const updated = await prisma.project.update({

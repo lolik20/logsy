@@ -105,6 +105,45 @@ export function aggregatePageLoads(
   return out;
 }
 
+// ---- Счётчики проблем на странице (ошибки / медленные запросы) ----
+
+export type PageCounts = {
+  // Ошибки: JS-ошибки, необработанные reject и упавшие сетевые запросы (HTTP_ERROR).
+  errors: number;
+  // Медленные: медленные сетевые запросы и медленные статические файлы.
+  slow: number;
+};
+
+// Какие типы событий считаем ошибкой и медленным (совпадает с индикаторами в логировании).
+const ERROR_EVENT_TYPES: ReadonlySet<string> = new Set([
+  "ERROR",
+  "UNHANDLED_REJECTION",
+  "HTTP_ERROR",
+]);
+const SLOW_EVENT_TYPES: ReadonlySet<string> = new Set(["SLOW_REQUEST", "SLOW_RESOURCE"]);
+
+/**
+ * Считает число ошибок и медленных запросов на каждой странице (по её пути). На вход —
+ * события сессий (тип + url страницы). Возвращает Map: путь → { errors, slow }.
+ */
+export function aggregatePageCounts(
+  events: { type: string; url: string | null }[],
+): Map<string, PageCounts> {
+  const out = new Map<string, PageCounts>();
+  for (const e of events) {
+    const isErr = ERROR_EVENT_TYPES.has(e.type);
+    const isSlow = SLOW_EVENT_TYPES.has(e.type);
+    if (!isErr && !isSlow) continue;
+    const path = pageUrlToPath(e.url);
+    if (!path) continue;
+    const cur = out.get(path) ?? { errors: 0, slow: 0 };
+    if (isErr) cur.errors += 1;
+    else cur.slow += 1;
+    out.set(path, cur);
+  }
+  return out;
+}
+
 // ---- Критические (медленные) запросы и статические файлы на странице ----
 
 export type CriticalRequest = {

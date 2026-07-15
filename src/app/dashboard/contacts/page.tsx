@@ -49,6 +49,7 @@ export default async function ContactsPage() {
             id: c.id,
             type: c.type,
             value: c.value,
+            verified: c.verified,
           }))}
         />
       </div>

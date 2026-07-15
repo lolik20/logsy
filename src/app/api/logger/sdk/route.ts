@@ -35,11 +35,14 @@ const SDK = `(function(){
     // Порог «медленного» запроса можно переопределить прямо на теге скрипта:
     //   <script src=".../api/logger/sdk" data-slow-ms="2000" async></script>
     // Так каждый сайт задаёт свой порог, а сам скрипт остаётся общим и кэшируемым.
+    // slowFromAttr: порог задан явно атрибутом на теге — тогда настройка из панели его
+    // НЕ переопределяет (атрибут = точечное переопределение на конкретной странице).
+    var slowFromAttr = false;
     try {
       var slowAttr = (self && self.getAttribute) ? self.getAttribute("data-slow-ms") : null;
       if (slowAttr != null && slowAttr !== "") {
         var slowNum = parseInt(slowAttr, 10);
-        if (!isNaN(slowNum) && slowNum >= 0) SLOW_MS = slowNum;
+        if (!isNaN(slowNum) && slowNum >= 0) { SLOW_MS = slowNum; slowFromAttr = true; }
       }
     } catch (e) {}
 
@@ -82,7 +85,12 @@ const SDK = `(function(){
       if (_origFetch) {
         _origFetch(CONFIG_URL, { credentials: "omit", mode: "cors" })
           .then(function (r) { return r.json(); })
-          .then(function (d) { if (d && d.feedback) { try { initFeedback(); } catch (e) {} } })
+          .then(function (d) {
+            if (!d) return;
+            // Порог «медленного» из панели проекта — если на теге нет явного data-slow-ms.
+            if (!slowFromAttr && typeof d.slowMs === "number" && d.slowMs >= 0) SLOW_MS = d.slowMs;
+            if (d.feedback) { try { initFeedback(); } catch (e) {} }
+          })
           .catch(function () {});
       }
     } catch (e) {}

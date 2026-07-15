@@ -1,7 +1,53 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { PageNode, PageLoadMetric, CriticalRequest } from "@/lib/pages";
+import type { PageNode, PageLoadMetric, CriticalRequest, PageCounts } from "@/lib/pages";
+
+/**
+ * Суммирует ошибки/медленные запросы по всему поддереву каждого узла (для агрегата у
+ * каталогов). Возвращает Map: путь узла → суммарные счётчики его поддерева (включая
+ * собственную страницу узла).
+ */
+function subtreeCounts(
+  nodes: PageNode[],
+  counts: Record<string, PageCounts>,
+  acc: Map<string, PageCounts>,
+): PageCounts {
+  const sum: PageCounts = { errors: 0, slow: 0 };
+  for (const n of nodes) {
+    const own = counts[n.path] ?? { errors: 0, slow: 0 };
+    const childTotal = subtreeCounts(n.children, counts, acc);
+    const total: PageCounts = {
+      errors: own.errors + childTotal.errors,
+      slow: own.slow + childTotal.slow,
+    };
+    acc.set(n.path, total);
+    sum.errors += total.errors;
+    sum.slow += total.slow;
+  }
+  return sum;
+}
+
+/** Пара бейджей «ошибки / медленные запросы» рядом с названием каталога/страницы. */
+function CountBadges({ counts }: { counts: PageCounts | undefined }) {
+  if (!counts || (counts.errors === 0 && counts.slow === 0)) return null;
+  return (
+    <span className="flex shrink-0 items-center gap-2 text-xs font-semibold">
+      {counts.errors > 0 && (
+        <span className="flex items-center gap-1 text-red-600" title="Ошибки запросов">
+          <span className="h-2 w-2 rounded-full bg-red-600" />
+          {counts.errors}
+        </span>
+      )}
+      {counts.slow > 0 && (
+        <span className="flex items-center gap-1 text-amber-500" title="Медленные запросы">
+          <span className="h-2 w-2 rounded-full bg-amber-400" />
+          {counts.slow}
+        </span>
+      )}
+    </span>
+  );
+}
 
 // Пороги «карты загрузки» (мс) для цвета индикатора среднего времени до прогрузки контента.
 const LOAD_OK = 1500; // быстро — зелёный
@@ -18,18 +64,6 @@ function loadTone(ms: number): { bar: string; text: string } {
   if (ms <= LOAD_OK) return { bar: "bg-emerald-500", text: "text-emerald-600" };
   if (ms <= LOAD_WARN) return { bar: "bg-amber-500", text: "text-amber-600" };
   return { bar: "bg-red-500", text: "text-red-600" };
-}
-
-/** Короткое имя файла из URL ресурса (последний сегмент пути). */
-function fileName(url: string): string {
-  try {
-    const u = new URL(url);
-    const seg = u.pathname.split("/").filter(Boolean).pop();
-    return seg || u.hostname;
-  } catch {
-    const s = url.split(/[?#]/)[0];
-    return s.split("/").filter(Boolean).pop() || url;
-  }
 }
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -65,11 +99,11 @@ function CriticalList({ items }: { items: CriticalRequest[] }) {
         return (
           <li
             key={it.route}
-            className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60"
+            className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60"
           >
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 items-start gap-2">
               <span
-                className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
                   isResource
                     ? "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"
                     : "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
@@ -79,8 +113,9 @@ function CriticalList({ items }: { items: CriticalRequest[] }) {
                 {it.initiator || (isResource ? "файл" : "запрос")}
               </span>
               <span className="min-w-0">
-                <span className="block truncate font-mono text-xs text-slate-700 dark:text-slate-200" title={it.route}>
-                  {fileName(it.route)}
+                {/* Полный URL запроса с query-параметрами (переносится, не обрезается). */}
+                <span className="block break-all font-mono text-xs text-slate-700 dark:text-slate-200">
+                  {it.route}
                 </span>
                 {it.count > 1 && (
                   <span className="text-[11px] text-slate-400">
@@ -89,7 +124,7 @@ function CriticalList({ items }: { items: CriticalRequest[] }) {
                 )}
               </span>
             </div>
-            <span className={`shrink-0 text-sm font-semibold ${tone.text}`}>{fmtMs(it.maxMs)}</span>
+            <span className={`mt-0.5 shrink-0 text-sm font-semibold ${tone.text}`}>{fmtMs(it.maxMs)}</span>
           </li>
         );
       })}
@@ -104,6 +139,7 @@ function TreeRow({
   domain,
   metrics,
   critical,
+  totals,
   scaleMax,
   open,
   toggle,
@@ -113,6 +149,7 @@ function TreeRow({
   domain: string;
   metrics: Record<string, PageLoadMetric>;
   critical: Record<string, CriticalRequest[]>;
+  totals: Map<string, PageCounts>;
   scaleMax: number;
   open: Set<string>;
   toggle: (path: string) => void;
@@ -166,6 +203,8 @@ function TreeRow({
                 из сессий
               </span>
             )}
+            {/* Кол-во ошибок/медленных запросов внутри каталога (по всему поддереву). */}
+            <CountBadges counts={totals.get(node.path)} />
           </span>
           {node.title && node.title !== label && (
             <span className="block truncate text-xs text-slate-400" title={node.title}>
@@ -217,6 +256,7 @@ function TreeRow({
               domain={domain}
               metrics={metrics}
               critical={critical}
+              totals={totals}
               scaleMax={scaleMax}
               open={open}
               toggle={toggle}
@@ -233,14 +273,23 @@ export function PagesMap({
   tree,
   metrics,
   critical,
+  counts,
 }: {
   domain: string;
   tree: PageNode[];
   metrics: Record<string, PageLoadMetric>;
   critical: Record<string, CriticalRequest[]>;
+  counts: Record<string, PageCounts>;
 }) {
   // По умолчанию раскрываем корень, чтобы карта не выглядела пустой.
   const [open, setOpen] = useState<Set<string>>(() => new Set(tree.map((n) => n.path)));
+
+  // Суммарные счётчики ошибок/медленных по поддереву каждого узла (для каталогов).
+  const totals = useMemo(() => {
+    const acc = new Map<string, PageCounts>();
+    subtreeCounts(tree, counts, acc);
+    return acc;
+  }, [tree, counts]);
 
   const toggle = (path: string) =>
     setOpen((prev) => {
@@ -291,6 +340,7 @@ export function PagesMap({
             domain={domain}
             metrics={metrics}
             critical={critical}
+            totals={totals}
             scaleMax={scaleMax}
             open={open}
             toggle={toggle}

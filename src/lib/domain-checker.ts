@@ -111,6 +111,8 @@ async function notifyProjectDomain(
   });
 
   for (const contact of contacts) {
+    // Email рассылаем только на подтверждённые адреса (верификация контактов).
+    if (contact.type === "EMAIL" && !contact.verified) continue;
     try {
       if (contact.type === "TELEGRAM") {
         await sendTelegramMessage(contact.value, `${subject}\n\n${text}`);

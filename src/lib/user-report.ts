@@ -64,6 +64,8 @@ export async function notifyUserReports(
       (link ? `\nСессия пользователя: ${link}\n` : "");
 
     for (const contact of contacts) {
+      // Email рассылаем только на подтверждённые адреса (верификация контактов).
+      if (contact.type === "EMAIL" && !contact.verified) continue;
       try {
         if (contact.type === "TELEGRAM") {
           const html =

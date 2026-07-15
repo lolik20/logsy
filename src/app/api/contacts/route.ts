@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { sendContactVerification } from "@/lib/contact-verification";
 
 const emailSchema = z.object({
   type: z.literal("EMAIL").optional(),
@@ -43,19 +44,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Такой контакт уже добавлен" }, { status: 409 });
   }
 
+  // Telegram подтверждается сразу (приветственным сообщением ниже). Email требует
+  // подтверждения по ссылке из письма — до этого алерты на него не уходят.
   const contact = await prisma.contact.create({
-    data: { userId, type, value, verified: true },
+    data: { userId, type, value, verified: type === "TELEGRAM" },
   });
 
-  // Для Telegram сразу отправляем приветственное сообщение — так пользователь
-  // видит, что chat id указан верно и алерты будут доходить.
   if (type === "TELEGRAM") {
+    // Для Telegram сразу отправляем приветственное сообщение — так пользователь
+    // видит, что chat id указан верно и алерты будут доходить.
     await sendTelegramMessage(
       value,
       "✅ Telegram подключён к <b>Logsy</b>. Сюда будут приходить алерты о падении мониторов и SSL.",
       { html: true },
     ).catch(() => {});
+  } else {
+    // Email — отправляем письмо со ссылкой подтверждения (best-effort, не роняем ответ).
+    await sendContactVerification(contact).catch((err) =>
+      console.error("[Logsy] Не удалось отправить письмо подтверждения email:", err),
+    );
   }
 
-  return NextResponse.json({ contact });
+  return NextResponse.json({
+    contact: { id: contact.id, type: contact.type, value: contact.value, verified: contact.verified },
+    verificationSent: type === "EMAIL",
+  });
 }

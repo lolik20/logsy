@@ -40,11 +40,11 @@ async function resolveProject(req: Request) {
   const origin = req.headers.get("origin");
   const host = originHostname(origin);
   if (!origin || !host) {
-    return { origin, project: null as null | { feedbackEnabled: boolean } };
+    return { origin, project: null as null | { feedbackEnabled: boolean; slowMs: number } };
   }
   const project = await prisma.project.findUnique({
     where: { domain: host },
-    select: { feedbackEnabled: true },
+    select: { feedbackEnabled: true, slowMs: true },
   });
   return { origin, project };
 }
@@ -62,7 +62,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ feedback: false }, { status: 403 });
   }
   return NextResponse.json(
-    { feedback: project.feedbackEnabled },
+    { feedback: project.feedbackEnabled, slowMs: project.slowMs },
     { headers: corsHeaders(origin) },
   );
 }
