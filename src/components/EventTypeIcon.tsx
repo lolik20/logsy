@@ -13,6 +13,8 @@ export const EVENT_TYPE_LABEL: Record<string, string> = {
   CLICK: "Клик",
   INPUT: "Ввод",
   USER_REPORT: "Сообщение пользователя",
+  PAGE_LOAD: "Загрузка страницы",
+  SLOW_RESOURCE: "Медленный ресурс",
 };
 
 // Цвет иконки по типу события (тон совпадает с прежней подсветкой текста).
@@ -27,6 +29,8 @@ const TYPE_TONE: Record<string, string> = {
   CLICK: "text-slate-500 dark:text-slate-300",
   INPUT: "text-slate-500 dark:text-slate-300",
   USER_REPORT: "text-violet-600",
+  PAGE_LOAD: "text-sky-600",
+  SLOW_RESOURCE: "text-amber-600",
 };
 
 function Svg({ children }: { children: ReactNode }) {
@@ -117,6 +121,24 @@ const ICONS: Record<string, ReactNode> = {
   USER_REPORT: (
     <Svg>
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </Svg>
+  ),
+  // Секундомер — время загрузки страницы.
+  PAGE_LOAD: (
+    <Svg>
+      <path d="M12 2h0" />
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l2 2" />
+      <path d="M9 2h6" />
+    </Svg>
+  ),
+  // Документ со стрелкой вниз — медленно загружаемый статический файл.
+  SLOW_RESOURCE: (
+    <Svg>
+      <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+      <path d="M14 3v6h6" />
+      <path d="M12 12v5" />
+      <path d="m9.5 15 2.5 2.5 2.5-2.5" />
     </Svg>
   ),
 };

@@ -5,16 +5,26 @@ import Link from "next/link";
 const items = [
   { key: "monitoring", label: "Мониторинг", suffix: "" },
   { key: "logging", label: "Логирование", suffix: "/logging" },
+  { key: "pages", label: "Страницы", suffix: "/pages" },
+  { key: "connection", label: "Подключение", suffix: "/connection" },
   { key: "alerts", label: "Алерты", suffix: "/alerts" },
   { key: "tariff", label: "Тариф", suffix: "/tariff" },
 ];
+
+export type ProjectServiceKey =
+  | "monitoring"
+  | "logging"
+  | "pages"
+  | "connection"
+  | "alerts"
+  | "tariff";
 
 export function ProjectServiceTabs({
   projectId,
   active,
 }: {
   projectId: string;
-  active: "monitoring" | "logging" | "alerts" | "tariff";
+  active: ProjectServiceKey;
 }) {
   return (
     <div className="mt-4 flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-800">

@@ -67,6 +67,29 @@ function FolderIcon({ className }: IconProps) {
   );
 }
 
+function SitemapIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="3" width="6" height="5" rx="1" />
+      <rect x="3" y="16" width="6" height="5" rx="1" />
+      <rect x="15" y="16" width="6" height="5" rx="1" />
+      <path d="M12 8v4" />
+      <path d="M6 16v-2h12v2" />
+    </svg>
+  );
+}
+
+function PlugIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 2v6" />
+      <path d="M15 2v6" />
+      <path d="M6 8h12v3a6 6 0 0 1-12 0z" />
+      <path d="M12 17v5" />
+    </svg>
+  );
+}
+
 function ChevronIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -118,6 +141,8 @@ export type SidebarProject = { id: string; name: string };
 const SERVICES = [
   { key: "monitoring", label: "Мониторинг", suffix: "", Icon: GridIcon },
   { key: "logging", label: "Логирование", suffix: "/logging", Icon: LogsIcon },
+  { key: "pages", label: "Страницы", suffix: "/pages", Icon: SitemapIcon },
+  { key: "connection", label: "Подключение", suffix: "/connection", Icon: PlugIcon },
   { key: "alerts", label: "Алерты", suffix: "/alerts", Icon: BellIcon },
   { key: "tariff", label: "Тариф", suffix: "/tariff", Icon: CardIcon },
 ];

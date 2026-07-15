@@ -128,9 +128,38 @@ model Project {
   logSessions   LogSession[]
   logUsage      LogUsage[]
   logExceptions LogException[]
+  pages         ProjectPage[]
   payments      Payment[]
 
   @@index([userId])
+}
+
+// Карта страниц проекта. Наполняется краулером (см. src/lib/crawler.ts): бот один раз
+// обходит домен проекта по внутренним ссылкам и собирает URL'ы страниц (каталог и
+// подкаталоги). На основе этих страниц и событий пользовательских сессий строится
+// «карта загрузки»: среднее время до прогрузки конечного контента (события PAGE_LOAD)
+// и критические/медленные запросы и статические файлы на каждой странице.
+model ProjectPage {
+  id        String  @id @default(cuid())
+  projectId String
+  // Путь страницы (pathname без схемы/хоста/query/hash). Нормализован: ведущий слэш,
+  // без завершающего слэша (кроме корня "/"). Уникален в рамках проекта.
+  path      String
+  // <title> страницы, пойманный краулером (для читаемых подписей в дереве).
+  title     String?
+  // Глубина в дереве каталогов = число непустых сегментов пути (корень "/" — 0).
+  depth     Int     @default(0)
+  // Источник обнаружения: CRAWL (найдена краулером по ссылкам) | SESSION (замечена в
+  // сессиях пользователей, но краулер до неё не дошёл).
+  source    String  @default("CRAWL")
+  // Когда страницу в последний раз видел краулер (для отсева исчезнувших страниц).
+  lastCrawledAt DateTime?
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, path])
+  @@index([projectId])
 }
 
 model Monitor {
