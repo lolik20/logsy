@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { FeedbackFormSettings } from "@/components/FeedbackFormSettings";
+import { SlowThresholdSettings } from "@/components/SlowThresholdSettings";
 import { retentionLabel } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
@@ -51,12 +52,12 @@ export default async function ConnectionPage({
           Скрипт ловит JS-ошибки, упавшие и медленные (&gt;1000 мс) запросы,
           собирает карту загрузки страниц (время до прогрузки контента и медленные
           статические файлы), группирует всё в сессии и отправляет батчами раз в 10
-          секунд. Порог «медленного» запроса можно изменить атрибутом{" "}
-          <code className="font-mono">data-slow-ms</code> на теге скрипта
-          (например <span className="font-mono">data-slow-ms=&quot;2000&quot;</span>).
-          Логи хранятся {retentionLabel(project.tier)}.
+          секунд. Порог «медленного» запроса настраивается ниже. Логи хранятся{" "}
+          {retentionLabel(project.tier)}.
         </p>
       </div>
+
+      <SlowThresholdSettings projectId={project.id} slowMs={project.slowMs} />
 
       <FeedbackFormSettings projectId={project.id} enabled={project.feedbackEnabled} />
     </div>
