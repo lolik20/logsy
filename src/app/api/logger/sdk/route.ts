@@ -437,12 +437,14 @@ const SDK = `(function(){
         + "border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a;"
         + "background:#fff;outline:none;}"
         + "textarea:focus{border-color:#4f46e5;box-shadow:0 0 0 2px rgba(79,70,229,.2);}"
-        + ".row{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}"
+        + ".row{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:10px;}"
         + "button.act{border:0;cursor:pointer;border-radius:9999px;padding:8px 14px;font-size:13px;font-weight:600;}"
         + ".send{background:#4f46e5;color:#fff;}"
         + ".send:hover{background:#4338ca;}"
         + ".send:disabled{opacity:.6;cursor:default;}"
         + ".ok{font-size:13px;color:#059669;text-align:center;padding:8px 0;}"
+        + ".powered{font-size:11px;color:#94a3b8;text-decoration:none;}"
+        + ".powered:hover{color:#4f46e5;text-decoration:underline;}"
         + ".foot{margin-top:10px;text-align:center;}"
         + ".foot a{font-size:11px;color:#94a3b8;text-decoration:none;}"
         + ".foot a:hover{color:#4f46e5;text-decoration:underline;}";
@@ -458,9 +460,9 @@ const SDK = `(function(){
         + '<p class="sub">Опишите, что пошло не так — мы это увидим.</p>'
         + '<textarea maxlength="1000" placeholder="Что случилось?"></textarea>'
         + '<div class="row">'
+        + '<a class="powered" href="' + origin + '" target="_blank" rel="noopener noreferrer">Работает на Logsy</a>'
         + '<button type="button" class="act send">Отправить</button>'
         + '</div>'
-        + '<div class="foot"><a href="' + origin + '" target="_blank" rel="noopener noreferrer">Работает на Logsy</a></div>'
         + '</div>'
         + '<button type="button" class="fab" aria-label="Сообщить об ошибке">'
         + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
