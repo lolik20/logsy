@@ -7,20 +7,14 @@ import { LogDateFilter } from "@/components/LogDateFilter";
 import { LogErrorFilter } from "@/components/LogErrorFilter";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { ProjectExceptions } from "@/components/ProjectExceptions";
-import { FeedbackFormSettings } from "@/components/FeedbackFormSettings";
 import { ClearLogsButton } from "@/components/ClearLogsButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
 import { DepartureAnalytics } from "@/components/DepartureAnalytics";
 import { isProjectServiceActive } from "@/lib/subscription";
-import { retentionLabel } from "@/lib/logging";
 import { flagEmoji } from "@/lib/geo";
 import { ACTION_TYPES, collectDepartures, type Departure } from "@/lib/breadcrumbs";
 
 export const dynamic = "force-dynamic";
-
-function appUrl(): string {
-  return (process.env.APP_URL || process.env.NEXTAUTH_URL || "").replace(/\/$/, "");
-}
 
 /** Локальная дата в формате YYYY-MM-DD. */
 function toDateInput(d: Date): string {
@@ -144,8 +138,6 @@ export default async function LoggingPage({
     select: { id: true, kind: true, urlMode: true, url: true },
   });
 
-  const snippet = `<script src="${appUrl()}/api/logger/sdk" async></script>`;
-
   return (
     <div>
       {isToday && active && <AutoRefresh />}
@@ -162,37 +154,6 @@ export default async function LoggingPage({
           вкладке «Тариф».
         </div>
       )}
-
-      {/* Инструкция по подключению SDK — скрыта по умолчанию */}
-      <details className="group mb-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-slate-600 dark:text-slate-300">
-          Подключение
-          <span className="text-xs font-normal text-slate-400 transition-transform group-open:rotate-180">
-            ▾
-          </span>
-        </summary>
-        <p className="mt-3 text-sm text-slate-500">
-          Вставьте один тег в <code className="font-mono">&lt;head&gt;</code> сайта{" "}
-          <span className="font-mono">{project.domain}</span> — скрипт заработает
-          автоматически. Ключ не нужен: события принимаются только с этого домена.
-        </p>
-        <pre className="mt-3 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800">
-          {snippet}
-        </pre>
-        <p className="mt-2 text-xs text-slate-400">
-          Скрипт ловит JS-ошибки, упавшие и медленные (&gt;1000 мс) запросы,
-          группирует их в сессии и отправляет батчами раз в 10 секунд. Порог
-          «медленного» запроса можно изменить атрибутом{" "}
-          <code className="font-mono">data-slow-ms</code> на теге скрипта
-          (например <span className="font-mono">data-slow-ms=&quot;2000&quot;</span>).
-          Логи хранятся {retentionLabel(project.tier)}.
-        </p>
-      </details>
-
-      <FeedbackFormSettings
-        projectId={project.id}
-        enabled={project.feedbackEnabled}
-      />
 
       <ProjectExceptions exceptions={exceptions} />
 

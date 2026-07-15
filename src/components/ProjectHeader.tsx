@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ProjectServiceTabs } from "@/components/ProjectServiceTabs";
+import { ProjectServiceTabs, type ProjectServiceKey } from "@/components/ProjectServiceTabs";
 
 // Общая шапка страниц сервисов проекта: назад к проектам, название/домен и вкладки.
 export function ProjectHeader({
@@ -11,7 +11,7 @@ export function ProjectHeader({
   projectId: string;
   name: string;
   domain: string;
-  active: "monitoring" | "logging" | "alerts" | "tariff";
+  active: ProjectServiceKey;
 }) {
   return (
     <div className="mb-6">

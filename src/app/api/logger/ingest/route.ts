@@ -35,6 +35,10 @@ const eventSchema = z.object({
     "CLICK",
     "INPUT",
     "USER_REPORT",
+    // Метрики карты загрузки страниц: время до прогрузки конечного контента (PAGE_LOAD)
+    // и медленные статические файлы — скрипты/стили/картинки/шрифты (SLOW_RESOURCE).
+    "PAGE_LOAD",
+    "SLOW_RESOURCE",
   ]),
   message: z.string().max(4000).optional().nullable(),
   stack: z.string().max(8000).optional().nullable(),

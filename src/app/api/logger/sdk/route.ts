@@ -343,6 +343,75 @@ const SDK = `(function(){
       window.addEventListener("hashchange", function() { try { logNav(); } catch (e) {} });
     } catch (e) {}
 
+    // ---- Карта загрузки: время до прогрузки конечного контента ----
+    // На каждую «жёсткую» загрузку страницы фиксируем PAGE_LOAD с длительностью до
+    // полной загрузки (Navigation Timing loadEventEnd — момент, когда конечный контент
+    // и ресурсы страницы прогрузились). SPA-переходы сюда не попадают (у них нет отдельной
+    // navigation-записи) — это ожидаемо, карта строится по реальным заходам на страницы.
+    var _pageLoadSent = false;
+    function reportPageLoad() {
+      if (_pageLoadSent) return;
+      try {
+        var loadMs = 0, dclMs = 0;
+        if (performance && performance.getEntriesByType) {
+          var navs = performance.getEntriesByType("navigation");
+          var nav = navs && navs[0];
+          if (nav) {
+            loadMs = Math.round(nav.loadEventEnd || nav.domComplete || 0);
+            dclMs = Math.round(nav.domContentLoadedEventEnd || 0);
+          }
+        }
+        // Фолбэк для старых браузеров без Navigation Timing L2.
+        if (!loadMs && performance && performance.timing) {
+          var t = performance.timing;
+          if (t.loadEventEnd && t.navigationStart) loadMs = t.loadEventEnd - t.navigationStart;
+        }
+        if (!loadMs && performance && performance.now) loadMs = Math.round(performance.now());
+        if (loadMs > 0) {
+          _pageLoadSent = true;
+          push({
+            type: "PAGE_LOAD",
+            message: "Загрузка страницы: " + loadMs + " мс" + (dclMs ? " (DOM " + dclMs + " мс)" : ""),
+            url: location.href,
+            durationMs: loadMs
+          });
+        }
+      } catch (e) {}
+    }
+    if (document.readyState === "complete") setTimeout(reportPageLoad, 0);
+    else window.addEventListener("load", function () { setTimeout(reportPageLoad, 0); });
+
+    // ---- Карта загрузки: медленные статические файлы (> SLOW_MS) ----
+    // Через Resource Timing ловим ресурсы страницы (скрипты, стили, картинки, шрифты),
+    // которые грузились дольше порога. Сетевые запросы приложения (fetch/xhr/beacon)
+    // сюда не берём — они уже покрыты обёртками fetch/XHR как SLOW_REQUEST/HTTP_ERROR.
+    try {
+      if (window.PerformanceObserver) {
+        var _resObs = new PerformanceObserver(function (list) {
+          var ents = list.getEntries();
+          for (var ri = 0; ri < ents.length; ri++) {
+            try {
+              var en = ents[ri];
+              var it = en.initiatorType || "";
+              if (it === "fetch" || it === "xmlhttprequest" || it === "beacon") continue;
+              var dur = Math.round(en.duration || 0);
+              if (dur <= SLOW_MS) continue;
+              if (isOwn(en.name)) continue;
+              push({
+                type: "SLOW_RESOURCE",
+                message: "Медленный ресурс (" + (it || "?") + "): " + dur + " мс",
+                route: String(en.name),
+                method: it ? String(it).slice(0, 16) : null,
+                durationMs: dur,
+                url: location.href
+              });
+            } catch (e) {}
+          }
+        });
+        _resObs.observe({ type: "resource", buffered: true });
+      }
+    } catch (e) {}
+
     // Клики (в т.ч. по кнопкам/ссылкам). Ищем ближайший осмысленный элемент —
     // кнопку/ссылку/роль button, иначе сам таргет.
     document.addEventListener("click", function(e) {
