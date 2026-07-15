@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { BILLING_PLANS, TIERS, tierPriceRub, FREE_TIER } from "@/lib/pricing";
+import { TIERS, FREE_TIER } from "@/lib/pricing";
 import { LandingNav } from "@/components/LandingNav";
 
 const features = [
@@ -297,6 +297,7 @@ export default async function LandingPage() {
                 { t: "Ошибки бэкенда на фронте", s: "Видим упавшие 4xx/5xx запросы: маршрут, метод, payload, код ответа.", icon: "🔌" },
                 { t: "Медленные запросы", s: "Отмечаем всё, что грузится дольше 500 мс — узкие места видны сразу.", icon: "🐢" },
                 { t: "Сессии пользователей", s: "Все события группируются в сессию — виден весь путь до ошибки.", icon: "🧭" },
+                { t: "Обратная связь от пользователей", s: "Кнопка «Сообщить об ошибке» на сайте: посетитель опишет проблему — сообщение попадёт в его сессию и придёт вам на почту и в Telegram.", icon: "💬" },
                 { t: "Умный батчинг", s: "Собираем только критичное и шлём раз в 10 секунд — ноль нагрузки на сайт.", icon: "📦" },
                 { t: "Установка за минуту", s: "Одна строка в <head>, без ключей и зависимостей. Автозапуск.", icon: "⚡" },
               ].map((f) => (
@@ -451,24 +452,6 @@ export default async function LandingPage() {
                       </li>
                     ))}
                   </ul>
-
-                  {/* Цена по периодам оплаты */}
-                  <div className="mt-6 grid grid-cols-3 gap-2">
-                    {BILLING_PLANS.map((p) => (
-                      <div
-                        key={p.id}
-                        className="relative rounded-xl border border-slate-200/80 bg-white/70 p-2 text-center dark:border-slate-700/70 dark:bg-white/5"
-                      >
-                        {p.discountPercent > 0 && (
-                          <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-green-600 px-1.5 py-0.5 text-[9px] font-semibold text-white">
-                            −{p.discountPercent}%
-                          </span>
-                        )}
-                        <div className="text-[10px] font-semibold text-slate-500">{p.label}</div>
-                        <div className="mt-0.5 text-sm font-extrabold">{tierPriceRub(t, p)} ₽</div>
-                      </div>
-                    ))}
-                  </div>
 
                   <Link
                     href="/register"

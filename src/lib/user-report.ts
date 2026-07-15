@@ -11,14 +11,28 @@ import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
 
 export type UserReport = { message: string | null; url: string | null };
 
+/** Базовый адрес панели Logsy (для ссылок на сессию в уведомлениях). */
+function appUrl(): string {
+  return (process.env.APP_URL || process.env.NEXTAUTH_URL || "").replace(/\/$/, "");
+}
+
+/** Ссылка на страницу сессии в панели логирования, либо null, если APP_URL не задан. */
+function sessionLink(projectId: string, sessionId: string): string | null {
+  const base = appUrl();
+  if (!base) return null;
+  return `${base}/dashboard/projects/${projectId}/logging/${sessionId}`;
+}
+
 /**
  * Уведомляет владельца проекта о новых сообщениях пользователей (USER_REPORT).
  * Best-effort: ошибки отправки логируются, но не мешают приёму логов. Вызывается
  * из ингеста в долгоживущем процессе (см. инструментацию), поэтому запускается
- * «в фоне» (без await), чтобы не задерживать ответ SDK.
+ * «в фоне» (без await), чтобы не задерживать ответ SDK. sessionId — сессия, в
+ * которую попало сообщение: на неё в уведомлении даётся прямая ссылка.
  */
 export async function notifyUserReports(
   projectId: string,
+  sessionId: string,
   reports: UserReport[],
 ): Promise<void> {
   const items = reports.filter((r) => r.message && r.message.trim());
@@ -36,6 +50,7 @@ export async function notifyUserReports(
   if (contacts.length === 0) return;
 
   const when = new Date().toLocaleString("ru-RU");
+  const link = sessionLink(projectId, sessionId);
 
   for (const report of items) {
     const message = report.message!.trim();
@@ -45,7 +60,8 @@ export async function notifyUserReports(
       `Проект: ${project.name} (${project.domain})\n` +
       (page ? `Страница: ${page}\n` : "") +
       `Время: ${when}\n` +
-      `\nСообщение пользователя:\n${message}\n`;
+      `\nСообщение пользователя:\n${message}\n` +
+      (link ? `\nСессия пользователя: ${link}\n` : "");
 
     for (const contact of contacts) {
       try {
@@ -54,7 +70,8 @@ export async function notifyUserReports(
             `<b>💬 Сообщение об ошибке</b>\n` +
             `Проект: ${escapeHtml(project.name)} (${escapeHtml(project.domain)})\n` +
             (page ? `Страница: ${escapeHtml(page)}\n` : "") +
-            `\n${escapeHtml(message)}`;
+            `\n${escapeHtml(message)}` +
+            (link ? `\n\n<a href="${escapeHtml(link)}">Открыть сессию пользователя</a>` : "");
           await sendTelegramMessage(contact.value, html, { html: true });
         } else {
           await sendMail({ to: contact.value, subject, text });
