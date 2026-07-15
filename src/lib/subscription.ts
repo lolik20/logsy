@@ -1,10 +1,7 @@
-// Логика доступности сервиса по подписке: пробный период и платный тариф.
+// Логика доступности сервиса по подписке: бесплатный и платный тариф.
 
-/** Длительность бесплатного пробного периода при регистрации. */
-export const TRIAL_DAYS = 14;
-
-/** Лимит сайтов на время пробного периода. */
-export const TRIAL_SITES_LIMIT = 1;
+/** Лимит сайтов на бесплатном тарифе. */
+export const FREE_SITES_LIMIT = 1;
 
 export type SubscriptionLike = {
   plan: string;
@@ -16,9 +13,9 @@ export type SubscriptionLike = {
  * Активна ли подписка прямо сейчас — то есть можно ли пользоваться сервисом
  * (мониторинг работает, можно добавлять проекты).
  *
- *  - TRIAL — пока не истёк пробный период (currentPeriodEnd в будущем);
- *  - PAID  — статус active и оплаченный период ещё не закончился;
- *  - FREE / прочее — неактивна.
+ *  - FREE — бесплатный тариф, действует всегда;
+ *  - PAID — статус active и оплаченный период ещё не закончился;
+ *  - прочее — неактивна.
  */
 export function isSubscriptionActive(
   sub: SubscriptionLike | null | undefined,
@@ -26,9 +23,7 @@ export function isSubscriptionActive(
 ): boolean {
   if (!sub) return false;
 
-  if (sub.plan === "TRIAL") {
-    return !!sub.currentPeriodEnd && sub.currentPeriodEnd.getTime() > now.getTime();
-  }
+  if (isFreePlan(sub)) return true;
 
   if (sub.plan === "PAID") {
     return (
@@ -72,29 +67,22 @@ export function formatSitesLimit(limit: number): string {
   return Number.isFinite(limit) ? String(limit) : "∞";
 }
 
-/** Идёт ли сейчас именно пробный период (для показа плашек в интерфейсе). */
-export function isTrialActive(
-  sub: SubscriptionLike | null | undefined,
-  now: Date = new Date(),
-): boolean {
-  return sub?.plan === "TRIAL" && isSubscriptionActive(sub, now);
+/**
+ * Бесплатный ли сейчас тариф (для показа плашек в интерфейсе). Легаси-план «TRIAL»
+ * (от отменённого пробного периода) тоже считаем бесплатным тарифом.
+ */
+export function isFreePlan(sub: SubscriptionLike | null | undefined): boolean {
+  return sub?.plan === "FREE" || sub?.plan === "TRIAL";
 }
 
-/** Дата окончания пробного периода от заданного момента. */
-export function trialEndFrom(start: Date = new Date()): Date {
-  const end = new Date(start);
-  end.setDate(end.getDate() + TRIAL_DAYS);
-  return end;
-}
-
-export type SubscriptionTone = "trial" | "active" | "inactive";
+export type SubscriptionTone = "free" | "active" | "inactive";
 
 export type SubscriptionStatus = {
-  /** Короткая подпись статуса: «Пробный период» / «Активна» / «Не активна». */
+  /** Короткая подпись статуса: «Бесплатный тариф» / «Активна» / «Не активна». */
   label: string;
   /** Стилевой тон для плашки/индикатора. */
   tone: SubscriptionTone;
-  /** Дата окончания текущего периода (пробного или оплаченного) в формате ru-RU. */
+  /** Дата окончания оплаченного периода в формате ru-RU. */
   periodEnd: string | null;
   /** Есть ли смысл показывать строку «до …» рядом со статусом. */
   showPeriodEnd: boolean;
@@ -121,20 +109,20 @@ export function describeSubscription(
   }
 
   const active = isSubscriptionActive(sub, now);
-  const trial = isTrialActive(sub, now);
+  const free = isFreePlan(sub);
   const periodEnd = sub?.currentPeriodEnd
     ? new Date(sub.currentPeriodEnd).toLocaleDateString("ru-RU")
     : null;
 
-  const label = trial ? "Пробный период" : active ? "Активна" : "Не активна";
-  const tone: SubscriptionTone = trial ? "trial" : active ? "active" : "inactive";
+  const label = free ? "Бесплатный тариф" : active ? "Активна" : "Не активна";
+  const tone: SubscriptionTone = free ? "free" : active ? "active" : "inactive";
 
   return {
     label,
     tone,
     periodEnd,
-    // Дату «до» показываем, пока подписка активна (и в пробном, и в платном периоде).
-    showPeriodEnd: active && !!periodEnd,
+    // Дату «до» показываем только для платного тарифа с известным сроком окончания.
+    showPeriodEnd: active && !free && !!periodEnd,
   };
 }
 
@@ -143,14 +131,14 @@ export function describeSubscription(
 // проверок активности и описания статуса, но для конкретного проекта.
 
 export type ProjectBillingLike = {
-  billingStatus: string; // TRIAL | ACTIVE | INACTIVE
+  billingStatus: string; // FREE | ACTIVE | INACTIVE
   currentPeriodEnd: Date | null;
   trialEndsAt: Date | null;
 };
 
 /**
  * Активен ли сервис для проекта прямо сейчас (работает мониторинг/логирование):
- *  - TRIAL  — пробный период ещё не истёк (trialEndsAt в будущем);
+ *  - FREE   — бесплатный тариф, действует всегда;
  *  - ACTIVE — оплаченный период ещё не закончился;
  *  - иначе  — неактивен.
  * Администратор имеет доступ всегда.
@@ -163,25 +151,22 @@ export function isProjectServiceActive(
   if (isAdmin) return true;
   if (!project) return false;
 
-  if (project.billingStatus === "TRIAL") {
-    return !!project.trialEndsAt && project.trialEndsAt.getTime() > now.getTime();
-  }
+  if (isProjectFree(project)) return true;
   if (project.billingStatus === "ACTIVE") {
     return !project.currentPeriodEnd || project.currentPeriodEnd.getTime() > now.getTime();
   }
   return false;
 }
 
-/** Идёт ли сейчас пробный период проекта. */
-export function isProjectTrialActive(
+/**
+ * На бесплатном ли тарифе сейчас проект. Легаси-статус «TRIAL» (от отменённого
+ * пробного периода) тоже считаем бесплатным тарифом, чтобы старые проекты
+ * продолжили работать без миграции.
+ */
+export function isProjectFree(
   project: ProjectBillingLike | null | undefined,
-  now: Date = new Date(),
 ): boolean {
-  return (
-    project?.billingStatus === "TRIAL" &&
-    !!project.trialEndsAt &&
-    project.trialEndsAt.getTime() > now.getTime()
-  );
+  return project?.billingStatus === "FREE" || project?.billingStatus === "TRIAL";
 }
 
 /**
@@ -197,13 +182,14 @@ export function describeProjectBilling(
   }
 
   const active = isProjectServiceActive(project, false, now);
-  const trial = isProjectTrialActive(project, now);
-  const endDate =
-    project?.billingStatus === "TRIAL" ? project?.trialEndsAt : project?.currentPeriodEnd;
-  const periodEnd = endDate ? new Date(endDate).toLocaleDateString("ru-RU") : null;
+  const free = isProjectFree(project);
+  const periodEnd = project?.currentPeriodEnd
+    ? new Date(project.currentPeriodEnd).toLocaleDateString("ru-RU")
+    : null;
 
-  const label = trial ? "Пробный период" : active ? "Активен" : "Не активен";
-  const tone: SubscriptionTone = trial ? "trial" : active ? "active" : "inactive";
+  const label = free ? "Бесплатный тариф" : active ? "Активен" : "Не активен";
+  const tone: SubscriptionTone = free ? "free" : active ? "active" : "inactive";
 
-  return { label, tone, periodEnd, showPeriodEnd: active && !!periodEnd };
+  // Дату «до» показываем только для платного тарифа с известным сроком окончания.
+  return { label, tone, periodEnd, showPeriodEnd: active && !free && !!periodEnd };
 }

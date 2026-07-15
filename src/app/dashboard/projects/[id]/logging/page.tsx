@@ -10,7 +10,7 @@ import { ProjectExceptions } from "@/components/ProjectExceptions";
 import { ClearLogsButton } from "@/components/ClearLogsButton";
 import { DepartureAnalytics } from "@/components/DepartureAnalytics";
 import { isProjectServiceActive } from "@/lib/subscription";
-import { retentionDays } from "@/lib/logging";
+import { retentionLabel } from "@/lib/logging";
 import { flagEmoji } from "@/lib/geo";
 import { ACTION_TYPES, collectDepartures, type Departure } from "@/lib/breadcrumbs";
 
@@ -173,8 +173,7 @@ export default async function LoggingPage({
           «медленного» запроса можно изменить атрибутом{" "}
           <code className="font-mono">data-slow-ms</code> на теге скрипта
           (например <span className="font-mono">data-slow-ms=&quot;2000&quot;</span>).
-          Логи хранятся {retentionDays(project.tier)}{" "}
-          {retentionDays(project.tier) === 1 ? "сутки" : "суток"}.
+          Логи хранятся {retentionLabel(project.tier)}.
         </p>
       </details>
 

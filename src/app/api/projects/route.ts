@@ -3,7 +3,6 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
-import { trialEndFrom } from "@/lib/subscription";
 
 const schema = z.object({
   name: z.string().min(1, "Укажите название").max(120),
@@ -37,15 +36,15 @@ export async function POST(req: Request) {
     );
   }
 
-  // Новый проект получает собственный пробный период (тарификация — за проект).
+  // Новый проект стартует на бесплатном тарифе (300 сессий/сутки, хранение 12 часов).
+  // Платный тариф выбирается позже во вкладке «Тариф».
   try {
     const project = await prisma.project.create({
       data: {
         userId,
         name: parsed.data.name.trim(),
         domain,
-        billingStatus: "TRIAL",
-        trialEndsAt: trialEndFrom(),
+        billingStatus: "FREE",
       },
     });
     return NextResponse.json({ project });

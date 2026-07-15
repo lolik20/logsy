@@ -52,7 +52,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Проекты</h1>
           <p className="text-sm text-slate-500">
-            Тарификация — за проект. Новый проект получает пробный период.
+            Тарификация — за проект. Новый проект работает на бесплатном тарифе.
           </p>
         </div>
       </div>

@@ -3,8 +3,8 @@
 
 import { prisma } from "@/lib/prisma";
 
-/** Уровни тарифа проекта. */
-export type Tier = "T300" | "T1000" | "T3000";
+/** Уровни платного тарифа проекта. */
+export type Tier = "T1000" | "T3000";
 
 /** Суточная квота на число новых пользовательских сессий по тарифу. */
 export function dailySessionQuota(tier: string | null | undefined): number {
@@ -13,16 +13,25 @@ export function dailySessionQuota(tier: string | null | undefined): number {
       return 10000;
     case "T1000":
       return 5000;
-    case "T300":
     default:
-      return 1000; // базовый и триал
+      return 300; // бесплатный тариф (tier не выбран)
   }
 }
 
-/** Срок хранения логов по тарифу, в сутках. */
-export function retentionDays(tier: string | null | undefined): number {
-  // Базовый тариф (T300) и триал — 1 сутки; T1000/T3000 — 3 суток.
-  return tier === "T1000" || tier === "T3000" ? 3 : 1;
+/** Срок хранения логов по тарифу, в часах. */
+export function retentionHours(tier: string | null | undefined): number {
+  // Бесплатный тариф — 12 часов; T1000/T3000 — 3 суток (72 часа).
+  return tier === "T1000" || tier === "T3000" ? 72 : 12;
+}
+
+/** Человекочитаемый срок хранения логов по тарифу («12 часов» / «3 суток»). */
+export function retentionLabel(tier: string | null | undefined): string {
+  const hours = retentionHours(tier);
+  if (hours % 24 === 0) {
+    const days = hours / 24;
+    return `${days} ${days === 1 ? "сутки" : "суток"}`;
+  }
+  return `${hours} ${hours === 1 ? "час" : "часов"}`;
 }
 
 /** Максимальная длина текстовых полей события (стек/сообщение/тело запроса). */
@@ -119,19 +128,19 @@ export async function accountNewSession(
  * Запускается по расписанию из планировщика (см. src/lib/scheduler.ts).
  */
 export async function purgeExpiredLogs(now: Date = new Date()): Promise<{ deletedEvents: number }> {
-  // Группируем проекты по числу суток хранения: 1 (T300/триал/без тарифа) и 3 (T1000/T3000).
+  // Группируем проекты по сроку хранения в часах: 12 (бесплатный) и 72 (T1000/T3000).
   const projects = await prisma.project.findMany({ select: { id: true, tier: true } });
-  const byDays = new Map<number, string[]>();
+  const byHours = new Map<number, string[]>();
   for (const p of projects) {
-    const days = retentionDays(p.tier);
-    const list = byDays.get(days) ?? [];
+    const hours = retentionHours(p.tier);
+    const list = byHours.get(hours) ?? [];
     list.push(p.id);
-    byDays.set(days, list);
+    byHours.set(hours, list);
   }
 
   let deletedEvents = 0;
-  for (const [days, projectIds] of byDays) {
-    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  for (const [hours, projectIds] of byHours) {
+    const cutoff = new Date(now.getTime() - hours * 60 * 60 * 1000);
     // Сначала события, затем пустые/устаревшие сессии.
     const ev = await prisma.logEvent.deleteMany({
       where: { projectId: { in: projectIds }, createdAt: { lt: cutoff } },

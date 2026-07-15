@@ -92,7 +92,7 @@ export default async function UsersPage() {
                       className={
                         sub.tone === "inactive"
                           ? "text-red-600 dark:text-red-400"
-                          : sub.tone === "trial"
+                          : sub.tone === "free"
                             ? "text-green-700 dark:text-green-300"
                             : "text-brand"
                       }

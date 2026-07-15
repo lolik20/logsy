@@ -19,7 +19,7 @@ export function ProjectBillingManager({
   currentTier: string | null;
 }) {
   const [tierId, setTierId] = useState<TierId>(
-    (currentTier as TierId) || "T300",
+    (currentTier as TierId) || "T1000",
   );
   const [period, setPeriod] = useState<BillingPeriod>("1m");
   const [loading, setLoading] = useState(false);
