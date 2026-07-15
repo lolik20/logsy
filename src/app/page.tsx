@@ -312,6 +312,187 @@ export default async function LandingPage() {
               ))}
             </div>
 
+            {/* Подробный мониторинг сессий — блок со «скриншотом» ленты событий */}
+            <div className="mt-12 grid items-center gap-8 md:grid-cols-2">
+              {/* Текст (на мобильных — первым, на десктопе — справа) */}
+              <div className="md:order-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand dark:bg-brand/10">
+                  🧭 Сессии пользователей
+                </span>
+                <h3 className="mt-3 text-2xl font-bold sm:text-3xl">
+                  Подробный мониторинг каждой сессии
+                </h3>
+                <p className="mt-3 text-slate-600 dark:text-slate-400">
+                  Logsy собирает не только ошибки, но и весь путь посетителя: переходы
+                  по страницам, клики, ввод в поля, сетевые запросы. Всё выстроено в
+                  единую ленту по времени — видно, что именно человек делал до сбоя.
+                </p>
+                <ul className="mt-5 space-y-2.5 text-sm">
+                  {[
+                    "Хронология событий: переходы, клики, ввод, запросы и ошибки",
+                    "Группировка по пользователю и IP, страна по гео, метки перехода (UTM)",
+                    "«Крошки» перед уходом и аналитика отказов — где теряются клиенты",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <span className="mt-0.5 text-brand">✓</span>
+                      <span className="text-slate-600 dark:text-slate-300">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* «Скриншот»: карточка сессии с лентой событий (на десктопе — слева) */}
+              <div className="md:order-1">
+                <div className="mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card dark:border-slate-700/70 dark:bg-slate-900">
+                  {/* Заголовок карточки сессии */}
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 px-4 py-3 dark:border-slate-700/70">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base leading-none">🇷🇺</span>
+                      <span className="font-mono text-xs text-slate-500">IP 91.108.44.12</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-semibold">
+                      <span className="flex items-center gap-1 text-red-600">
+                        <span className="h-2 w-2 rounded-full bg-red-500" />1
+                      </span>
+                      <span className="flex items-center gap-1 text-amber-500">
+                        <span className="h-2 w-2 rounded-full bg-amber-400" />1
+                      </span>
+                    </div>
+                  </div>
+                  {/* Лента событий сессии */}
+                  <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {[
+                      { t: "14:02:11", label: "Начало сессии", dot: "bg-emerald-500" },
+                      { t: "14:02:12", label: "Открыта страница /catalog", dot: "bg-blue-500" },
+                      { t: "14:02:20", label: "Клик: «Добавить в корзину»", dot: "bg-slate-400" },
+                      { t: "14:02:35", label: "Ввод: email = a•••@mail.ru", dot: "bg-slate-400" },
+                      { t: "14:02:41", label: "Медленный запрос /api/checkout", dot: "bg-amber-500", badge: "1240 мс", badgeCls: "bg-amber-100 text-amber-700" },
+                      { t: "14:02:43", label: "HTTP 500 /api/pay", dot: "bg-red-500", badge: "ошибка", badgeCls: "bg-red-100 text-red-700", hi: true },
+                      { t: "14:02:58", label: "Выход с сайта", dot: "bg-slate-400", badge: "Отказ", badgeCls: "bg-slate-200 text-slate-600" },
+                    ].map((e, i) => (
+                      <li
+                        key={i}
+                        className={`flex items-center gap-3 px-4 py-2.5 ${
+                          e.hi ? "bg-red-50/60 dark:bg-red-950/20" : ""
+                        }`}
+                      >
+                        <span className="w-12 shrink-0 font-mono text-[10px] text-slate-400">{e.t}</span>
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${e.dot}`} />
+                        <span className="flex-1 truncate text-xs text-slate-600 dark:text-slate-300">
+                          {e.label}
+                        </span>
+                        {e.badge && (
+                          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${e.badgeCls}`}>
+                            {e.badge}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Обратная форма ошибок — крупный блок со «скриншотом» виджета */}
+            <div className="mt-12 grid items-center gap-8 md:grid-cols-2">
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand dark:bg-brand/10">
+                  💬 Обратная связь от пользователей
+                </span>
+                <h3 className="mt-3 text-2xl font-bold sm:text-3xl">
+                  Пользователи сами сообщают об ошибках
+                </h3>
+                <p className="mt-3 text-slate-600 dark:text-slate-400">
+                  Включите обратную форму на вкладке «Логирование» — и на вашем сайте
+                  появится плавающая кнопка «Сообщить об ошибке» в правом нижнем углу
+                  (на ПК и мобильных). Посетитель в пару слов опишет проблему, а вы
+                  увидите её в контексте его действий.
+                </p>
+                <ul className="mt-5 space-y-2.5 text-sm">
+                  {[
+                    "Сообщение попадает прямо в сессию пользователя — виден весь путь до жалобы",
+                    "Уведомление на почту и в Telegram со ссылкой на сессию",
+                    "Тот же тег в <head>, без настройки — работает на ПК и мобильных",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <span className="mt-0.5 text-brand">✓</span>
+                      <span className="text-slate-600 dark:text-slate-300">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* «Скриншот»: окно сайта с открытым виджетом обратной связи */}
+              <div className="relative mx-auto w-full max-w-md">
+                <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card dark:border-slate-700/70 dark:bg-slate-900">
+                  {/* Верхняя панель браузера */}
+                  <div className="flex items-center gap-1.5 border-b border-slate-200/80 bg-slate-50 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-800/60">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-green-400" />
+                    <span className="ml-2 flex-1 truncate rounded-md bg-white px-2 py-0.5 text-[10px] text-slate-400 dark:bg-slate-900">
+                      example.ru
+                    </span>
+                  </div>
+                  {/* Контент страницы + виджет */}
+                  <div className="relative h-72 bg-white p-4 dark:bg-slate-900">
+                    <div className="space-y-2.5">
+                      <div className="h-3.5 w-1/3 rounded bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-2.5 w-3/4 rounded bg-slate-100 dark:bg-slate-800" />
+                      <div className="h-2.5 w-2/3 rounded bg-slate-100 dark:bg-slate-800" />
+                      <div className="h-24 w-full rounded-lg bg-slate-100 dark:bg-slate-800" />
+                      <div className="h-2.5 w-1/2 rounded bg-slate-100 dark:bg-slate-800" />
+                    </div>
+
+                    {/* Форма обратной связи (виджет всегда светлый — как в реальном SDK) */}
+                    <div className="absolute bottom-16 right-3 w-60 rounded-xl bg-white p-3 text-left shadow-2xl ring-1 ring-black/5">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-[13px] font-bold text-slate-900">Сообщить об ошибке</p>
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          className="h-3.5 w-3.5 shrink-0 text-slate-400"
+                        >
+                          <path d="M18 6 6 18" />
+                          <path d="m6 6 12 12" />
+                        </svg>
+                      </div>
+                      <p className="mt-0.5 text-[10px] text-slate-500">
+                        Опишите, что пошло не так — мы это увидим.
+                      </p>
+                      <div className="mt-2 h-14 rounded-lg border border-brand/40 bg-white p-2 text-[10px] text-slate-400">
+                        Не проходит оплата на последнем шаге…
+                      </div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-[9px] text-slate-400">Работает на Logsy</span>
+                        <span className="rounded-full bg-brand px-2.5 py-1 text-[10px] font-semibold text-white">
+                          Отправить
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Плавающая кнопка (FAB) */}
+                    <div className="absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-full bg-brand text-white shadow-lg">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-5 w-5"
+                      >
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-10 text-center">
               <Link
                 href="/register"
