@@ -1,7 +1,53 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { PageNode, PageLoadMetric, CriticalRequest } from "@/lib/pages";
+import type { PageNode, PageLoadMetric, CriticalRequest, PageCounts } from "@/lib/pages";
+
+/**
+ * Суммирует ошибки/медленные запросы по всему поддереву каждого узла (для агрегата у
+ * каталогов). Возвращает Map: путь узла → суммарные счётчики его поддерева (включая
+ * собственную страницу узла).
+ */
+function subtreeCounts(
+  nodes: PageNode[],
+  counts: Record<string, PageCounts>,
+  acc: Map<string, PageCounts>,
+): PageCounts {
+  const sum: PageCounts = { errors: 0, slow: 0 };
+  for (const n of nodes) {
+    const own = counts[n.path] ?? { errors: 0, slow: 0 };
+    const childTotal = subtreeCounts(n.children, counts, acc);
+    const total: PageCounts = {
+      errors: own.errors + childTotal.errors,
+      slow: own.slow + childTotal.slow,
+    };
+    acc.set(n.path, total);
+    sum.errors += total.errors;
+    sum.slow += total.slow;
+  }
+  return sum;
+}
+
+/** Пара бейджей «ошибки / медленные запросы» рядом с названием каталога/страницы. */
+function CountBadges({ counts }: { counts: PageCounts | undefined }) {
+  if (!counts || (counts.errors === 0 && counts.slow === 0)) return null;
+  return (
+    <span className="flex shrink-0 items-center gap-2 text-xs font-semibold">
+      {counts.errors > 0 && (
+        <span className="flex items-center gap-1 text-red-600" title="Ошибки запросов">
+          <span className="h-2 w-2 rounded-full bg-red-600" />
+          {counts.errors}
+        </span>
+      )}
+      {counts.slow > 0 && (
+        <span className="flex items-center gap-1 text-amber-500" title="Медленные запросы">
+          <span className="h-2 w-2 rounded-full bg-amber-400" />
+          {counts.slow}
+        </span>
+      )}
+    </span>
+  );
+}
 
 // Пороги «карты загрузки» (мс) для цвета индикатора среднего времени до прогрузки контента.
 const LOAD_OK = 1500; // быстро — зелёный
@@ -93,6 +139,7 @@ function TreeRow({
   domain,
   metrics,
   critical,
+  totals,
   scaleMax,
   open,
   toggle,
@@ -102,6 +149,7 @@ function TreeRow({
   domain: string;
   metrics: Record<string, PageLoadMetric>;
   critical: Record<string, CriticalRequest[]>;
+  totals: Map<string, PageCounts>;
   scaleMax: number;
   open: Set<string>;
   toggle: (path: string) => void;
@@ -155,6 +203,8 @@ function TreeRow({
                 из сессий
               </span>
             )}
+            {/* Кол-во ошибок/медленных запросов внутри каталога (по всему поддереву). */}
+            <CountBadges counts={totals.get(node.path)} />
           </span>
           {node.title && node.title !== label && (
             <span className="block truncate text-xs text-slate-400" title={node.title}>
@@ -206,6 +256,7 @@ function TreeRow({
               domain={domain}
               metrics={metrics}
               critical={critical}
+              totals={totals}
               scaleMax={scaleMax}
               open={open}
               toggle={toggle}
@@ -222,14 +273,23 @@ export function PagesMap({
   tree,
   metrics,
   critical,
+  counts,
 }: {
   domain: string;
   tree: PageNode[];
   metrics: Record<string, PageLoadMetric>;
   critical: Record<string, CriticalRequest[]>;
+  counts: Record<string, PageCounts>;
 }) {
   // По умолчанию раскрываем корень, чтобы карта не выглядела пустой.
   const [open, setOpen] = useState<Set<string>>(() => new Set(tree.map((n) => n.path)));
+
+  // Суммарные счётчики ошибок/медленных по поддереву каждого узла (для каталогов).
+  const totals = useMemo(() => {
+    const acc = new Map<string, PageCounts>();
+    subtreeCounts(tree, counts, acc);
+    return acc;
+  }, [tree, counts]);
 
   const toggle = (path: string) =>
     setOpen((prev) => {
@@ -280,6 +340,7 @@ export function PagesMap({
             domain={domain}
             metrics={metrics}
             critical={critical}
+            totals={totals}
             scaleMax={scaleMax}
             open={open}
             toggle={toggle}

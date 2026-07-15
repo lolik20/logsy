@@ -8,10 +8,12 @@ import { retentionHours } from "@/lib/logging";
 import {
   aggregatePageLoads,
   aggregateCriticalRequests,
+  aggregatePageCounts,
   buildPageTree,
   type PageInput,
   type PageLoadMetric,
   type CriticalRequest,
+  type PageCounts,
 } from "@/lib/pages";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +48,16 @@ export default async function PagesPage({
     where: {
       projectId: project.id,
       createdAt: { gte: since },
-      type: { in: ["PAGE_LOAD", "SLOW_RESOURCE", "SLOW_REQUEST", "HTTP_ERROR"] },
+      type: {
+        in: [
+          "PAGE_LOAD",
+          "SLOW_RESOURCE",
+          "SLOW_REQUEST",
+          "HTTP_ERROR",
+          "ERROR",
+          "UNHANDLED_REJECTION",
+        ],
+      },
     },
     orderBy: { createdAt: "desc" },
     take: MAX_METRIC_EVENTS,
@@ -54,10 +65,16 @@ export default async function PagesPage({
   });
 
   const loadEvents = metricEvents.filter((e) => e.type === "PAGE_LOAD");
-  const slowEvents = metricEvents.filter((e) => e.type !== "PAGE_LOAD");
+  // Критические запросы/файлы строятся из событий с URL запроса (route): медленные
+  // запросы/ресурсы и упавшие запросы. JS-ошибки без route сюда не попадают.
+  const slowEvents = metricEvents.filter(
+    (e) => e.type === "SLOW_RESOURCE" || e.type === "SLOW_REQUEST" || e.type === "HTTP_ERROR",
+  );
 
   const metricsMap = aggregatePageLoads(loadEvents);
   const criticalMap = aggregateCriticalRequests(slowEvents);
+  // Счётчики ошибок/медленных по каждой странице (для агрегатов у каталогов).
+  const countsMap = aggregatePageCounts(metricEvents);
 
   // Объединяем источники путей: краулер + пути, замеченные только в сессиях.
   const pageByPath = new Map<string, PageInput>();
@@ -78,6 +95,8 @@ export default async function PagesPage({
   for (const [path, m] of metricsMap) metrics[path] = m;
   const critical: Record<string, CriticalRequest[]> = {};
   for (const [path, list] of criticalMap) critical[path] = list;
+  const counts: Record<string, PageCounts> = {};
+  for (const [path, c] of countsMap) counts[path] = c;
 
   const lastCrawl = await prisma.projectPage.aggregate({
     where: { projectId: project.id, source: "CRAWL" },
@@ -128,6 +147,7 @@ export default async function PagesPage({
           tree={tree}
           metrics={metrics}
           critical={critical}
+          counts={counts}
         />
       )}
     </div>
