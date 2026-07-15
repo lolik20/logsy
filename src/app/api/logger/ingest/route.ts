@@ -217,6 +217,7 @@ export async function POST(req: Request) {
   if (reports.length) {
     void notifyUserReports(
       project.id,
+      session.id,
       reports.map((r) => ({ message: r.message, url: r.url })),
     ).catch((err) =>
       console.error("[Logsy] Ошибка уведомления о сообщении пользователя:", err),
