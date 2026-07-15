@@ -7,6 +7,7 @@ import { LogDateFilter } from "@/components/LogDateFilter";
 import { LogErrorFilter } from "@/components/LogErrorFilter";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { ProjectExceptions } from "@/components/ProjectExceptions";
+import { FeedbackFormSettings } from "@/components/FeedbackFormSettings";
 import { ClearLogsButton } from "@/components/ClearLogsButton";
 import { DepartureAnalytics } from "@/components/DepartureAnalytics";
 import { isProjectServiceActive } from "@/lib/subscription";
@@ -177,6 +178,11 @@ export default async function LoggingPage({
           {retentionDays(project.tier) === 1 ? "сутки" : "суток"}.
         </p>
       </details>
+
+      <FeedbackFormSettings
+        projectId={project.id}
+        enabled={project.feedbackEnabled}
+      />
 
       <ProjectExceptions exceptions={exceptions} />
 

@@ -12,6 +12,7 @@ export const EVENT_TYPE_LABEL: Record<string, string> = {
   NAVIGATION: "Переход",
   CLICK: "Клик",
   INPUT: "Ввод",
+  USER_REPORT: "Сообщение пользователя",
 };
 
 // Цвет иконки по типу события (тон совпадает с прежней подсветкой текста).
@@ -25,6 +26,7 @@ const TYPE_TONE: Record<string, string> = {
   NAVIGATION: "text-blue-600",
   CLICK: "text-slate-500 dark:text-slate-300",
   INPUT: "text-slate-500 dark:text-slate-300",
+  USER_REPORT: "text-violet-600",
 };
 
 function Svg({ children }: { children: ReactNode }) {
@@ -109,6 +111,12 @@ const ICONS: Record<string, ReactNode> = {
     <Svg>
       <rect x="3" y="6" width="18" height="12" rx="2" />
       <path d="M7 10v4" />
+    </Svg>
+  ),
+  // Речевой пузырь — сообщение пользователя (обратная форма ошибок).
+  USER_REPORT: (
+    <Svg>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </Svg>
   ),
 };

@@ -157,11 +157,13 @@ export default async function CombinedIpPage({
               <tr
                 key={e.id}
                 className={`border-t border-slate-100 align-top dark:border-slate-800 ${
-                  e.type === "SESSION_END"
-                    ? "bg-slate-50 dark:bg-slate-800/40"
-                    : breadcrumbIds.has(e.id)
-                      ? "border-l-2 border-l-amber-400 bg-amber-50/40 dark:bg-amber-900/10"
-                      : ""
+                  e.type === "USER_REPORT"
+                    ? "border-l-2 border-l-violet-400 bg-violet-50/50 dark:bg-violet-900/10"
+                    : e.type === "SESSION_END"
+                      ? "bg-slate-50 dark:bg-slate-800/40"
+                      : breadcrumbIds.has(e.id)
+                        ? "border-l-2 border-l-amber-400 bg-amber-50/40 dark:bg-amber-900/10"
+                        : ""
                 }`}
               >
                 <td className="px-4 py-2 whitespace-nowrap text-slate-500">
@@ -178,6 +180,11 @@ export default async function CombinedIpPage({
                 <td className="px-4 py-2 whitespace-nowrap">
                   <div className="flex items-center gap-1.5">
                     <EventTypeIcon type={e.type} />
+                    {e.type === "USER_REPORT" && (
+                      <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                        Сообщение
+                      </span>
+                    )}
                     {e.type === "SESSION_END" && (
                       <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-200">
                         Отказ
@@ -200,6 +207,10 @@ export default async function CombinedIpPage({
                       )}
                       <span className="font-mono text-xs">{e.route}</span>
                     </div>
+                  ) : e.type === "USER_REPORT" ? (
+                    <span className="whitespace-pre-wrap break-words font-medium text-violet-700 dark:text-violet-300">
+                      {e.message ?? "—"}
+                    </span>
                   ) : (
                     <span className="text-slate-500">{e.message ?? "—"}</span>
                   )}
