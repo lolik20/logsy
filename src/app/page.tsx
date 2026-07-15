@@ -6,37 +6,37 @@ import { LandingNav } from "@/components/LandingNav";
 const features = [
   {
     title: "Мониторинг каждую минуту",
-    text: "Проверяем ваши эндпоинты с периодичностью 1 минута, 1 час или 1 день — выбираете вы.",
+    text: "Проверки раз в минуту, час или день — на ваш выбор.",
     icon: "⏱️",
   },
   {
     title: "Любые HTTP-методы",
-    text: "GET, POST, PUT, DELETE и настраиваемый ожидаемый код ответа для точной проверки API.",
+    text: "GET, POST, PUT, DELETE и нужный код ответа — точная проверка API.",
     icon: "🌐",
   },
   {
     title: "Алерты на почту",
-    text: "Как только сайт или API упал — мгновенно отправляем письмо на ваши контакты.",
+    text: "Упал сайт или API — сразу письмо на ваши контакты.",
     icon: "✉️",
   },
   {
     title: "Проекты и мониторы",
-    text: "Группируйте мониторы по проектам (доменам). Вся история проверок под рукой.",
+    text: "Мониторы по проектам, вся история проверок под рукой.",
     icon: "📊",
   },
   {
     title: "Контроль SSL-сертификата",
-    text: "Следим за сроком действия SSL и предупреждаем письмом за неделю, за 3 дня, за 1 день и за 1 час до истечения — сайт не «покраснеет» в браузере неожиданно.",
+    text: "Предупредим об истечении SSL за неделю, 3 дня, день и час — без внезапного «красного» сайта.",
     icon: "🔒",
   },
   {
     title: "Проверка оплаты и авторизации",
-    text: "Мониторьте не только главную, но и критичные сценарии: оплату, вход, API — с телом запроса и заголовками.",
+    text: "Оплата, вход, ключевые API — с телом запроса и заголовками.",
     icon: "🔐",
   },
   {
     title: "Российская локация",
-    text: "Проверки из России, оплата в рублях, поддержка на русском. Данные остаются в РФ.",
+    text: "Проверки из РФ, оплата в рублях, данные в РФ, поддержка на русском.",
     icon: "🇷🇺",
   },
 ];
@@ -44,17 +44,17 @@ const features = [
 const problems = [
   {
     title: "Не работает оплата на сайте",
-    text: "Платёжный шлюз молча отвалился — заказы не проходят, а вы теряете деньги и не знаете об этом.",
+    text: "Платёжный шлюз молча отвалился — заказы не проходят, вы теряете деньги.",
     icon: "💳",
   },
   {
     title: "Отвалилась авторизация",
-    text: "Пользователи не могут войти в личный кабинет. Об этом вы узнаёте последними — из жалоб.",
+    text: "Пользователи не могут войти. Вы узнаёте последними — из жалоб.",
     icon: "🔒",
   },
   {
     title: "Клиенты уходят",
-    text: "Каждая минута простоя — это потерянные клиенты, деньги и репутация. Молча и безвозвратно.",
+    text: "Каждая минута простоя — потерянные клиенты, деньги и репутация.",
     icon: "📉",
   },
 ];
@@ -106,9 +106,8 @@ export default async function LandingPage() {
           </span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-300">
-          Logsy проверяет ваши сайты и API каждую минуту и ловит ошибки фронтенда
-          в проде — и сразу присылает письмо, если что-то пошло не так. Настройка
-          за пару минут.
+          Проверяем сайты и API каждую минуту, ловим ошибки фронтенда в проде и
+          сразу шлём письмо о сбое. Настройка за пару минут.
         </p>
         <div className="mt-8 flex justify-center gap-3">
           <Link
@@ -196,10 +195,9 @@ export default async function LandingPage() {
                   Мы следим за вашим бизнесом 24/7
                 </h2>
                 <p className="mt-4 text-slate-600 dark:text-slate-300">
-                  Logsy круглосуточно проверяет критичные сценарии — оплату,
-                  авторизацию, ключевые API — из российской локации и мгновенно
-                  шлёт письмо, как только что-то сломалось. Вы чините проблему
-                  раньше, чем её заметят клиенты.
+                  Круглосуточно проверяем оплату, авторизацию и ключевые API из
+                  РФ и шлём письмо при сбое — вы чините раньше, чем заметят
+                  клиенты.
                 </p>
                 <Link
                   href="/register"
@@ -270,8 +268,8 @@ export default async function LandingPage() {
               </h2>
               <p className="mx-auto mt-4 max-w-2xl text-slate-600 dark:text-slate-300">
                 Один тег в <code className="font-mono text-sm">&lt;head&gt;</code> — и Logsy
-                ловит JS-ошибки, упавшие и медленные запросы к вашему бэкенду и
-                собирает всё в сессии пользователей. Без SDK, сборки и настройки.
+                ловит JS-ошибки, упавшие и медленные запросы, строит карту
+                загрузки страниц и собирает всё в сессии. Без SDK и настройки.
               </p>
             </div>
 
@@ -295,7 +293,8 @@ export default async function LandingPage() {
               {[
                 { t: "Фронт-ошибки", s: "Ловим необработанные исключения и отклонённые промисы со стеком.", icon: "🐞" },
                 { t: "Ошибки бэкенда на фронте", s: "Видим упавшие 4xx/5xx запросы: маршрут, метод, payload, код ответа.", icon: "🔌" },
-                { t: "Медленные запросы", s: "Отмечаем всё, что грузится дольше 500 мс — узкие места видны сразу.", icon: "🐢" },
+                { t: "Медленные запросы", s: "Отмечаем всё, что грузится дольше заданного порога — узкие места видны сразу.", icon: "🐢" },
+                { t: "Карта загрузки страниц", s: "Бот обходит домен и строит дерево разделов: среднее время загрузки, медленные запросы и файлы по каждой странице.", icon: "🗺️" },
                 { t: "Сессии пользователей", s: "Все события группируются в сессию — виден весь путь до ошибки.", icon: "🧭" },
                 { t: "Обратная связь от пользователей", s: "Кнопка «Сообщить об ошибке» на сайте: посетитель опишет проблему — сообщение попадёт в его сессию и придёт вам на почту и в Telegram.", icon: "💬" },
                 { t: "Умный батчинг", s: "Собираем только критичное и шлём раз в 10 секунд — ноль нагрузки на сайт.", icon: "📦" },
@@ -323,9 +322,8 @@ export default async function LandingPage() {
                   Подробный мониторинг каждой сессии
                 </h3>
                 <p className="mt-3 text-slate-600 dark:text-slate-400">
-                  Logsy собирает не только ошибки, но и весь путь посетителя: переходы
-                  по страницам, клики, ввод в поля, сетевые запросы. Всё выстроено в
-                  единую ленту по времени — видно, что именно человек делал до сбоя.
+                  Весь путь посетителя — переходы, клики, ввод, запросы, ошибки —
+                  в единой ленте по времени. Видно, что было до сбоя.
                 </p>
                 <ul className="mt-5 space-y-2.5 text-sm">
                   {[
@@ -403,10 +401,9 @@ export default async function LandingPage() {
                   Пользователи сами сообщают об ошибках
                 </h3>
                 <p className="mt-3 text-slate-600 dark:text-slate-400">
-                  Включите обратную форму на вкладке «Логирование» — и на вашем сайте
-                  появится плавающая кнопка «Сообщить об ошибке» в правом нижнем углу
-                  (на ПК и мобильных). Посетитель в пару слов опишет проблему, а вы
-                  увидите её в контексте его действий.
+                  Включите форму — и на сайте появится плавающая кнопка «Сообщить
+                  об ошибке». Посетитель опишет проблему, вы увидите её в контексте
+                  его действий.
                 </p>
                 <ul className="mt-5 space-y-2.5 text-sm">
                   {[
@@ -493,6 +490,110 @@ export default async function LandingPage() {
               </div>
             </div>
 
+            {/* Карта загрузки страниц — блок со «скриншотом» дерева разделов */}
+            <div className="mt-12 grid items-center gap-8 md:grid-cols-2">
+              {/* Текст (на десктопе — справа) */}
+              <div className="md:order-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand dark:bg-brand/10">
+                  🗺️ Страницы
+                </span>
+                <h3 className="mt-3 text-2xl font-bold sm:text-3xl">
+                  Карта загрузки страниц сайта
+                </h3>
+                <p className="mt-3 text-slate-600 dark:text-slate-400">
+                  Бот сам обходит домен и строит дерево разделов. Сразу видно, где сайт
+                  тормозит и почему.
+                </p>
+                <ul className="mt-5 space-y-2.5 text-sm">
+                  {[
+                    "Среднее время загрузки по каждой странице",
+                    "Клик — и видны медленные запросы и файлы",
+                    "Счётчик ошибок и тормозов у каждого раздела",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <span className="mt-0.5 text-brand">✓</span>
+                      <span className="text-slate-600 dark:text-slate-300">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* «Скриншот»: карточка карты загрузки (на десктопе — слева) */}
+              <div className="md:order-1">
+                <div className="mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card dark:border-slate-700/70 dark:bg-slate-900">
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 px-4 py-3 dark:border-slate-700/70">
+                    <span className="text-xs font-semibold text-slate-500">
+                      Карта загрузки · example.ru
+                    </span>
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400 dark:bg-slate-800">
+                      42 страницы
+                    </span>
+                  </div>
+                  <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {[
+                      { name: "example.ru", pad: "pl-4", bar: "bg-emerald-500", w: "20%", ms: "0,8 с", msCls: "text-emerald-600" },
+                      { name: "/catalog", pad: "pl-6", tag: "каталог", errs: 2, slow: 3, bar: "bg-amber-500", w: "55%", ms: "2,1 с", msCls: "text-amber-600" },
+                      { name: "/catalog/item", pad: "pl-10", bar: "bg-red-500", w: "90%", ms: "3,4 с", msCls: "text-red-600", hi: true },
+                      { name: "/checkout", pad: "pl-6", errs: 1, bar: "bg-red-500", w: "100%", ms: "4,2 с", msCls: "text-red-600" },
+                      { name: "/about", pad: "pl-6", bar: "bg-emerald-500", w: "16%", ms: "0,6 с", msCls: "text-emerald-600" },
+                    ].map((r, i) => (
+                      <li
+                        key={i}
+                        className={`flex items-center gap-2 py-2.5 pr-4 ${r.pad} ${
+                          r.hi ? "bg-red-50/60 dark:bg-red-950/20" : ""
+                        }`}
+                      >
+                        <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-700 dark:text-slate-200">
+                          {r.name}
+                          {r.tag && (
+                            <span className="ml-1.5 rounded bg-slate-100 px-1 py-0.5 text-[9px] text-slate-400 dark:bg-slate-800">
+                              {r.tag}
+                            </span>
+                          )}
+                        </span>
+                        {(r.errs || r.slow) && (
+                          <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold">
+                            {r.errs ? (
+                              <span className="flex items-center gap-0.5 text-red-600">
+                                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                                {r.errs}
+                              </span>
+                            ) : null}
+                            {r.slow ? (
+                              <span className="flex items-center gap-0.5 text-amber-500">
+                                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                                {r.slow}
+                              </span>
+                            ) : null}
+                          </span>
+                        )}
+                        <span className="hidden h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-slate-100 sm:block dark:bg-slate-800">
+                          <span className={`block h-full rounded-full ${r.bar}`} style={{ width: r.w }} />
+                        </span>
+                        <span className={`w-12 shrink-0 text-right text-xs font-semibold ${r.msCls}`}>
+                          {r.ms}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {/* Развёрнутый критический файл под медленной страницей */}
+                  <div className="border-t border-slate-100 px-4 py-2.5 dark:border-slate-800">
+                    <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 dark:bg-slate-800/60">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="shrink-0 rounded bg-sky-100 px-1 py-0.5 text-[9px] font-semibold uppercase text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+                          img
+                        </span>
+                        <span className="truncate font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                          /img/hero-banner.png
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs font-semibold text-red-600">1,8 с</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-10 text-center">
               <Link
                 href="/register"
@@ -557,8 +658,8 @@ export default async function LandingPage() {
       <section id="pricing" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
         <h2 className="text-center text-3xl font-bold">Тарифы — за проект</h2>
         <p className="mx-auto mt-3 max-w-2xl text-center text-slate-600 dark:text-slate-400">
-          Один тариф на проект: uptime-мониторинг, логирование и алерты в каждом.
-          Начните бесплатно, без карты. Скидка 10% за 3 месяца и 20% за год.
+          Один тариф на проект: мониторинг, логирование и алерты. Бесплатно без
+          карты, скидки 10% за 3 месяца и 20% за год.
         </p>
 
         <div className="mt-10 grid gap-6 md:grid-cols-3">
