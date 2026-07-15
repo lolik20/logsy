@@ -20,18 +20,6 @@ function loadTone(ms: number): { bar: string; text: string } {
   return { bar: "bg-red-500", text: "text-red-600" };
 }
 
-/** Короткое имя файла из URL ресурса (последний сегмент пути). */
-function fileName(url: string): string {
-  try {
-    const u = new URL(url);
-    const seg = u.pathname.split("/").filter(Boolean).pop();
-    return seg || u.hostname;
-  } catch {
-    const s = url.split(/[?#]/)[0];
-    return s.split("/").filter(Boolean).pop() || url;
-  }
-}
-
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
@@ -65,11 +53,11 @@ function CriticalList({ items }: { items: CriticalRequest[] }) {
         return (
           <li
             key={it.route}
-            className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60"
+            className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60"
           >
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 items-start gap-2">
               <span
-                className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
                   isResource
                     ? "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"
                     : "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
@@ -79,8 +67,9 @@ function CriticalList({ items }: { items: CriticalRequest[] }) {
                 {it.initiator || (isResource ? "файл" : "запрос")}
               </span>
               <span className="min-w-0">
-                <span className="block truncate font-mono text-xs text-slate-700 dark:text-slate-200" title={it.route}>
-                  {fileName(it.route)}
+                {/* Полный URL запроса с query-параметрами (переносится, не обрезается). */}
+                <span className="block break-all font-mono text-xs text-slate-700 dark:text-slate-200">
+                  {it.route}
                 </span>
                 {it.count > 1 && (
                   <span className="text-[11px] text-slate-400">
@@ -89,7 +78,7 @@ function CriticalList({ items }: { items: CriticalRequest[] }) {
                 )}
               </span>
             </div>
-            <span className={`shrink-0 text-sm font-semibold ${tone.text}`}>{fmtMs(it.maxMs)}</span>
+            <span className={`mt-0.5 shrink-0 text-sm font-semibold ${tone.text}`}>{fmtMs(it.maxMs)}</span>
           </li>
         );
       })}
