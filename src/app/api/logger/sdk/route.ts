@@ -29,6 +29,9 @@ const SDK = `(function(){
 
     var SLOW_MS = 1000;      // порог «медленного» запроса (мс)
     var FLUSH_MS = 10000;    // интервал отправки батча
+
+    // Форматирует длительность из мс в секунды для текста лога («1.24 с»).
+    function secs(ms) { return (Math.round(ms) / 1000) + " с"; }
     var MAX_BODY = 2000;     // предел размера тела запроса
     var MAX_BUFFER = 50;     // предел числа событий в батче
 
@@ -214,7 +217,7 @@ const SDK = `(function(){
       if (!slow && !httpErr && !failed) return;
       push({
         type: failed ? "HTTP_ERROR" : (httpErr ? "HTTP_ERROR" : "SLOW_REQUEST"),
-        message: failed ? "Network request failed" : (httpErr ? ("HTTP " + status) : ("Slow request " + durationMs + "ms")),
+        message: failed ? "Network request failed" : (httpErr ? ("HTTP " + status) : ("Slow request " + secs(durationMs))),
         route: String(url),
         query: queryOf(url),
         method: method || "GET",
@@ -379,7 +382,7 @@ const SDK = `(function(){
           _pageLoadSent = true;
           push({
             type: "PAGE_LOAD",
-            message: "Загрузка страницы: " + loadMs + " мс" + (dclMs ? " (DOM " + dclMs + " мс)" : ""),
+            message: "Загрузка страницы: " + secs(loadMs) + (dclMs ? " (DOM " + secs(dclMs) + ")" : ""),
             url: location.href,
             durationMs: loadMs
           });
@@ -407,7 +410,7 @@ const SDK = `(function(){
               if (isOwn(en.name)) continue;
               push({
                 type: "SLOW_RESOURCE",
-                message: "Медленный ресурс (" + (it || "?") + "): " + dur + " мс",
+                message: "Медленный ресурс (" + (it || "?") + "): " + secs(dur),
                 route: String(en.name),
                 method: it ? String(it).slice(0, 16) : null,
                 durationMs: dur,
