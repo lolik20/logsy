@@ -15,8 +15,8 @@ const features = [
     icon: "🌐",
   },
   {
-    title: "Алерты на почту",
-    text: "Упал сайт или API — сразу письмо на ваши контакты.",
+    title: "Алерты на почту и в Telegram",
+    text: "Упал сайт или API — сразу письмо на почту и сообщение в Telegram.",
     icon: "✉️",
   },
   {
@@ -59,18 +59,6 @@ const problems = [
   },
 ];
 
-// Сравнение с зарубежным конкурентом.
-const comparison: { label: string; logsy: boolean; hetrix: boolean }[] = [
-  { label: "Российская локация проверок", logsy: true, hetrix: false },
-  { label: "Оплата в рублях", logsy: true, hetrix: false },
-  { label: "Поддержка на русском", logsy: true, hetrix: false },
-  { label: "Данные хранятся в РФ (152-ФЗ)", logsy: true, hetrix: false },
-  { label: "Мониторинг API: методы, тело, заголовки", logsy: true, hetrix: true },
-  { label: "Контроль срока SSL-сертификата", logsy: true, hetrix: true },
-  { label: "Алерты на почту", logsy: true, hetrix: true },
-  { label: "Проверки каждую минуту", logsy: true, hetrix: true },
-];
-
 export default async function LandingPage() {
   const session = await auth();
 
@@ -95,11 +83,7 @@ export default async function LandingPage() {
 
       {/* Hero */}
       <section className="relative z-10 mx-auto max-w-6xl px-6 pb-16 pt-16 text-center">
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/60 px-4 py-1.5 text-sm font-medium text-brand backdrop-blur-md dark:border-white/10 dark:bg-white/5">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />
-          Мониторинг доступности и логирование фронтенда
-        </span>
-        <h1 className="mx-auto mt-6 max-w-3xl text-4xl font-extrabold leading-tight tracking-tight sm:text-6xl">
+        <h1 className="mx-auto max-w-3xl text-4xl font-extrabold leading-tight tracking-tight sm:text-6xl">
           Узнавайте о падении сайта{" "}
           <span className="bg-gradient-to-r from-brand to-sky-500 bg-clip-text text-transparent">
             раньше клиентов
@@ -107,7 +91,8 @@ export default async function LandingPage() {
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-300">
           Проверяем сайты и API каждую минуту, ловим ошибки фронтенда в проде и
-          сразу шлём письмо о сбое. Настройка за пару минут.
+          сразу шлём уведомление о сбое на почту и в Telegram. Настройка за пару
+          минут.
         </p>
         <div className="mt-8 flex justify-center gap-3">
           <Link
@@ -123,9 +108,6 @@ export default async function LandingPage() {
             Тарифы
           </Link>
         </div>
-        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-          Бесплатный тариф навсегда · без привязки карты
-        </p>
 
         {/* Парящая стеклянная карточка-превью статусов */}
         <div className="mx-auto mt-14 max-w-3xl rounded-3xl border border-white/50 bg-white/60 p-4 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50">
@@ -196,8 +178,8 @@ export default async function LandingPage() {
                 </h2>
                 <p className="mt-4 text-slate-600 dark:text-slate-300">
                   Круглосуточно проверяем оплату, авторизацию и ключевые API из
-                  РФ и шлём письмо при сбое — вы чините раньше, чем заметят
-                  клиенты.
+                  РФ и шлём уведомление при сбое на почту и в Telegram — вы
+                  чините раньше, чем заметят клиенты.
                 </p>
                 <Link
                   href="/register"
@@ -210,7 +192,7 @@ export default async function LandingPage() {
                 {[
                   { t: "Оплата на сайте", s: "проверяем каждую минуту" },
                   { t: "Вход и авторизация", s: "API входа под контролем" },
-                  { t: "Уведомление на почту", s: "мгновенно при сбое" },
+                  { t: "Почта и Telegram", s: "уведомление мгновенно при сбое" },
                 ].map((row) => (
                   <div
                     key={row.t}
@@ -256,37 +238,12 @@ export default async function LandingPage() {
         <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-500 to-brand p-[1.5px] shadow-card">
           <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl sm:p-12 dark:bg-slate-900/80">
             <div className="text-center">
-              <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand dark:bg-brand/10">
-                <span className="h-2 w-2 rounded-full bg-brand" />
-                Новое · Логирование фронтенда
-              </span>
-              <h2 className="mx-auto mt-4 max-w-3xl text-3xl font-bold sm:text-4xl">
-                Видьте ошибки прода{" "}
+              <h2 className="mx-auto max-w-3xl text-3xl font-bold sm:text-4xl">
+                Следите за ошибками прода{" "}
                 <span className="bg-gradient-to-r from-brand to-indigo-500 bg-clip-text text-transparent">
                   глазами пользователя
                 </span>
               </h2>
-              <p className="mx-auto mt-4 max-w-2xl text-slate-600 dark:text-slate-300">
-                Один тег в <code className="font-mono text-sm">&lt;head&gt;</code> — и Logsy
-                ловит JS-ошибки, упавшие и медленные запросы, строит карту
-                загрузки страниц и собирает всё в сессии. Без SDK и настройки.
-              </p>
-            </div>
-
-            {/* Установка в одну строку */}
-            <div className="mx-auto mt-8 max-w-2xl">
-              <div className="rounded-2xl border border-slate-200/80 bg-slate-900 p-4 text-left dark:border-slate-700/70">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  Подключение
-                </div>
-                <pre className="overflow-x-auto text-xs text-slate-100 sm:text-sm">
-                  <code>&lt;script src=&quot;https://cdn.logsy.ru/logger.js&quot; async&gt;&lt;/script&gt;</code>
-                </pre>
-              </div>
-              <p className="mt-2 text-center text-xs text-slate-500">
-                Скрипт работает только с домена вашего проекта — чужой сайт его не
-                запустит.
-              </p>
             </div>
 
             <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -607,61 +564,9 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* Сравнение с конкурентом */}
-      <section className="relative z-10 mx-auto max-w-4xl px-6 py-16">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold sm:text-4xl">Logsy или HetrixTools?</h2>
-          <p className="mt-3 text-slate-600 dark:text-slate-400">
-            Зарубежные сервисы удобны, но у них нет российской локации и оплаты в
-            рублях.
-          </p>
-        </div>
-        <div className="mt-10 overflow-hidden rounded-3xl border border-white/50 bg-white/60 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50">
-          <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 border-b border-slate-200/70 px-5 py-4 text-sm font-semibold sm:gap-x-8 sm:px-8 dark:border-slate-700/70">
-            <div className="text-slate-500">Возможность</div>
-            <div className="w-24 text-center text-brand">Logsy</div>
-            <div className="w-24 text-center text-slate-400">HetrixTools</div>
-          </div>
-          {comparison.map((row, i) => (
-            <div
-              key={row.label}
-              className={`grid grid-cols-[1fr_auto_auto] items-center gap-x-4 px-5 py-3.5 text-sm sm:gap-x-8 sm:px-8 ${
-                i % 2 === 1 ? "bg-white/40 dark:bg-white/5" : ""
-              }`}
-            >
-              <div className="font-medium">{row.label}</div>
-              <div className="flex w-24 justify-center">
-                {row.logsy ? (
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-sm text-green-600 dark:bg-green-950/50">
-                    ✓
-                  </span>
-                ) : (
-                  <span className="text-slate-300">—</span>
-                )}
-              </div>
-              <div className="flex w-24 justify-center">
-                {row.hetrix ? (
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-sm text-slate-500 dark:bg-slate-800">
-                    ✓
-                  </span>
-                ) : (
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-50 text-sm text-red-500 dark:bg-red-950/40">
-                    ✕
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* Тарифы — за проект, три уровня */}
       <section id="pricing" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
         <h2 className="text-center text-3xl font-bold">Тарифы — за проект</h2>
-        <p className="mx-auto mt-3 max-w-2xl text-center text-slate-600 dark:text-slate-400">
-          Один тариф на проект: мониторинг, логирование и алерты. Бесплатно без
-          карты, скидки 10% за 3 месяца и 20% за год.
-        </p>
 
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {/* Бесплатный тариф */}
@@ -752,10 +657,6 @@ export default async function LandingPage() {
             );
           })}
         </div>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Бесплатный тариф на каждый новый проект — навсегда, без привязки карты
-        </p>
       </section>
 
       <footer className="border-t border-slate-200 py-8 text-center text-sm text-slate-500 dark:border-slate-800">
