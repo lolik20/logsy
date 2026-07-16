@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
 import { collectDepartures } from "@/lib/breadcrumbs";
-import { formatDurationSec } from "@/lib/logging";
+import { formatDurationSec, truncateUrl } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
 
@@ -231,7 +231,10 @@ export default async function CombinedIpPage({
                       )}
                       {e.url && (
                         <div className="mt-1 text-xs text-slate-400">
-                          Страница: {e.url}
+                          Страница:{" "}
+                          <span className="break-all" title={e.url}>
+                            {truncateUrl(e.url)}
+                          </span>
                         </div>
                       )}
                       {e.query && (
