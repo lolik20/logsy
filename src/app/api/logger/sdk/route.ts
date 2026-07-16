@@ -234,7 +234,11 @@ const SDK = `(function(){
     if (_fetch) {
       window.fetch = function(input, init) {
         var start = Date.now();
-        var url = (typeof input === "string") ? input : (input && input.url) || "";
+        // input может быть строкой, Request (.url) или URL (.href) — иначе route окажется
+        // пустым и медленный запрос покажется «без деталей» и без адреса.
+        var url = (typeof input === "string")
+          ? input
+          : (input && (input.url || input.href)) || (input ? String(input) : "");
         var method = (init && init.method) || (input && input.method) || "GET";
         var reqBody = init && init.body ? init.body : null;
         return _fetch.apply(this, arguments).then(function(res) {
