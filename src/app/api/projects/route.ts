@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 
 const schema = z.object({
-  name: z.string().min(1, "Укажите название").max(120),
   domain: z.string().min(1, "Укажите домен").max(255),
 });
 
@@ -44,7 +43,8 @@ export async function POST(req: Request) {
     const project = await prisma.project.create({
       data: {
         userId,
-        name: parsed.data.name.trim(),
+        // Отдельное название больше не спрашиваем — используем домен как имя проекта.
+        name: domain,
         domain,
         billingStatus: "FREE",
         monitors: {
