@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
-import { endpointOf, eventKind, eventUrl, matchesException } from "@/lib/exceptions";
+import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
+import { isStaticAssetEvent } from "@/lib/staticAssets";
 import { collectDepartures } from "@/lib/breadcrumbs";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
@@ -310,23 +311,6 @@ export default async function SessionPage({
       )}
     </div>
   );
-}
-
-// Расширения статических файлов: скрипты, стили, картинки, шрифты, карты, wasm.
-const STATIC_ASSET_EXT =
-  /\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|avif|ico|bmp|woff2?|ttf|otf|eot|map|wasm)$/i;
-
-/**
- * Событие относится к статике (img/script/link-стили/css/шрифты)? Такими считаем
- * замеры Resource Timing (SLOW_RESOURCE) и любые сетевые запросы к файлам со
- * статическим расширением (JS-чанки, стили и т.п. — приходят как SLOW_REQUEST/
- * HTTP_ERROR через обёртку fetch/XHR). Расширение берём из пути запроса (route)
- * без query-строки.
- */
-function isStaticAssetEvent(e: { type: string; route?: string | null }): boolean {
-  if (e.type === "SLOW_RESOURCE") return true;
-  const endpoint = endpointOf(e.route);
-  return endpoint ? STATIC_ASSET_EXT.test(endpoint) : false;
 }
 
 /** Достаёт почту отправителя обратной формы из meta события (JSON), либо null. */
