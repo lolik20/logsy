@@ -654,16 +654,37 @@ const SDK = `(function(){
       if (!recBuffer.length) return;
       var chunk = { seq: recSeq++, events: recBuffer.splice(0, recBuffer.length) };
       var body = JSON.stringify({ sessionKey: sid, userAgent: ua, chunks: [chunk] });
+      // Тело записи бывает крупным: полный DOM-снимок легко превышает 64 КБ. У sendBeacon
+      // и у keepalive-fetch в браузерах жёсткий лимит тела ~64 КБ — крупный батч они просто
+      // не отправят (fetch зависнет в pending и отменится). Поэтому в обычном периодическом
+      // флаше шлём БЕЗ keepalive обычным fetch (без ограничения на размер), а keepalive/beacon
+      // используем только при выгрузке страницы, где обычный fetch отменяется навигацией.
+      // text/plain — чтобы запрос остался CORS-simple и без preflight (как ингест логов).
       try {
-        // text/plain — чтобы запрос остался CORS-simple и без preflight (как ингест логов).
-        if (useBeacon && navigator.sendBeacon) {
-          navigator.sendBeacon(REC_ENDPOINT, new Blob([body], { type: "text/plain" }));
+        if (useBeacon) {
+          var sent = false;
+          if (navigator.sendBeacon && body.length < 60000) {
+            try {
+              sent = navigator.sendBeacon(REC_ENDPOINT, new Blob([body], { type: "text/plain" }));
+            } catch (e) { sent = false; }
+          }
+          // Крупный «хвост» при выгрузке надёжно доставить нельзя (лимит keepalive), но
+          // основную массу уже отправили периодические флаши — пробуем keepalive как есть.
+          if (!sent) {
+            fetch(REC_ENDPOINT, {
+              method: "POST",
+              headers: { "content-type": "text/plain" },
+              body: body,
+              keepalive: true,
+              credentials: "omit",
+              mode: "cors"
+            }).catch(function(){});
+          }
         } else {
           fetch(REC_ENDPOINT, {
             method: "POST",
             headers: { "content-type": "text/plain" },
             body: body,
-            keepalive: true,
             credentials: "omit",
             mode: "cors"
           }).catch(function(){});
@@ -698,6 +719,9 @@ const SDK = `(function(){
             checkoutEveryNms: 5 * 60 * 1000
           });
           window.LOGSY._rec = recStop;
+          // Ранний первый флаш — чтобы стартовый DOM-снимок ушёл сразу, а не через интервал
+          // (иначе короткие сессии не успевают отправить запись).
+          setTimeout(function () { recFlush(false); }, 1200);
           setInterval(function () { recFlush(false); }, REC_FLUSH_MS);
         } catch (e) {}
       };
