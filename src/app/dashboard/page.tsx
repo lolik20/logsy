@@ -7,6 +7,7 @@ import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
 import { statusSignature } from "@/lib/status";
 import { AdminMonitoring } from "@/components/AdminMonitoring";
 import { Faq } from "@/components/Faq";
+import { Onboarding, type OnboardingStep } from "@/components/Onboarding";
 
 export const dynamic = "force-dynamic";
 
@@ -33,21 +34,60 @@ export default async function DashboardPage() {
     return <AdminMonitoring />;
   }
 
-  const projects = await prisma.project.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    include: {
-      monitors: {
-        select: { id: true, lastStatus: true, lastCheckedAt: true },
+  const [projects, contactsCount] = await Promise.all([
+    prisma.project.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        monitors: {
+          select: { id: true, lastStatus: true, lastCheckedAt: true },
+        },
       },
-    },
-  });
+    }),
+    prisma.contact.count({ where: { userId, verified: true } }),
+  ]);
 
   const signature = statusSignature(projects.flatMap((p) => p.monitors));
+
+  // Шаги онбординга для новых пользователей: завести проект, дождаться первой
+  // проверки монитора (создаётся автоматически вместе с проектом) и подключить
+  // канал оповещений. Панель скрывается пользователем вручную.
+  const firstProjectId = projects[projects.length - 1]?.id;
+  const hasMonitor = projects.some((p) => p.monitors.length > 0);
+  const onboardingSteps: OnboardingStep[] = [
+    {
+      key: "project",
+      title: "Добавьте первый проект",
+      description:
+        "Проект — это ваш сайт. Укажите название и домен — мы сразу заведём проверку главной страницы.",
+      done: projects.length > 0,
+    },
+    {
+      key: "monitor",
+      title: "Проверка главной страницы работает",
+      description:
+        "Вместе с проектом создаётся монитор главной страницы (GET /). Мы регулярно опрашиваем сайт и следим за доступностью.",
+      done: hasMonitor,
+      href: firstProjectId ? `/dashboard/projects/${firstProjectId}` : undefined,
+      actionLabel: "Открыть проект",
+    },
+    {
+      key: "alerts",
+      title: "Подключите канал оповещений",
+      description:
+        "Добавьте email или Telegram во вкладке «Алерты», чтобы получать уведомления о падении сайта.",
+      done: contactsCount > 0,
+      href: firstProjectId
+        ? `/dashboard/projects/${firstProjectId}/alerts`
+        : undefined,
+      actionLabel: "Настроить",
+    },
+  ];
 
   return (
     <div>
       <StatusAutoRefresh initialSignature={signature} />
+      <Onboarding steps={onboardingSteps} />
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Проекты</h1>
