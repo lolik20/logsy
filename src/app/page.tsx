@@ -522,6 +522,109 @@ export default async function LandingPage() {
               </div>
             </div>
 
+            {/* Доска задач (канбан) — блок со «скриншотом» доски */}
+            <div className="mt-12">
+              <div className="mx-auto max-w-3xl text-center">
+                <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand dark:bg-brand/10">
+                  🗂️ Доска задач
+                </span>
+                <h3 className="mt-3 text-2xl font-bold sm:text-3xl">
+                  Ошибки сами превращаются в задачи
+                </h3>
+                <p className="mt-3 text-slate-600 dark:text-slate-400">
+                  Каждое сообщение об ошибке становится карточкой на канбан-доске.
+                  Перетаскивайте между колонками «Создано → В работе → Выполнено» —
+                  в карточке ссылка на сессию, почта и приоритет.
+                </p>
+              </div>
+
+              {/* «Скриншот»: канбан-доска */}
+              <div className="mx-auto mt-8 w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card dark:border-slate-700/70 dark:bg-slate-900">
+                {/* Верхняя панель доски */}
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 px-4 py-3 dark:border-slate-700/70">
+                  <span className="text-xs font-semibold text-slate-500">
+                    Доска задач · example.ru
+                  </span>
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400 dark:bg-slate-800">
+                    7 задач
+                  </span>
+                </div>
+                {/* Колонки */}
+                <div className="grid gap-3 overflow-x-auto p-4 sm:grid-cols-3">
+                  {[
+                    {
+                      title: "Создано",
+                      dot: "bg-slate-400",
+                      cards: [
+                        { t: "HTTP 500 /api/pay", pr: "Высокий", prCls: "bg-red-100 text-red-700", meta: "Сессия #4821" },
+                        { t: "Медленный /catalog (2,1 с)", pr: "Средний", prCls: "bg-amber-100 text-amber-700", meta: "Сессия #4818" },
+                      ],
+                    },
+                    {
+                      title: "В работе",
+                      dot: "bg-blue-500",
+                      cards: [
+                        { t: "TypeError в checkout.js", pr: "Высокий", prCls: "bg-red-100 text-red-700", meta: "Сессия #4805", hi: true },
+                        { t: "Не грузится /img/hero.png", pr: "Низкий", prCls: "bg-slate-200 text-slate-600", meta: "Сессия #4790" },
+                      ],
+                    },
+                    {
+                      title: "Выполнено",
+                      dot: "bg-emerald-500",
+                      cards: [
+                        { t: "Отвалилась авторизация", pr: "Высокий", prCls: "bg-red-100 text-red-700", meta: "Сессия #4771", done: true },
+                        { t: "Ошибка формы оплаты", pr: "Средний", prCls: "bg-amber-100 text-amber-700", meta: "Сессия #4762", done: true },
+                        { t: "404 на /promo", pr: "Низкий", prCls: "bg-slate-200 text-slate-600", meta: "Сессия #4750", done: true },
+                      ],
+                    },
+                  ].map((col) => (
+                    <div
+                      key={col.title}
+                      className="min-w-[200px] rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50"
+                    >
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          <span className={`h-2 w-2 rounded-full ${col.dot}`} />
+                          {col.title}
+                        </span>
+                        <span className="rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-400 dark:bg-slate-900">
+                          {col.cards.length}
+                        </span>
+                      </div>
+                      <div className="space-y-2.5">
+                        {col.cards.map((c, i) => (
+                          <div
+                            key={i}
+                            className={`rounded-lg border bg-white p-2.5 text-left shadow-sm dark:bg-slate-900 ${
+                              c.hi
+                                ? "border-brand/50 ring-1 ring-brand/20"
+                                : "border-slate-200/80 dark:border-slate-700/70"
+                            }`}
+                          >
+                            <p
+                              className={`truncate text-xs font-medium text-slate-700 dark:text-slate-200 ${
+                                c.done ? "line-through decoration-slate-300" : ""
+                              }`}
+                            >
+                              {c.t}
+                            </p>
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                              <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${c.prCls}`}>
+                                {c.pr}
+                              </span>
+                              <span className="truncate font-mono text-[9px] text-slate-400">
+                                {c.meta}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="mt-10 text-center">
               <Link
                 href="/register"
