@@ -26,6 +26,8 @@ Telegram, RDAP/WHOIS по российским TLD.
 | 3 | Импортозамещение / сравнение | `03-analog-pingdom-uptimerobot-rubles.md` | SEO, VC.ru, каталоги РФ-софта | founders, студии |
 | 4 | Боль эксплуатации | `04-ssl-expiry-monitoring.md` | SEO, TG-каналы | все сегменты |
 | 5 | Кейс для студий | `05-web-studio-monitoring-feedback-tasks.md` | VC.ru, сообщества студий | веб-студии, агентства |
+| 6 | Целевой запрос / боль | `06-track-bounces-besides-yandex-metrica.md` | SEO («отслеживать отказы кроме Яндекс.Метрики») | владельцы сайтов, маркетологи |
+| 7 | Целевой запрос / боль | `07-site-down-clients-leaving-what-to-do.md` | SEO («падает сайт, клиенты уходят») | малый бизнес, интернет-магазины |
 
 ## Как использовать
 
