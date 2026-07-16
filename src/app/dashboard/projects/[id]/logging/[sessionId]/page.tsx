@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
-import { endpointOf, eventKind, eventUrl, matchesException } from "@/lib/exceptions";
+import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
 import { collectDepartures } from "@/lib/breadcrumbs";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
@@ -313,20 +313,34 @@ export default async function SessionPage({
 }
 
 // Расширения статических файлов: скрипты, стили, картинки, шрифты, карты, wasm.
+// Ищем расширение где угодно в адресе (не только в конце): у оптимизаторов картинок
+// исходный файл лежит в query, напр. /_next/image?url=%2Fphoto.png&w=640. Граница
+// (?![a-z0-9]) не даёт «.js» совпасть внутри «.json».
 const STATIC_ASSET_EXT =
-  /\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|avif|ico|bmp|woff2?|ttf|otf|eot|map|wasm)$/i;
+  /\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|avif|ico|bmp|woff2?|ttf|otf|eot|map|wasm)(?![a-z0-9])/i;
+
+// Пути-маркеры статики без расширения в самом пути: оптимизатор картинок и статика
+// Next.js, типовые каталоги /static/ и /assets/.
+const STATIC_ASSET_PATH = /\/_next\/(?:image|static)\b|\/(?:static|assets)\//i;
 
 /**
- * Событие относится к статике (img/script/link-стили/css/шрифты)? Такими считаем
- * замеры Resource Timing (SLOW_RESOURCE) и любые сетевые запросы к файлам со
- * статическим расширением (JS-чанки, стили и т.п. — приходят как SLOW_REQUEST/
- * HTTP_ERROR через обёртку fetch/XHR). Расширение берём из пути запроса (route)
- * без query-строки.
+ * Событие относится к статике (img / script / link-стили / css / шрифты)? Такими
+ * считаем замеры Resource Timing (SLOW_RESOURCE) и любые сетевые запросы
+ * (SLOW_REQUEST/HTTP_ERROR через обёртку fetch/XHR) к статическим файлам —
+ * определяем по расширению в адресе запроса или по типовому пути статики. Адрес
+ * декодируем, чтобы поймать расширение исходного файла в query оптимизатора картинок.
  */
 function isStaticAssetEvent(e: { type: string; route?: string | null }): boolean {
   if (e.type === "SLOW_RESOURCE") return true;
-  const endpoint = endpointOf(e.route);
-  return endpoint ? STATIC_ASSET_EXT.test(endpoint) : false;
+  const route = e.route;
+  if (!route) return false;
+  let url = route;
+  try {
+    url = decodeURIComponent(route);
+  } catch {
+    // Некорректная процентная последовательность — проверяем адрес как есть.
+  }
+  return STATIC_ASSET_PATH.test(url) || STATIC_ASSET_EXT.test(url);
 }
 
 /** Достаёт почту отправителя обратной формы из meta события (JSON), либо null. */
