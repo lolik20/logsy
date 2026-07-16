@@ -1,17 +1,23 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import fs from "node:fs";
+import path from "node:path";
+import { chromium, type Browser } from "playwright-core";
 
-// Публичный онлайн-инструмент: делает один GET-запрос к указанному URL и
-// измеряет скорость загрузки — время до первого байта (TTFB), полное время
-// загрузки ответа, размер и HTTP-статус. Никаких данных не сохраняем.
+// Публичный онлайн-инструмент: открывает указанный URL в реальном headless-браузере
+// (Chromium) и измеряет скорость загрузки страницы «как у пользователя» — с
+// выполнением всех скриптов. Ключевая метрика — время до готовности DOM
+// (DOMContentLoaded, включая синхронные и defer-скрипты). Ничего не сохраняем.
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+// Загрузка страницы в браузере может занять время — поднимаем лимит функции.
+export const maxDuration = 60;
 
 const schema = z.object({
   url: z.string().min(1, "Укажите адрес сайта").max(2000),
 });
 
-const TIMEOUT_MS = 20_000;
-const MAX_BYTES = 25 * 1024 * 1024; // 25 МБ — защита от бесконечной загрузки
+const NAV_TIMEOUT_MS = 35_000;
 
 /**
  * Приводит введённый пользователем адрес к корректному URL: добавляет схему
@@ -53,14 +59,44 @@ function normalizeUrl(raw: string): URL | null {
   return url;
 }
 
+/**
+ * Ищет исполняемый файл Chromium. Приоритет — переменная окружения; иначе
+ * перебираем сборки в PLAYWRIGHT_BROWSERS_PATH. undefined — пусть playwright
+ * подберёт браузер по умолчанию.
+ */
+function findChromiumExecutable(): string | undefined {
+  const explicit = process.env.CHROMIUM_EXECUTABLE_PATH;
+  if (explicit && fs.existsSync(explicit)) return explicit;
+
+  const base = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  if (base) {
+    try {
+      const dirs = fs
+        .readdirSync(base)
+        .filter((d) => d.startsWith("chromium-") && !d.includes("headless_shell"))
+        .sort()
+        .reverse();
+      for (const d of dirs) {
+        const p = path.join(base, d, "chrome-linux", "chrome");
+        if (fs.existsSync(p)) return p;
+      }
+    } catch {
+      // каталог недоступен — используем дефолт playwright
+    }
+  }
+  return undefined;
+}
+
 interface SpeedResult {
   url: string;
+  finalUrl: string;
   statusCode: number;
   ttfbMs: number;
-  totalMs: number;
-  sizeBytes: number;
+  domContentLoadedMs: number;
+  loadMs: number | null;
+  requests: number;
+  transferBytes: number;
   redirected: boolean;
-  finalUrl: string;
 }
 
 export async function POST(req: Request) {
@@ -81,63 +117,77 @@ export async function POST(req: Request) {
     );
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  const start = Date.now();
-
+  let browser: Browser | null = null;
   try {
-    const res = await fetch(url.toString(), {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "user-agent": "LogsySpeedTest/1.0 (+https://logsy.ru)",
-        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
+    browser = await chromium.launch({
+      executablePath: findChromiumExecutable(),
+      args: ["--no-sandbox", "--disable-dev-shm-usage"],
     });
 
-    // Время до первого байта — момент, когда получены заголовки ответа.
-    const ttfbMs = Date.now() - start;
+    const context = await browser.newContext({
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/120.0 Safari/537.36 LogsySpeedTest/1.0",
+      viewport: { width: 1366, height: 768 },
+    });
+    const page = await context.newPage();
 
-    // Дочитываем тело до конца, чтобы измерить полное время загрузки и размер.
-    let sizeBytes = 0;
-    const reader = res.body?.getReader();
-    if (reader) {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          sizeBytes += value.byteLength;
-          if (sizeBytes > MAX_BYTES) {
-            await reader.cancel().catch(() => {});
-            break;
-          }
-        }
-      }
-    }
+    // Считаем сетевые запросы и приблизительный объём переданных данных.
+    let requests = 0;
+    let transferBytes = 0;
+    page.on("response", (resp) => {
+      requests += 1;
+      const cl = resp.headers()["content-length"];
+      if (cl) transferBytes += Number.parseInt(cl, 10) || 0;
+    });
 
-    const totalMs = Date.now() - start;
+    // Ждём готовности DOM (все синхронные и defer-скрипты выполнены).
+    const response = await page.goto(url.toString(), {
+      waitUntil: "domcontentloaded",
+      timeout: NAV_TIMEOUT_MS,
+    });
+    // Пытаемся дождаться полной загрузки (load) для второй метрики, но не
+    // проваливаем проверку, если тяжёлые ресурсы не успели за короткий срок.
+    await page.waitForLoadState("load", { timeout: 8000 }).catch(() => {});
+
+    // Снимаем метрики из Navigation Timing — они точнее «ручного» таймера.
+    const timing = await page.evaluate(() => {
+      const nav = performance.getEntriesByType(
+        "navigation",
+      )[0] as PerformanceNavigationTiming | undefined;
+      if (!nav) return null;
+      return {
+        ttfb: nav.responseStart,
+        domContentLoaded: nav.domContentLoadedEventEnd,
+        load: nav.loadEventEnd,
+      };
+    });
+
+    const finalUrl = page.url();
+    const statusCode = response?.status() ?? 0;
 
     const result: SpeedResult = {
       url: url.toString(),
-      statusCode: res.status,
-      ttfbMs,
-      totalMs,
-      sizeBytes,
-      redirected: res.redirected,
-      finalUrl: res.url || url.toString(),
+      finalUrl,
+      statusCode,
+      ttfbMs: Math.max(0, Math.round(timing?.ttfb ?? 0)),
+      domContentLoadedMs: Math.max(0, Math.round(timing?.domContentLoaded ?? 0)),
+      loadMs:
+        timing && timing.load > 0 ? Math.max(0, Math.round(timing.load)) : null,
+      requests,
+      transferBytes,
+      redirected: finalUrl.replace(/\/$/, "") !== url.toString().replace(/\/$/, ""),
     };
 
     return NextResponse.json(result);
   } catch (err) {
-    const message =
-      err instanceof Error && err.name === "AbortError"
-        ? `Сайт не ответил за ${TIMEOUT_MS / 1000} секунд — превышено время ожидания`
-        : err instanceof Error
-          ? `Не удалось загрузить сайт: ${err.message}`
-          : "Не удалось загрузить сайт";
+    const raw = err instanceof Error ? err.message : "";
+    const isTimeout = /Timeout|timed out|exceeded/i.test(raw);
+    const message = isTimeout
+      ? "Сайт не успел загрузиться за отведённое время — вероятно, он слишком медленный"
+      : `Не удалось открыть сайт: ${raw || "неизвестная ошибка"}`;
     return NextResponse.json({ error: message }, { status: 502 });
   } finally {
-    clearTimeout(timer);
+    await browser?.close().catch(() => {});
   }
 }
