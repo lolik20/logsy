@@ -1,90 +1,174 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import fs from "node:fs";
-import path from "node:path";
-import { chromium, type Browser } from "playwright-core";
 
-// Публичный онлайн-инструмент: открывает указанный URL в реальном headless-браузере
-// (Chromium) и измеряет скорость загрузки страницы «как у пользователя» — с
-// выполнением всех скриптов. Ключевая метрика — время до готовности DOM
-// (DOMContentLoaded, включая синхронные и defer-скрипты). Ничего не сохраняем.
+// Публичный онлайн-инструмент: измеряет скорость загрузки сайта «как в браузере»,
+// но без headless-браузера. Загружаем HTML, находим все подключённые скрипты,
+// стили и картинки и параллельно скачиваем их — как это делает браузер при
+// построении страницы. Ключевая метрика — готовность DOM: HTML разобран и все
+// скрипты загружены. Ничего не сохраняем.
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-// Загрузка страницы в браузере может занять время — поднимаем лимит функции.
-export const maxDuration = 60;
+export const maxDuration = 45;
 
 const schema = z.object({
   url: z.string().min(1, "Укажите адрес сайта").max(2000),
 });
 
-const NAV_TIMEOUT_MS = 35_000;
+const DOC_TIMEOUT_MS = 20_000;
+const RES_TIMEOUT_MS = 15_000;
+const MAX_RESOURCES = 80; // не скачиваем больше — защита от «тяжёлых» страниц
+const MAX_RES_BYTES = 8 * 1024 * 1024; // лимит на один ресурс
+const MAX_TOTAL_BYTES = 60 * 1024 * 1024; // общий лимит трафика
+const CONCURRENCY = 12; // параллельных загрузок, как у браузера
+const UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/120.0 Safari/537.36 LogsySpeedTest/1.0";
+
+/** Хост указывает на локальную/приватную сеть? (защита от SSRF). */
+function isBlockedHost(host: string): boolean {
+  const h = host.toLowerCase();
+  return (
+    h === "localhost" ||
+    h === "0.0.0.0" ||
+    h.endsWith(".localhost") ||
+    h.endsWith(".local") ||
+    h.endsWith(".internal") ||
+    /^127\./.test(h) ||
+    /^10\./.test(h) ||
+    /^192\.168\./.test(h) ||
+    /^169\.254\./.test(h) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+    h === "::1" ||
+    h.startsWith("[")
+  );
+}
 
 /**
- * Приводит введённый пользователем адрес к корректному URL: добавляет схему
- * https://, если пользователь её не указал. Возвращает null, если адрес
- * некорректен или указывает на локальный/приватный хост (защита от SSRF).
+ * Приводит введённый адрес к корректному URL (добавляет https://, если схемы
+ * нет). Возвращает null для некорректных или внутренних адресов.
  */
 function normalizeUrl(raw: string): URL | null {
   const trimmed = raw.trim();
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-
   let url: URL;
   try {
     url = new URL(withScheme);
   } catch {
     return null;
   }
-
   if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-
-  const host = url.hostname.toLowerCase();
-  // Блокируем обращения к внутренним адресам — эндпоинт публичный.
-  if (
-    host === "localhost" ||
-    host === "0.0.0.0" ||
-    host.endsWith(".localhost") ||
-    host.endsWith(".local") ||
-    host.endsWith(".internal") ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^169\.254\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-    host === "::1" ||
-    host.startsWith("[")
-  ) {
-    return null;
-  }
-
+  if (isBlockedHost(url.hostname)) return null;
   return url;
 }
 
-/**
- * Ищет исполняемый файл Chromium. Приоритет — переменная окружения; иначе
- * перебираем сборки в PLAYWRIGHT_BROWSERS_PATH. undefined — пусть playwright
- * подберёт браузер по умолчанию.
- */
-function findChromiumExecutable(): string | undefined {
-  const explicit = process.env.CHROMIUM_EXECUTABLE_PATH;
-  if (explicit && fs.existsSync(explicit)) return explicit;
+type ResKind = "script" | "style" | "image";
+interface ResRef {
+  url: string;
+  kind: ResKind;
+}
 
-  const base = process.env.PLAYWRIGHT_BROWSERS_PATH;
-  if (base) {
+/** Извлекает из HTML ссылки на скрипты, стили и картинки, приводя их к абсолютным. */
+function extractResources(html: string, baseUrl: URL): ResRef[] {
+  // Учитываем <base href>, если он задан.
+  let base = baseUrl;
+  const baseTag = /<base\b[^>]*\bhref\s*=\s*["']([^"']+)["']/i.exec(html);
+  if (baseTag) {
     try {
-      const dirs = fs
-        .readdirSync(base)
-        .filter((d) => d.startsWith("chromium-") && !d.includes("headless_shell"))
-        .sort()
-        .reverse();
-      for (const d of dirs) {
-        const p = path.join(base, d, "chrome-linux", "chrome");
-        if (fs.existsSync(p)) return p;
-      }
+      base = new URL(baseTag[1], baseUrl);
     } catch {
-      // каталог недоступен — используем дефолт playwright
+      /* игнорируем некорректный base */
     }
   }
-  return undefined;
+
+  const found = new Map<string, ResKind>();
+  const add = (raw: string, kind: ResKind) => {
+    const href = raw.trim();
+    if (!href || href.startsWith("data:") || href.startsWith("javascript:")) return;
+    try {
+      const abs = new URL(href, base);
+      if (abs.protocol !== "http:" && abs.protocol !== "https:") return;
+      if (isBlockedHost(abs.hostname)) return;
+      // Скрипт важнее для готовности DOM — не понижаем его до картинки/стиля.
+      const prev = found.get(abs.href);
+      if (!prev || (prev !== "script" && kind === "script")) found.set(abs.href, kind);
+    } catch {
+      /* некорректная ссылка — пропускаем */
+    }
+  };
+
+  // <script src="...">
+  for (const m of html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
+    add(m[1], "script");
+  }
+  // <link rel="stylesheet" href="..."> (rel и href в любом порядке)
+  for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
+    const tag = m[0];
+    if (!/\brel\s*=\s*["']?[^"'>]*stylesheet/i.test(tag)) continue;
+    const href = /\bhref\s*=\s*["']([^"']+)["']/i.exec(tag);
+    if (href) add(href[1], "style");
+  }
+  // <img src="...">
+  for (const m of html.matchAll(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
+    add(m[1], "image");
+  }
+
+  return Array.from(found, ([url, kind]) => ({ url, kind })).slice(0, MAX_RESOURCES);
+}
+
+interface FetchTiming {
+  ok: boolean;
+  bytes: number;
+  finishedAtMs: number; // время завершения относительно общего старта
+}
+
+/** Скачивает один ресурс и засекает, когда он полностью загрузился. */
+async function fetchResource(
+  url: string,
+  start: number,
+  budget: { total: number },
+): Promise<FetchTiming> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), RES_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      redirect: "follow",
+      signal: controller.signal,
+      headers: { "user-agent": UA, accept: "*/*" },
+    });
+    let bytes = 0;
+    const reader = res.body?.getReader();
+    if (reader) {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          bytes += value.byteLength;
+          budget.total += value.byteLength;
+          if (bytes > MAX_RES_BYTES || budget.total > MAX_TOTAL_BYTES) {
+            await reader.cancel().catch(() => {});
+            break;
+          }
+        }
+      }
+    }
+    return { ok: res.ok, bytes, finishedAtMs: Date.now() - start };
+  } catch {
+    return { ok: false, bytes: 0, finishedAtMs: Date.now() - start };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Выполняет задачи с ограничением параллельности (как пул соединений браузера). */
+async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promise<void>) {
+  let i = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      await worker(items[idx]);
+    }
+  });
+  await Promise.all(runners);
 }
 
 interface SpeedResult {
@@ -93,7 +177,7 @@ interface SpeedResult {
   statusCode: number;
   ttfbMs: number;
   domContentLoadedMs: number;
-  loadMs: number | null;
+  loadMs: number;
   requests: number;
   transferBytes: number;
   redirected: boolean;
@@ -117,77 +201,69 @@ export async function POST(req: Request) {
     );
   }
 
-  let browser: Browser | null = null;
+  const controller = new AbortController();
+  const docTimer = setTimeout(() => controller.abort(), DOC_TIMEOUT_MS);
+  const start = Date.now();
+
   try {
-    browser = await chromium.launch({
-      executablePath: findChromiumExecutable(),
-      args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    // 1. Загружаем HTML-документ, засекаем первый байт и полную загрузку HTML.
+    const res = await fetch(url.toString(), {
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "user-agent": UA,
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+    const ttfbMs = Date.now() - start; // заголовки получены
+    const html = await res.text();
+    const htmlDoneMs = Date.now() - start;
+    clearTimeout(docTimer);
+
+    const budget = { total: Buffer.byteLength(html) };
+
+    // 2. Находим подресурсы и параллельно скачиваем их — как браузер при разборе.
+    const resources = extractResources(html, new URL(res.url || url.toString()));
+    const scriptFinish: number[] = [];
+    const anyFinish: number[] = [];
+    let ok = 0;
+
+    await runPool(resources, CONCURRENCY, async (r) => {
+      const t = await fetchResource(r.url, start, budget);
+      if (t.ok) ok += 1;
+      anyFinish.push(t.finishedAtMs);
+      if (r.kind === "script") scriptFinish.push(t.finishedAtMs);
     });
 
-    const context = await browser.newContext({
-      userAgent:
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/120.0 Safari/537.36 LogsySpeedTest/1.0",
-      viewport: { width: 1366, height: 768 },
-    });
-    const page = await context.newPage();
+    // 3. Оцениваем метрики.
+    // Готовность DOM ≈ HTML разобран + все скрипты загружены (скрипты блокируют
+    // DOMContentLoaded). Полная загрузка ≈ когда пришёл последний ресурс.
+    const domContentLoadedMs = Math.max(htmlDoneMs, ...scriptFinish, 0);
+    const loadMs = Math.max(htmlDoneMs, ...anyFinish, 0);
 
-    // Считаем сетевые запросы и приблизительный объём переданных данных.
-    let requests = 0;
-    let transferBytes = 0;
-    page.on("response", (resp) => {
-      requests += 1;
-      const cl = resp.headers()["content-length"];
-      if (cl) transferBytes += Number.parseInt(cl, 10) || 0;
-    });
-
-    // Ждём готовности DOM (все синхронные и defer-скрипты выполнены).
-    const response = await page.goto(url.toString(), {
-      waitUntil: "domcontentloaded",
-      timeout: NAV_TIMEOUT_MS,
-    });
-    // Пытаемся дождаться полной загрузки (load) для второй метрики, но не
-    // проваливаем проверку, если тяжёлые ресурсы не успели за короткий срок.
-    await page.waitForLoadState("load", { timeout: 8000 }).catch(() => {});
-
-    // Снимаем метрики из Navigation Timing — они точнее «ручного» таймера.
-    const timing = await page.evaluate(() => {
-      const nav = performance.getEntriesByType(
-        "navigation",
-      )[0] as PerformanceNavigationTiming | undefined;
-      if (!nav) return null;
-      return {
-        ttfb: nav.responseStart,
-        domContentLoaded: nav.domContentLoadedEventEnd,
-        load: nav.loadEventEnd,
-      };
-    });
-
-    const finalUrl = page.url();
-    const statusCode = response?.status() ?? 0;
-
+    const finalUrl = res.url || url.toString();
     const result: SpeedResult = {
       url: url.toString(),
       finalUrl,
-      statusCode,
-      ttfbMs: Math.max(0, Math.round(timing?.ttfb ?? 0)),
-      domContentLoadedMs: Math.max(0, Math.round(timing?.domContentLoaded ?? 0)),
-      loadMs:
-        timing && timing.load > 0 ? Math.max(0, Math.round(timing.load)) : null,
-      requests,
-      transferBytes,
+      statusCode: res.status,
+      ttfbMs,
+      domContentLoadedMs,
+      loadMs,
+      requests: 1 + resources.length,
+      transferBytes: budget.total,
       redirected: finalUrl.replace(/\/$/, "") !== url.toString().replace(/\/$/, ""),
     };
 
     return NextResponse.json(result);
   } catch (err) {
-    const raw = err instanceof Error ? err.message : "";
-    const isTimeout = /Timeout|timed out|exceeded/i.test(raw);
+    const isTimeout = err instanceof Error && err.name === "AbortError";
     const message = isTimeout
-      ? "Сайт не успел загрузиться за отведённое время — вероятно, он слишком медленный"
-      : `Не удалось открыть сайт: ${raw || "неизвестная ошибка"}`;
+      ? `Сайт не ответил за ${DOC_TIMEOUT_MS / 1000} секунд — вероятно, он слишком медленный`
+      : err instanceof Error
+        ? `Не удалось загрузить сайт: ${err.message}`
+        : "Не удалось загрузить сайт";
     return NextResponse.json({ error: message }, { status: 502 });
   } finally {
-    await browser?.close().catch(() => {});
+    clearTimeout(docTimer);
   }
 }
