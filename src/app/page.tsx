@@ -216,29 +216,6 @@ export default async function LandingPage() {
               </h2>
             </div>
 
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                { t: "Фронт-ошибки", s: "Ловим необработанные исключения и отклонённые промисы со стеком.", icon: "🐞" },
-                { t: "Ошибки бэкенда на фронте", s: "Видим упавшие 4xx/5xx запросы: маршрут, метод, payload, код ответа.", icon: "🔌" },
-                { t: "Медленные запросы", s: "Отмечаем всё, что грузится дольше заданного порога — узкие места видны сразу.", icon: "🐢" },
-                { t: "Карта загрузки страниц", s: "Бот обходит домен и строит дерево разделов: среднее время загрузки, медленные запросы и файлы по каждой странице.", icon: "🗺️" },
-                { t: "Сессии пользователей", s: "Все события группируются в сессию — виден весь путь до ошибки.", icon: "🧭" },
-                { t: "Обратная связь от пользователей", s: "Кнопка «Сообщить об ошибке» на сайте: посетитель опишет проблему — сообщение попадёт в его сессию и придёт вам на почту и в Telegram.", icon: "💬" },
-                { t: "Доска задач (канбан)", s: "Сообщения об ошибках сами становятся задачами: колонки «Создано → В работе → Выполнено», перетаскивание, почта и ссылка на сессию в карточке.", icon: "🗂️" },
-                { t: "Умный батчинг", s: "Собираем только критичное и шлём раз в 10 секунд — ноль нагрузки на сайт.", icon: "📦" },
-                { t: "Установка за минуту", s: "Одна строка в <head>, без ключей и зависимостей. Автозапуск.", icon: "⚡" },
-              ].map((f) => (
-                <div
-                  key={f.t}
-                  className="rounded-2xl border border-white/60 bg-white/70 p-5 backdrop-blur-md dark:border-white/10 dark:bg-white/5"
-                >
-                  <div className="text-2xl">{f.icon}</div>
-                  <h3 className="mt-3 text-base font-semibold">{f.t}</h3>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{f.s}</p>
-                </div>
-              ))}
-            </div>
-
             {/* Подробный мониторинг сессий — блок со «скриншотом» ленты событий */}
             <div className="mt-12 grid items-center gap-8 md:grid-cols-2">
               {/* Текст (на мобильных — первым, на десктопе — справа) */}
@@ -596,14 +573,14 @@ export default async function LandingPage() {
                           <div
                             key={i}
                             className={`rounded-lg border bg-white p-2.5 text-left shadow-sm dark:bg-slate-900 ${
-                              c.hi
+                              "hi" in c && c.hi
                                 ? "border-brand/50 ring-1 ring-brand/20"
                                 : "border-slate-200/80 dark:border-slate-700/70"
                             }`}
                           >
                             <p
                               className={`truncate text-xs font-medium text-slate-700 dark:text-slate-200 ${
-                                c.done ? "line-through decoration-slate-300" : ""
+                                "done" in c && c.done ? "line-through decoration-slate-300" : ""
                               }`}
                             >
                               {c.t}
@@ -623,6 +600,29 @@ export default async function LandingPage() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                { t: "Фронт-ошибки", s: "Ловим необработанные исключения и отклонённые промисы со стеком.", icon: "🐞" },
+                { t: "Ошибки бэкенда на фронте", s: "Видим упавшие 4xx/5xx запросы: маршрут, метод, payload, код ответа.", icon: "🔌" },
+                { t: "Медленные запросы", s: "Отмечаем всё, что грузится дольше заданного порога — узкие места видны сразу.", icon: "🐢" },
+                { t: "Карта загрузки страниц", s: "Бот обходит домен и строит дерево разделов: среднее время загрузки, медленные запросы и файлы по каждой странице.", icon: "🗺️" },
+                { t: "Сессии пользователей", s: "Все события группируются в сессию — виден весь путь до ошибки.", icon: "🧭" },
+                { t: "Обратная связь от пользователей", s: "Кнопка «Сообщить об ошибке» на сайте: посетитель опишет проблему — сообщение попадёт в его сессию и придёт вам на почту и в Telegram.", icon: "💬" },
+                { t: "Доска задач (канбан)", s: "Сообщения об ошибках сами становятся задачами: колонки «Создано → В работе → Выполнено», перетаскивание, почта и ссылка на сессию в карточке.", icon: "🗂️" },
+                { t: "Умный батчинг", s: "Собираем только критичное и шлём раз в 10 секунд — ноль нагрузки на сайт.", icon: "📦" },
+                { t: "Установка за минуту", s: "Одна строка в <head>, без ключей и зависимостей. Автозапуск.", icon: "⚡" },
+              ].map((f) => (
+                <div
+                  key={f.t}
+                  className="rounded-2xl border border-white/60 bg-white/70 p-5 backdrop-blur-md dark:border-white/10 dark:bg-white/5"
+                >
+                  <div className="text-2xl">{f.icon}</div>
+                  <h3 className="mt-3 text-base font-semibold">{f.t}</h3>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{f.s}</p>
+                </div>
+              ))}
             </div>
 
             <div className="mt-10 text-center">
