@@ -38,6 +38,11 @@ export function retentionLabel(tier: string | null | undefined): string {
 export const MAX_TEXT_CHARS = 2000;
 export const MAX_BODY_CHARS = 2000;
 
+/** Форматирует длительность события из миллисекунд в секунды («1,24 с»). */
+export function formatDurationSec(ms: number): string {
+  return (ms / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " с";
+}
+
 /** Усечь строку до лимита, добавив маркер обрезки. */
 export function truncate(value: string | null | undefined, max = MAX_TEXT_CHARS): string | null {
   if (value == null) return null;
