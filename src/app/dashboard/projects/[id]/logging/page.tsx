@@ -9,10 +9,10 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { ProjectExceptions } from "@/components/ProjectExceptions";
 import { ClearLogsButton } from "@/components/ClearLogsButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
-import { DepartureAnalytics } from "@/components/DepartureAnalytics";
+import { TopIssues } from "@/components/TopIssues";
 import { isProjectServiceActive } from "@/lib/subscription";
 import { flagEmoji } from "@/lib/geo";
-import { ACTION_TYPES, collectDepartures, type Departure } from "@/lib/breadcrumbs";
+import { ERROR_TYPES as ISSUE_ERROR_TYPES, topErrors, topSlowRequests, type IssueEvent } from "@/lib/topIssues";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,7 @@ function toDateInput(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-const ERROR_TYPES = ["ERROR", "UNHANDLED_REJECTION", "HTTP_ERROR"];
+const ERROR_TYPES = ISSUE_ERROR_TYPES;
 
 export default async function LoggingPage({
   params,
@@ -83,27 +83,29 @@ export default async function LoggingPage({
     target.set(g.sessionId, (target.get(g.sessionId) ?? 0) + g._count._all);
   }
 
-  // Аналитика отказов: события-действия и уходы (SESSION_END) сессий за день. Собираем
-  // по каждой сессии крошки перед уходом (см. collectDepartures в src/lib/breadcrumbs.ts).
-  const actionEvents = ids.length
+  // Топы ошибок и медленных запросов за день: берём события-ошибки и медленные запросы
+  // сессий и сворачиваем их (см. topErrors / topSlowRequests в src/lib/topIssues.ts).
+  // Сортировка по времени убыв. — чтобы для перехода бралась самая свежая сессия.
+  const issueEvents: IssueEvent[] = ids.length
     ? await prisma.logEvent.findMany({
-        where: { sessionId: { in: ids }, type: { in: [...ACTION_TYPES, "SESSION_END"] } },
-        orderBy: [{ sessionId: "asc" }, { createdAt: "asc" }],
-        select: { id: true, sessionId: true, type: true, message: true, url: true, createdAt: true },
+        where: { sessionId: { in: ids }, type: { in: [...ERROR_TYPES, "SLOW_REQUEST"] } },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          sessionId: true,
+          type: true,
+          message: true,
+          route: true,
+          method: true,
+          statusCode: true,
+          durationMs: true,
+          url: true,
+          createdAt: true,
+        },
       })
     : [];
-  const eventsBySession = new Map<string, (typeof actionEvents)[number][]>();
-  for (const e of actionEvents) {
-    const arr = eventsBySession.get(e.sessionId);
-    if (arr) arr.push(e);
-    else eventsBySession.set(e.sessionId, [e]);
-  }
-  const departures: Departure[] = [];
-  for (const list of eventsBySession.values()) {
-    departures.push(...collectDepartures(list));
-  }
-  // Свежие уходы — первыми (список под спойлером и порядок восприятия).
-  departures.sort((a, b) => b.at.getTime() - a.at.getTime());
+  const errorsTop = topErrors(issueEvents);
+  const slowTop = topSlowRequests(issueEvents);
 
   // Группируем сессии по IP пользователя. Сессии уже отсортированы по времени убыв.,
   // поэтому группы идут в порядке появления самой свежей сессии.
@@ -157,7 +159,7 @@ export default async function LoggingPage({
 
       <ProjectExceptions exceptions={exceptions} />
 
-      <DepartureAnalytics departures={departures} projectId={project.id} />
+      <TopIssues errors={errorsTop} slow={slowTop} projectId={project.id} />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">
