@@ -22,7 +22,7 @@ const monitoringFaq = [
   },
   {
     q: "Как я узнаю, что сайт упал?",
-    a: 'Уведомления приходят на каналы из вкладки «Алерты» (email или Telegram). Добавьте хотя бы один канал, иначе оповещения приходить не будут.',
+    a: 'Уведомления приходят на каналы из вкладки «Контакты» (email или Telegram). Добавьте хотя бы один канал, иначе оповещения приходить не будут.',
   },
 ];
 
@@ -75,10 +75,10 @@ export default async function DashboardPage() {
       key: "alerts",
       title: "Подключите канал оповещений",
       description:
-        "Добавьте email или Telegram во вкладке «Алерты», чтобы получать уведомления о падении сайта.",
+        "Добавьте email или Telegram во вкладке «Контакты», чтобы получать уведомления о падении сайта.",
       done: contactsCount > 0,
       href: firstProjectId
-        ? `/dashboard/projects/${firstProjectId}/alerts`
+        ? `/dashboard/projects/${firstProjectId}/contacts`
         : undefined,
       actionLabel: "Настроить",
     },

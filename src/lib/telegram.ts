@@ -221,7 +221,7 @@ async function pollLoop(): Promise<void> {
 
 /**
  * Отвечает пользователю его chat id (по /start или любому сообщению). Именно это
- * число пользователь вставляет в панели на вкладке «Алерты».
+ * число пользователь вставляет в панели на вкладке «Контакты».
  */
 async function handleUpdate(update: TgUpdate): Promise<void> {
   const message = update.message ?? update.edited_message;
@@ -238,7 +238,7 @@ async function handleUpdate(update: TgUpdate): Promise<void> {
     `Привет, ${name}! 👋\n\n` +
     `Это бот алертов <b>Logsy</b>.\n\n` +
     `Ваш chat id:\n<b><code>${chat.id}</code></b>\n\n` +
-    `Скопируйте его и вставьте в панели Logsy на вкладке «Алерты», ` +
+    `Скопируйте его и вставьте в панели Logsy на вкладке «Контакты», ` +
     `чтобы получать сюда уведомления о падении сайтов и SSL.`;
 
   await sendTelegramMessage(String(chat.id), text, { html: true });

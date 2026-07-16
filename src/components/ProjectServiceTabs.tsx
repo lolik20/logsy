@@ -8,6 +8,7 @@ const items = [
   { key: "tasks", label: "Задачи", suffix: "/tasks" },
   { key: "pages", label: "Страницы", suffix: "/pages" },
   { key: "connection", label: "Подключение", suffix: "/connection" },
+  { key: "contacts", label: "Контакты", suffix: "/contacts" },
   { key: "alerts", label: "Алерты", suffix: "/alerts" },
   { key: "tariff", label: "Тариф", suffix: "/tariff" },
 ];
@@ -18,6 +19,7 @@ export type ProjectServiceKey =
   | "tasks"
   | "pages"
   | "connection"
+  | "contacts"
   | "alerts"
   | "tariff";
 

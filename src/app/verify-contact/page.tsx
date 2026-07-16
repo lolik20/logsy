@@ -57,7 +57,7 @@ export default async function VerifyContactPage({
               <h1 className="text-xl font-semibold">Ссылка недействительна</h1>
               <p className="mt-2 text-sm text-slate-500">
                 Ссылка подтверждения устарела или уже использована. Отправьте письмо
-                повторно из вкладки «Алерты».
+                повторно из вкладки «Контакты».
               </p>
             </>
           )}
