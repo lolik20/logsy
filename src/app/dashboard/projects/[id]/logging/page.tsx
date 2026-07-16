@@ -8,6 +8,7 @@ import { LogErrorFilter } from "@/components/LogErrorFilter";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { ProjectExceptions } from "@/components/ProjectExceptions";
 import { ClearLogsButton } from "@/components/ClearLogsButton";
+import { SdkStatusCard } from "@/components/SdkStatusCard";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
 import { TopIssues } from "@/components/TopIssues";
 import { isProjectServiceActive } from "@/lib/subscription";
@@ -156,6 +157,10 @@ export default async function LoggingPage({
           вкладке «Тариф».
         </div>
       )}
+
+      {/* Проверка, что SDK подключён на сайте. В компактном режиме баннер виден только,
+          когда скрипт не найден / проверить не удалось. */}
+      <SdkStatusCard projectId={project.id} compact />
 
       <ProjectExceptions exceptions={exceptions} />
 

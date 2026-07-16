@@ -4,6 +4,7 @@ import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { FeedbackFormSettings } from "@/components/FeedbackFormSettings";
 import { SlowThresholdSettings } from "@/components/SlowThresholdSettings";
+import { SdkStatusCard } from "@/components/SdkStatusCard";
 import { retentionLabel } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,9 @@ export default async function ConnectionPage({
         domain={project.domain}
         active="connection"
       />
+
+      {/* Статус подключения SDK: запрос на сайт проекта и поиск тега скрипта в <head>. */}
+      <SdkStatusCard projectId={project.id} />
 
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
