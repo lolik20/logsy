@@ -154,6 +154,7 @@ const SERVICES = [
   { key: "tasks", label: "Задачи", suffix: "/tasks", Icon: BoardIcon },
   { key: "pages", label: "Страницы", suffix: "/pages", Icon: SitemapIcon },
   { key: "connection", label: "Подключение", suffix: "/connection", Icon: PlugIcon },
+  { key: "contacts", label: "Контакты", suffix: "/contacts", Icon: UsersIcon },
   { key: "alerts", label: "Алерты", suffix: "/alerts", Icon: BellIcon },
   { key: "tariff", label: "Тариф", suffix: "/tariff", Icon: CardIcon },
 ];

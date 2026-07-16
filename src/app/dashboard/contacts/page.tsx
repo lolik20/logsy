@@ -35,7 +35,7 @@ export default async function ContactsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold">Алерты</h1>
+      <h1 className="text-2xl font-bold">Контакты</h1>
       <p className="mt-1 text-sm text-slate-500">
         Каналы, куда приходят уведомления, когда мониторы падают или
         восстанавливаются, а также предупреждения об истечении SSL. Добавьте
