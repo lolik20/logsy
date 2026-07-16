@@ -17,3 +17,40 @@ export function isStaticAssetEvent(e: { type: string; route?: string | null }): 
   const endpoint = endpointOf(e.route);
   return endpoint ? STATIC_ASSET_EXT.test(endpoint) : false;
 }
+
+// Подтип статического файла по расширению пути. Картинки/шрифты определяются по
+// расширению однозначно, поэтому именно оно надёжнее, чем initiatorType из браузера.
+const IMG_EXT = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|bmp)$/i;
+const FONT_EXT = /\.(?:woff2?|ttf|otf|eot)$/i;
+const SCRIPT_EXT = /\.(?:js|mjs|cjs)$/i;
+const STYLE_EXT = /\.css$/i;
+
+/** Подтип статического файла (img/font/script/css) по расширению пути или null. */
+export function assetSubtypeFromRoute(route: string | null | undefined): string | null {
+  const endpoint = endpointOf(route);
+  if (!endpoint) return null;
+  if (IMG_EXT.test(endpoint)) return "img";
+  if (FONT_EXT.test(endpoint)) return "font";
+  if (SCRIPT_EXT.test(endpoint)) return "script";
+  if (STYLE_EXT.test(endpoint)) return "css";
+  return null;
+}
+
+// Обобщённые/малополезные initiatorType, за которыми прячется реальный тип файла:
+// «link» — ресурс из <link rel=preload/prefetch/stylesheet>, «other»/пусто — прочее.
+// Для них показываем подтип по расширению (например, предзагруженный webp — как img).
+const AMBIGUOUS_INITIATORS = new Set(["link", "other", "", "?"]);
+
+/**
+ * Нормализует подтип инициатора статического ресурса: если браузер отдал обобщённый
+ * initiatorType («link» у preload/prefetch, «other»), но расширение однозначно
+ * указывает на картинку/шрифт/скрипт/стиль — используем его. Иначе оставляем как есть.
+ */
+export function normalizeResourceInitiator(
+  route: string | null | undefined,
+  initiator: string | null | undefined,
+): string | null {
+  const raw = (initiator ?? "").trim();
+  if (!AMBIGUOUS_INITIATORS.has(raw.toLowerCase())) return raw || null;
+  return assetSubtypeFromRoute(route) ?? (raw || null);
+}

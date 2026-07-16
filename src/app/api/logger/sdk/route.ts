@@ -405,11 +405,22 @@ const SDK = `(function(){
               var dur = Math.round(en.duration || 0);
               if (dur <= SLOW_MS) continue;
               if (isOwn(en.name)) continue;
+              // Предзагруженные (<link rel=preload/prefetch>) картинки/шрифты браузер
+              // помечает обобщённым «link» — по расширению определяем реальный тип (img/font),
+              // иначе они отображаются как «link» вместо png/webp.
+              var sub = it;
+              if (it === "link" || it === "other" || it === "") {
+                var path = String(en.name).split("?")[0].split("#")[0];
+                if (/\.(png|jpe?g|gif|svg|webp|avif|ico|bmp)$/i.test(path)) sub = "img";
+                else if (/\.(woff2?|ttf|otf|eot)$/i.test(path)) sub = "font";
+                else if (/\.(js|mjs|cjs)$/i.test(path)) sub = "script";
+                else if (/\.css$/i.test(path)) sub = "css";
+              }
               push({
                 type: "SLOW_RESOURCE",
-                message: "Медленный ресурс (" + (it || "?") + "): " + dur + " мс",
+                message: "Медленный ресурс (" + (sub || "?") + "): " + dur + " мс",
                 route: String(en.name),
-                method: it ? String(it).slice(0, 16) : null,
+                method: sub ? String(sub).slice(0, 16) : null,
                 durationMs: dur,
                 url: location.href
               });
