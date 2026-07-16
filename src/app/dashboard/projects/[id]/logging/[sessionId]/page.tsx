@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
-import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
+import { endpointOf, eventKind, eventUrl, matchesException } from "@/lib/exceptions";
 import { collectDepartures } from "@/lib/breadcrumbs";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
@@ -49,13 +49,16 @@ export default async function SessionPage({
     select: { kind: true, urlMode: true, url: true },
   });
 
-  // Записи о статике (медленно загружавшиеся img/script/css/шрифты — тип
-  // SLOW_RESOURCE) выносим из основной ленты в отдельную свёрнутую вкладку,
-  // чтобы они не забивали список значимых событий сессии. В основной таблице
-  // остаются переходы, клики, ошибки, запросы и т.д.
-  const STATIC_TYPES = ["SLOW_RESOURCE"];
-  const staticEvents = session.events.filter((e) => STATIC_TYPES.includes(e.type));
-  const mainEvents = session.events.filter((e) => !STATIC_TYPES.includes(e.type));
+  // Записи о статике (img / script / link-стили / css / шрифты) выносим из
+  // основной ленты в отдельную свёрнутую вкладку, чтобы они не забивали список
+  // значимых событий сессии. Статикой считаем не только замеры Resource Timing
+  // (тип SLOW_RESOURCE), но и сетевые запросы (fetch/XHR — SLOW_REQUEST/HTTP_ERROR)
+  // к статическим файлам: например, JS-чанки и стили бандлеров грузятся через
+  // fetch и иначе остались бы в основной ленте. Определяем по расширению файла в
+  // адресе запроса (см. isStaticAssetEvent). В основной таблице остаются переходы,
+  // клики, ошибки приложения, запросы к API и т.д.
+  const staticEvents = session.events.filter(isStaticAssetEvent);
+  const mainEvents = session.events.filter((e) => !isStaticAssetEvent(e));
 
   // Одна строка ленты событий — используется и в основной таблице, и во вкладке
   // со статикой, чтобы разметка не дублировалась.
@@ -307,6 +310,23 @@ export default async function SessionPage({
       )}
     </div>
   );
+}
+
+// Расширения статических файлов: скрипты, стили, картинки, шрифты, карты, wasm.
+const STATIC_ASSET_EXT =
+  /\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|avif|ico|bmp|woff2?|ttf|otf|eot|map|wasm)$/i;
+
+/**
+ * Событие относится к статике (img/script/link-стили/css/шрифты)? Такими считаем
+ * замеры Resource Timing (SLOW_RESOURCE) и любые сетевые запросы к файлам со
+ * статическим расширением (JS-чанки, стили и т.п. — приходят как SLOW_REQUEST/
+ * HTTP_ERROR через обёртку fetch/XHR). Расширение берём из пути запроса (route)
+ * без query-строки.
+ */
+function isStaticAssetEvent(e: { type: string; route?: string | null }): boolean {
+  if (e.type === "SLOW_RESOURCE") return true;
+  const endpoint = endpointOf(e.route);
+  return endpoint ? STATIC_ASSET_EXT.test(endpoint) : false;
 }
 
 /** Достаёт почту отправителя обратной формы из meta события (JSON), либо null. */
