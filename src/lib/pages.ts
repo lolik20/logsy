@@ -2,6 +2,8 @@
 // каталогов/подкаталогов и агрегация метрик загрузки. В БД не ходят — переиспользуются
 // краулером (src/lib/crawler.ts) и страницей карты (dashboard/.../pages).
 
+import { normalizeResourceInitiator } from "@/lib/staticAssets";
+
 // Расширения файлов-ресурсов, которые НЕ считаем страницами (краулер по ним не ходит,
 // в карту не добавляет). Страницы — это HTML-документы, а не картинки/скрипты/архивы.
 const ASSET_EXT_RE =
@@ -187,12 +189,16 @@ export function aggregateCriticalRequests(
     const path = pageUrlToPath(e.url);
     if (!path) continue;
     const kind: "RESOURCE" | "REQUEST" = e.type === "SLOW_RESOURCE" ? "RESOURCE" : "REQUEST";
+    // Для статики уточняем подтип по расширению: предзагруженные (<link>) картинки/шрифты
+    // браузер помечает как «link», хотя по факту это img/font — показываем реальный тип.
+    const initiator =
+      kind === "RESOURCE" ? normalizeResourceInitiator(route, e.method) : e.method ?? null;
     let routes = byPath.get(path);
     if (!routes) {
       routes = new Map();
       byPath.set(path, routes);
     }
-    const cur = routes.get(route) ?? { kind, initiator: e.method ?? null, sum: 0, n: 0, max: 0 };
+    const cur = routes.get(route) ?? { kind, initiator, sum: 0, n: 0, max: 0 };
     cur.sum += dur;
     cur.n += 1;
     if (dur > cur.max) cur.max = dur;

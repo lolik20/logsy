@@ -234,7 +234,11 @@ const SDK = `(function(){
     if (_fetch) {
       window.fetch = function(input, init) {
         var start = Date.now();
-        var url = (typeof input === "string") ? input : (input && input.url) || "";
+        // input может быть строкой, Request (.url) или URL (.href) — иначе route окажется
+        // пустым и медленный запрос покажется «без деталей» и без адреса.
+        var url = (typeof input === "string")
+          ? input
+          : (input && (input.url || input.href)) || (input ? String(input) : "");
         var method = (init && init.method) || (input && input.method) || "GET";
         var reqBody = init && init.body ? init.body : null;
         return _fetch.apply(this, arguments).then(function(res) {
@@ -408,11 +412,22 @@ const SDK = `(function(){
               var dur = Math.round(en.duration || 0);
               if (dur <= SLOW_MS) continue;
               if (isOwn(en.name)) continue;
+              // Предзагруженные (<link rel=preload/prefetch>) картинки/шрифты браузер
+              // помечает обобщённым «link» — по расширению определяем реальный тип (img/font),
+              // иначе они отображаются как «link» вместо png/webp.
+              var sub = it;
+              if (it === "link" || it === "other" || it === "") {
+                var path = String(en.name).split("?")[0].split("#")[0];
+                if (/\.(png|jpe?g|gif|svg|webp|avif|ico|bmp)$/i.test(path)) sub = "img";
+                else if (/\.(woff2?|ttf|otf|eot)$/i.test(path)) sub = "font";
+                else if (/\.(js|mjs|cjs)$/i.test(path)) sub = "script";
+                else if (/\.css$/i.test(path)) sub = "css";
+              }
               push({
                 type: "SLOW_RESOURCE",
-                message: "Медленный ресурс (" + (it || "?") + "): " + secs(dur),
+                message: "Медленный ресурс (" + (sub || "?") + "): " + secs(dur),
                 route: String(en.name),
-                method: it ? String(it).slice(0, 16) : null,
+                method: sub ? String(sub).slice(0, 16) : null,
                 durationMs: dur,
                 url: location.href
               });
