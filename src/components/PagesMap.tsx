@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { PageNode, PageLoadMetric, CriticalRequest, PageCounts } from "@/lib/pages";
+import { assetSubtypeFromRoute } from "@/lib/staticAssets";
 
 /**
  * Суммирует ошибки/медленные запросы по всему поддереву каждого узла (для агрегата у
@@ -82,6 +83,52 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
+/**
+ * Адрес ресурса в списке критических запросов. Для картинок (png/webp/svg/…) — это
+ * кликабельная ссылка (открывает файл в новой вкладке) с превью-миниатюрой при наведении,
+ * чтобы сразу понять, что за картинка тормозит. Для прочих ресурсов — обычный текст адреса.
+ */
+function RouteCell({ route }: { route: string }) {
+  const isImage = useMemo(() => assetSubtypeFromRoute(route) === "img", [route]);
+  const [hover, setHover] = useState(false);
+  const [broken, setBroken] = useState(false);
+
+  const routeText = (
+    <span className="break-all font-mono text-xs text-slate-700 dark:text-slate-200">{route}</span>
+  );
+
+  if (!isImage) return <span className="block">{routeText}</span>;
+
+  return (
+    <span
+      className="relative block"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <a
+        href={route}
+        target="_blank"
+        rel="noreferrer"
+        className="break-all font-mono text-xs text-brand underline decoration-dotted underline-offset-2 hover:decoration-solid"
+      >
+        {route}
+      </a>
+      {hover && !broken && (
+        <span className="pointer-events-none absolute left-0 top-full z-30 mt-1 block rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+          {/* eslint-disable-next-line @next/next/no-img-element -- превью произвольного внешнего ресурса */}
+          <img
+            src={route}
+            alt=""
+            loading="lazy"
+            onError={() => setBroken(true)}
+            className="block max-h-48 max-w-[260px] rounded"
+          />
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** Список критических запросов/файлов конкретной страницы. */
 function CriticalList({ items }: { items: CriticalRequest[] }) {
   if (!items.length) {
@@ -113,10 +160,9 @@ function CriticalList({ items }: { items: CriticalRequest[] }) {
                 {it.initiator || (isResource ? "файл" : "запрос")}
               </span>
               <span className="min-w-0">
-                {/* Полный URL запроса с query-параметрами (переносится, не обрезается). */}
-                <span className="block break-all font-mono text-xs text-slate-700 dark:text-slate-200">
-                  {it.route}
-                </span>
+                {/* Полный URL запроса с query-параметрами (переносится, не обрезается).
+                    Для картинок — ссылка с превью при наведении. */}
+                <RouteCell route={it.route} />
                 {it.count > 1 && (
                   <span className="text-[11px] text-slate-400">
                     {it.count} раз · в среднем {fmtMs(it.avgMs)}
