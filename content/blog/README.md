@@ -31,6 +31,8 @@ Telegram, RDAP/WHOIS по российским TLD.
 | 8 | Для бизнеса (без техники) | `08-skolko-teryaet-biznes-kogda-sayt-lezhit.md` | SEO, VC.ru, Telegram | предприниматели |
 | 9 | Для бизнеса (без техники) | `09-monitoring-sayta-prostymi-slovami.md` | SEO, Telegram | предприниматели без тех-бэкграунда |
 | 10 | Для маркетологов (без техники) | `10-marketolog-slivaete-reklamnyy-byudzhet.md` | SEO, VC.ru, TG по маркетингу | маркетологи, директологи |
+| 11 | Для бизнеса — подробно, закрытие болей (простой текст) | `11-biznes-podrobno-zakrytie-boley.md` | SEO, VC.ru | предприниматели |
+| 12 | Для маркетологов — подробно, закрытие болей (простой текст) | `12-marketolog-podrobno-zakrytie-boley.md` | SEO, VC.ru, TG по маркетингу | маркетологи, директологи |
 
 ### Тон статей
 
