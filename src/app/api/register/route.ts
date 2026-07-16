@@ -9,7 +9,6 @@ import { FREE_SITES_LIMIT } from "@/lib/subscription";
 
 const schema = z.object({
   email: z.string().email("Некорректный email"),
-  name: z.string().max(120).optional(),
 });
 
 export async function POST(req: Request) {
@@ -43,7 +42,6 @@ export async function POST(req: Request) {
   await prisma.user.create({
     data: {
       email,
-      name: parsed.data.name?.trim() || null,
       passwordHash,
       signupIp: ip,
       subscription: {

@@ -38,6 +38,8 @@ export async function POST(req: Request) {
 
   // Новый проект стартует на бесплатном тарифе (300 сессий/сутки, хранение 12 часов).
   // Платный тариф выбирается позже во вкладке «Тариф».
+  // Вместе с проектом сразу заводим монитор главной страницы (GET https://<домен>/),
+  // чтобы у пользователя из коробки была рабочая проверка доступности сайта.
   try {
     const project = await prisma.project.create({
       data: {
@@ -45,6 +47,13 @@ export async function POST(req: Request) {
         name: parsed.data.name.trim(),
         domain,
         billingStatus: "FREE",
+        monitors: {
+          create: {
+            name: "Главная страница",
+            url: `https://${domain}/`,
+            method: "GET",
+          },
+        },
       },
     });
     return NextResponse.json({ project });
