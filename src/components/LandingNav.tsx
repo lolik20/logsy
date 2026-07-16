@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 
 const navLinks = [
-  { href: "#features", label: "Мониторинг" },
-  { href: "#logging", label: "Логирование" },
-  { href: "#pricing", label: "Тарифы" },
+  { href: "/#features", label: "Мониторинг" },
+  { href: "/#logging", label: "Логирование" },
+  { href: "/speed-test", label: "Скорость сайта" },
+  { href: "/#pricing", label: "Тарифы" },
 ];
 
 function MenuIcon({ className }: { className?: string }) {
