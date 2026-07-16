@@ -331,6 +331,27 @@ model LogUsage {
   @@index([projectId, day])
 }
 
+// Прогоны публичного инструмента проверки скорости сайта (см. /api/speed-test).
+// Каждый запуск сохраняется для админ-статистики: какой домен проверяли, когда и
+// с какой скоростью (готовность DOM). Личных данных не содержит.
+model SpeedCheck {
+  id                 String   @id @default(cuid())
+  // Домен (hostname) проверенного сайта — для читаемого списка в админке.
+  domain             String
+  // Итоговый адрес, который проверяли (после переадресаций).
+  url                String
+  statusCode         Int
+  ttfbMs             Int
+  // Готовность DOM со скриптами — ключевая метрика скорости.
+  domContentLoadedMs Int
+  loadMs             Int
+  requests           Int
+  transferBytes      Int
+  createdAt          DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model Contact {
   id        String   @id @default(cuid())
   userId    String

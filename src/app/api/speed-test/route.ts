@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { prisma } from "@/lib/prisma";
 
 // Публичный онлайн-инструмент: измеряет скорость загрузки сайта «как в браузере»,
 // но без headless-браузера. Загружаем HTML, находим все подключённые скрипты,
 // стили и картинки и параллельно скачиваем их — как это делает браузер при
 // построении страницы. Ключевая метрика — готовность DOM: HTML разобран и все
-// скрипты загружены. Ничего не сохраняем.
+// скрипты загружены. Каждый прогон сохраняется для админ-статистики
+// (домен, время прогона, скорость) — личных данных не пишем.
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 45;
@@ -253,6 +255,30 @@ export async function POST(req: Request) {
       transferBytes: budget.total,
       redirected: finalUrl.replace(/\/$/, "") !== url.toString().replace(/\/$/, ""),
     };
+
+    // Сохраняем прогон для админ-статистики. Ошибка записи не должна ломать ответ.
+    try {
+      let domain = url.hostname;
+      try {
+        domain = new URL(finalUrl).hostname;
+      } catch {
+        /* оставляем исходный hostname */
+      }
+      await prisma.speedCheck.create({
+        data: {
+          domain,
+          url: finalUrl,
+          statusCode: result.statusCode,
+          ttfbMs: result.ttfbMs,
+          domContentLoadedMs: result.domContentLoadedMs,
+          loadMs: result.loadMs,
+          requests: result.requests,
+          transferBytes: result.transferBytes,
+        },
+      });
+    } catch {
+      /* запись статистики необязательна */
+    }
 
     return NextResponse.json(result);
   } catch (err) {

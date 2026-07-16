@@ -48,6 +48,16 @@ function UsersIcon({ className }: IconProps) {
   );
 }
 
+function GaugeIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+      <path d="m13.4 12.6 4.6-4.6" />
+      <path d="M3.5 18a9 9 0 1 1 17 0" />
+    </svg>
+  );
+}
+
 function LogsIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -291,6 +301,21 @@ function SidebarContent({
           >
             <UsersIcon className="h-5 w-5 shrink-0" />
             <span>Пользователи</span>
+          </Link>
+        )}
+
+        {isAdmin && (
+          <Link
+            href="/dashboard/speed-tests"
+            onClick={onNavigate}
+            className={`mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+              pathname.startsWith("/dashboard/speed-tests")
+                ? "bg-brand-50 text-brand dark:bg-brand/15"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            }`}
+          >
+            <GaugeIcon className="h-5 w-5 shrink-0" />
+            <span>Проверки скорости</span>
           </Link>
         )}
       </nav>
