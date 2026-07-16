@@ -93,6 +93,8 @@ const SDK = `(function(){
             // Порог «медленного» из панели проекта — если на теге нет явного data-slow-ms.
             if (!slowFromAttr && typeof d.slowMs === "number" && d.slowMs >= 0) SLOW_MS = d.slowMs;
             if (d.feedback) { try { initFeedback(); } catch (e) {} }
+            // Запись экрана сессии (rrweb) — включается флагом record из конфига проекта.
+            if (d.record) { try { initRecorder(); } catch (e) {} }
           })
           .catch(function () {});
       }
@@ -477,11 +479,12 @@ const SDK = `(function(){
       _left = true;
       push({ type: "SESSION_END", message: "Выход с сайта: " + location.pathname, url: location.href });
       flush(true);
+      try { recFlush(true); } catch (e) {}
     }
     setInterval(function(){ flush(false); }, FLUSH_MS);
     // Скрытие вкладки (переключение) — только флашим накопленное, без отметки об уходе.
     document.addEventListener("visibilitychange", function() {
-      if (document.visibilityState === "hidden") flush(true);
+      if (document.visibilityState === "hidden") { flush(true); try { recFlush(true); } catch (e) {} }
     });
     // Реальный уход со страницы (закрытие/навигация прочь) — фиксируем отказ в сессии.
     window.addEventListener("pagehide", leave);
@@ -634,8 +637,79 @@ const SDK = `(function(){
       });
     }
 
-    // Seam под запись экрана — реализуем позже.
-    window.LOGSY = { _rec: null, flush: function(){ flush(false); } };
+    // ---- Запись экрана сессии (rrweb) ----
+    // Если проект включил запись (флаг record из конфига), подгружаем self-hosted рекордер
+    // (/logsy-rec.js — vendored rrweb, кэшируется на CDN как и сам SDK) и стримим поток его
+    // событий (полный DOM-снимок + инкрементальные мутации) батчами на /api/logger/rec.
+    // Затем запись можно воспроизвести как видео на странице сессии в панели.
+    var REC_ENDPOINT = origin + "/api/logger/rec";
+    var REC_SRC = origin + "/logsy-rec.js";
+    var REC_FLUSH_MS = 5000;   // интервал отправки чанка записи
+    var REC_MAX_EVENTS = 100;  // предел числа rrweb-событий в одном чанке
+    var recBuffer = [];
+    var recSeq = 0;            // порядковый номер чанка в рамках визита
+    var recStop = null;        // функция остановки записи, которую вернёт rrweb.record
+
+    function recFlush(useBeacon) {
+      if (!recBuffer.length) return;
+      var chunk = { seq: recSeq++, events: recBuffer.splice(0, recBuffer.length) };
+      var body = JSON.stringify({ sessionKey: sid, userAgent: ua, chunks: [chunk] });
+      try {
+        // text/plain — чтобы запрос остался CORS-simple и без preflight (как ингест логов).
+        if (useBeacon && navigator.sendBeacon) {
+          navigator.sendBeacon(REC_ENDPOINT, new Blob([body], { type: "text/plain" }));
+        } else {
+          fetch(REC_ENDPOINT, {
+            method: "POST",
+            headers: { "content-type": "text/plain" },
+            body: body,
+            keepalive: true,
+            credentials: "omit",
+            mode: "cors"
+          }).catch(function(){});
+        }
+      } catch (e) {}
+    }
+
+    var recInited = false;
+    function initRecorder() {
+      if (recInited) return;
+      recInited = true;
+      var s = document.createElement("script");
+      s.src = REC_SRC;
+      s.async = true;
+      s.onload = function () {
+        try {
+          if (!window.rrweb || !window.rrweb.record) return;
+          recStop = window.rrweb.record({
+            emit: function (event) {
+              recBuffer.push(event);
+              if (recBuffer.length >= REC_MAX_EVENTS) recFlush(false);
+            },
+            // Приватность: значения полей ввода не пишем (маскируются), пароли — тем более.
+            // Разметку можно точечно исключить атрибутом data-logsy-mask на сайте клиента.
+            maskAllInputs: true,
+            maskInputOptions: { password: true },
+            maskTextSelector: "[data-logsy-mask]",
+            recordCanvas: false,
+            collectFonts: false,
+            // Периодический полный снимок — чтобы длинные сессии оставались воспроизводимыми
+            // даже при потере части инкрементальных событий.
+            checkoutEveryNms: 5 * 60 * 1000
+          });
+          window.LOGSY._rec = recStop;
+          setInterval(function () { recFlush(false); }, REC_FLUSH_MS);
+        } catch (e) {}
+      };
+      (document.head || document.documentElement).appendChild(s);
+    }
+
+    // Флашим запись вместе с событиями при скрытии вкладки и уходе со страницы —
+    // подключаемся к уже существующим обработчикам через LOGSY.flush (см. leave/visibility).
+    window.LOGSY = {
+      _rec: null,
+      flush: function () { flush(false); recFlush(false); }
+    };
   } catch (e) { /* SDK не должен ломать сайт клиента */ }
 })();`;
 

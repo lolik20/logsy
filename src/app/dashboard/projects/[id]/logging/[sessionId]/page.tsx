@@ -8,6 +8,7 @@ import { collectDepartures } from "@/lib/breadcrumbs";
 import { formatDurationSec, truncateUrl } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
+import { SessionReplay } from "@/components/SessionReplay";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,11 @@ export default async function SessionPage({
   const errorCount = session.events.filter((e) =>
     ["ERROR", "UNHANDLED_REJECTION", "HTTP_ERROR"].includes(e.type),
   ).length;
+
+  // Есть ли записанная запись экрана (rrweb) для этой сессии — от этого зависит показ плеера.
+  const recordingChunks = await prisma.recordingChunk.count({
+    where: { sessionId: session.id },
+  });
 
   // Крошки перед уходом: id событий-действий, предшествующих каждому SESSION_END —
   // подсвечиваем их в ленте (см. collectDepartures в src/lib/breadcrumbs.ts).
@@ -257,6 +263,8 @@ export default async function SessionPage({
           <span className="font-semibold">User-Agent:</span> {session.userAgent}
         </div>
       )}
+
+      {recordingChunks > 0 && <SessionReplay sessionId={session.id} />}
 
       <h2 className="mb-3 mt-8 text-lg font-semibold">События</h2>
       <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">

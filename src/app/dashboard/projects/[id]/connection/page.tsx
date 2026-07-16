@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { FeedbackFormSettings } from "@/components/FeedbackFormSettings";
+import { RecordSessionSettings } from "@/components/RecordSessionSettings";
 import { SlowThresholdSettings } from "@/components/SlowThresholdSettings";
 import { SdkStatusCard } from "@/components/SdkStatusCard";
 import { retentionLabel } from "@/lib/logging";
@@ -64,6 +65,8 @@ export default async function ConnectionPage({
       <SlowThresholdSettings projectId={project.id} slowMs={project.slowMs} />
 
       <FeedbackFormSettings projectId={project.id} enabled={project.feedbackEnabled} />
+
+      <RecordSessionSettings projectId={project.id} enabled={project.recordSession} />
     </div>
   );
 }

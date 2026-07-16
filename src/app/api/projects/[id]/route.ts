@@ -7,6 +7,8 @@ const patchSchema = z.object({
   checkSsl: z.boolean().optional(),
   checkDomain: z.boolean().optional(),
   feedbackEnabled: z.boolean().optional(),
+  // Запись экрана сессий (rrweb): включает подгрузку рекордера на сайте проекта.
+  recordSession: z.boolean().optional(),
   // Порог «медленного» запроса в мс (0…60000). 0 — считать медленным любой запрос.
   slowMs: z.number().int().min(0).max(60000).optional(),
 });
@@ -43,6 +45,7 @@ export async function PATCH(
     domainCheckedAt?: null;
     domainAlertDays?: null;
     feedbackEnabled?: boolean;
+    recordSession?: boolean;
     slowMs?: number;
   } = {};
   if (parsed.data.checkSsl !== undefined) {
@@ -63,6 +66,9 @@ export async function PATCH(
   }
   if (parsed.data.feedbackEnabled !== undefined) {
     data.feedbackEnabled = parsed.data.feedbackEnabled;
+  }
+  if (parsed.data.recordSession !== undefined) {
+    data.recordSession = parsed.data.recordSession;
   }
   if (parsed.data.slowMs !== undefined) {
     data.slowMs = parsed.data.slowMs;

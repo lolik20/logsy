@@ -5,9 +5,10 @@
 // загрузке дёргает этот эндпоинт и получает флаги проекта. Проект определяется по
 // заголовку Origin (домен проекта уникален) — та же keyless-модель, что и в /ingest.
 //
-// Сейчас отдаём единственный флаг: включена ли обратная форма ошибок (feedbackEnabled).
-// Данные не чувствительны (только сам факт «показывать кнопку»), но, как и ingest,
-// отвечаем ACAO только зарегистрированному домену — чтобы конфиг читал лишь свой сайт.
+// Отдаём флаги проекта для SDK: включена ли обратная форма ошибок (feedback), порог
+// «медленного» запроса (slowMs) и включена ли запись экрана сессий (record). Данные не
+// чувствительны, но, как и ingest, отвечаем ACAO только зарегистрированному домену —
+// чтобы конфиг читал лишь свой сайт.
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -40,11 +41,14 @@ async function resolveProject(req: Request) {
   const origin = req.headers.get("origin");
   const host = originHostname(origin);
   if (!origin || !host) {
-    return { origin, project: null as null | { feedbackEnabled: boolean; slowMs: number } };
+    return {
+      origin,
+      project: null as null | { feedbackEnabled: boolean; slowMs: number; recordSession: boolean },
+    };
   }
   const project = await prisma.project.findUnique({
     where: { domain: host },
-    select: { feedbackEnabled: true, slowMs: true },
+    select: { feedbackEnabled: true, slowMs: true, recordSession: true },
   });
   return { origin, project };
 }
@@ -62,7 +66,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ feedback: false }, { status: 403 });
   }
   return NextResponse.json(
-    { feedback: project.feedbackEnabled, slowMs: project.slowMs },
+    { feedback: project.feedbackEnabled, slowMs: project.slowMs, record: project.recordSession },
     { headers: corsHeaders(origin) },
   );
 }

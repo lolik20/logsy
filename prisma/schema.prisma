@@ -110,6 +110,13 @@ model Project {
   // событие USER_REPORT в его сессию логирования.
   feedbackEnabled Boolean @default(false)
 
+  // Запись экрана пользовательских сессий (rrweb). Если включена, клиентский SDK
+  // подгружает self-hosted рекордер (см. /public/logsy-rec.js) и шлёт DOM-снимки и
+  // инкременты на /api/logger/rec — их можно воспроизвести на странице сессии как видео.
+  // По умолчанию выключена: запись объёмна и включается осознанно. Приватность обеспечивает
+  // рекордер (пароли и поля с data-logsy-mask маскируются на клиенте до отправки).
+  recordSession Boolean @default(false)
+
   // Порог «медленного» запроса/ресурса в миллисекундах, настраиваемый из панели. SDK
   // читает его через /api/logger/config и считает медленными запросы/статические файлы
   // дольше этого значения. Атрибут data-slow-ms на теге скрипта, если задан, переопределяет
@@ -261,11 +268,36 @@ model LogSession {
   startedAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
 
-  project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  events  LogEvent[]
+  project    Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  events     LogEvent[]
+  recChunks  RecordingChunk[]
 
   @@unique([projectId, sessionKey])
   @@index([projectId, startedAt])
+}
+
+// Запись экрана сессии (rrweb) хранится чанками: клиентский рекордер эмитит поток
+// событий (полный DOM-снимок + инкрементальные мутации/движения мыши/скролл), SDK
+// копит их и батчами шлёт на /api/logger/rec. Каждый батч — одна строка с JSON-массивом
+// событий rrweb (поле data). Чтобы плеер собрал запись, чанки читаются по порядку seq.
+// projectId денормализован — как и в LogEvent, для очистки по ретеншну и учёта одним
+// запросом. Данные живут тот же срок, что и логи (см. purgeExpiredLogs).
+model RecordingChunk {
+  id        String   @id @default(cuid())
+  projectId String
+  sessionId String
+  // Порядковый номер чанка внутри сессии (0,1,2…) — задаётся клиентом, монотонно растёт.
+  seq       Int
+  // JSON-массив событий rrweb в этом чанке (сериализованный на клиенте).
+  data      String
+  // Сколько событий rrweb в чанке — для статистики/диагностики без парсинга data.
+  events    Int      @default(0)
+  createdAt DateTime @default(now())
+
+  session LogSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, seq])
+  @@index([projectId, createdAt])
 }
 
 model LogEvent {

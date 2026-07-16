@@ -166,6 +166,11 @@ export async function purgeExpiredLogs(now: Date = new Date()): Promise<{ delete
       where: { projectId: { in: projectIds }, createdAt: { lt: cutoff } },
     });
     deletedEvents += ev.count;
+    // Чанки записи экрана живут тот же срок, что и события. Удаляем устаревшие явно
+    // (не только каскадом от сессии): у долгих сессий старые чанки должны уходить.
+    await prisma.recordingChunk.deleteMany({
+      where: { projectId: { in: projectIds }, createdAt: { lt: cutoff } },
+    });
     await prisma.logSession.deleteMany({
       where: { projectId: { in: projectIds }, lastSeenAt: { lt: cutoff } },
     });
