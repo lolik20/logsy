@@ -4,7 +4,6 @@ import { useState } from "react";
 
 export function RegisterForm() {
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -16,7 +15,7 @@ export function RegisterForm() {
     const res = await fetch("/api/register", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, name }),
+      body: JSON.stringify({ email }),
     });
     setLoading(false);
     const data = await res.json().catch(() => ({}));
@@ -40,13 +39,6 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={onSubmit} className="mt-6 space-y-4">
-      <input
-        type="text"
-        placeholder="Имя (необязательно)"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        className="w-full rounded-lg border border-slate-300 bg-transparent px-3 py-2 outline-none focus:border-brand dark:border-slate-700"
-      />
       <input
         type="email"
         required
