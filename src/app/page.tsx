@@ -109,31 +109,6 @@ export default async function LandingPage() {
           </Link>
         </div>
 
-        {/* Парящая стеклянная карточка-превью статусов */}
-        <div className="mx-auto mt-14 max-w-3xl rounded-3xl border border-white/50 bg-white/60 p-4 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              { name: "shop.example.ru", status: "Работает", color: "text-green-600", dot: "bg-green-500", ms: "128 мс", ssl: "SSL: 82 дн.", sslColor: "text-green-600" },
-              { name: "api.example.ru", status: "Работает", color: "text-green-600", dot: "bg-green-500", ms: "94 мс", ssl: "SSL истекает: 9 дн.", sslColor: "text-amber-600" },
-              { name: "checkout", status: "Недоступен", color: "text-red-600", dot: "bg-red-500", ms: "500", ssl: "SSL: 41 дн.", sslColor: "text-green-600" },
-            ].map((s) => (
-              <div
-                key={s.name}
-                className="rounded-2xl border border-white/60 bg-white/70 p-4 text-left backdrop-blur-md dark:border-white/10 dark:bg-white/5"
-              >
-                <div className="flex items-center gap-2">
-                  <span className={`h-2.5 w-2.5 rounded-full ${s.dot}`} />
-                  <span className={`text-sm font-medium ${s.color}`}>{s.status}</span>
-                </div>
-                <div className="mt-2 truncate font-mono text-xs text-slate-500">{s.name}</div>
-                <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
-                  <span>{s.ms}</span>
-                  <span className={`font-medium ${s.sslColor}`}>{s.ssl}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </section>
 
       {/* Проблемы */}
