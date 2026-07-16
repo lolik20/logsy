@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
 import { collectDepartures } from "@/lib/breadcrumbs";
+import { formatDurationSec } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
 
@@ -217,7 +218,7 @@ export default async function CombinedIpPage({
                 </td>
                 <td className="px-4 py-2">{e.statusCode ?? "—"}</td>
                 <td className="px-4 py-2 whitespace-nowrap">
-                  {e.durationMs != null ? `${e.durationMs} мс` : "—"}
+                  {e.durationMs != null ? formatDurationSec(e.durationMs) : "—"}
                 </td>
                 <td className="px-4 py-2">
                   {e.stack || e.reqBody || e.resBody || e.query || (e.route && e.message) ? (
