@@ -142,6 +142,47 @@ export async function accountNewSession(
   return { overQuota: row.sessions > dailySessionQuota(tier), totalSessions: row.sessions };
 }
 
+/** Использование суточной квоты сессий проектом. */
+export type SessionUsage = {
+  /** Сколько новых сессий учтено за сегодня (UTC). */
+  used: number;
+  /** Суточная квота тарифа по числу сессий. */
+  quota: number;
+  /** Доля использования квоты, 0..1 (для прогресс-бара). */
+  ratio: number;
+  /**
+   * Превышена ли квота — новые сессии уже не принимаются. Совпадает с условием
+   * overQuota в accountNewSession (used > quota): ровно quota сессий помещается,
+   * следующая отбрасывается.
+   */
+  overLimit: boolean;
+};
+
+/**
+ * Текущее использование суточной квоты сессий проектом: сколько новых сессий учтено
+ * сегодня (UTC) и каков лимит по тарифу. Читает суточный счётчик LogUsage — тот же,
+ * что инкрементит accountNewSession, поэтому цифры совпадают с реальным приёмом логов.
+ */
+export async function getSessionUsage(
+  projectId: string,
+  tier: string | null | undefined,
+  now: Date = new Date(),
+): Promise<SessionUsage> {
+  const day = startOfDayUtc(now);
+  const row = await prisma.logUsage.findUnique({
+    where: { projectId_day: { projectId, day } },
+    select: { sessions: true },
+  });
+  const used = row?.sessions ?? 0;
+  const quota = dailySessionQuota(tier);
+  return {
+    used,
+    quota,
+    ratio: quota > 0 ? Math.min(used / quota, 1) : 0,
+    overLimit: used > quota,
+  };
+}
+
 /**
  * Удаляет логи, вышедшие за срок хранения тарифа проекта, и старые счётчики квоты.
  * Проекты группируются по сроку ретеншна, для каждого — один deleteMany.
