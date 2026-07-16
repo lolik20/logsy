@@ -33,6 +33,11 @@ export type ReportTaskInput = {
  * ингеста логов: на каждое непустое сообщение USER_REPORT создаётся отдельная задача,
  * привязанная к породившей её сессии. Заголовок — первая строка сообщения (усечён),
  * полный текст — в описании. Best-effort: ошибки не должны мешать приёму логов.
+ *
+ * Задачи создаём по одной через prisma.task.create (как ручное создание в /api/tasks),
+ * а не пачкой createMany: во-первых, это та же операция, что уже работает при ручном
+ * заведении задачи; во-вторых, сбой на одном сообщении не отменяет создание остальных —
+ * каждую задачу пишем в своём try/catch и логируем ошибку, а не роняем всю пачку.
  */
 export async function createTasksFromReports(
   projectId: string,
@@ -49,21 +54,28 @@ export async function createTasksFromReports(
   });
   let position = (top._min.position ?? 0) - 1;
 
-  const data = items.map((r) => {
+  for (const r of items) {
     const message = r.message!.trim();
     const firstLine = message.split("\n")[0]!.trim();
     const title = firstLine.length > 120 ? `${firstLine.slice(0, 119)}…` : firstLine;
-    return {
-      projectId,
-      title: title || "Сообщение об ошибке",
-      description: message,
-      status: "CREATED",
-      source: "REPORT",
-      reporterEmail: r.email?.trim() || null,
-      sessionId,
-      position: position--,
-    };
-  });
-
-  await prisma.task.createMany({ data });
+    try {
+      await prisma.task.create({
+        data: {
+          projectId,
+          title: title || "Сообщение об ошибке",
+          description: message,
+          status: "CREATED",
+          source: "REPORT",
+          reporterEmail: r.email?.trim() || null,
+          sessionId,
+          position: position--,
+        },
+      });
+    } catch (err) {
+      console.error(
+        "[Logsy] Не удалось завести задачу из сообщения пользователя:",
+        err,
+      );
+    }
+  }
 }
