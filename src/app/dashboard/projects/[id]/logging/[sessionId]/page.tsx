@@ -164,9 +164,19 @@ export default async function SessionPage({
                       <span className="font-mono text-xs">{e.route}</span>
                     </div>
                   ) : e.type === "USER_REPORT" ? (
-                    <span className="whitespace-pre-wrap break-words font-medium text-violet-700 dark:text-violet-300">
-                      {e.message ?? "—"}
-                    </span>
+                    <div>
+                      <span className="whitespace-pre-wrap break-words font-medium text-violet-700 dark:text-violet-300">
+                        {e.message ?? "—"}
+                      </span>
+                      {emailFromMeta(e.meta) && (
+                        <a
+                          href={`mailto:${emailFromMeta(e.meta)}`}
+                          className="mt-1 block truncate font-mono text-xs text-violet-500 hover:underline"
+                        >
+                          ✉ {emailFromMeta(e.meta)}
+                        </a>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-slate-500">{e.message ?? "—"}</span>
                   )}
@@ -256,6 +266,17 @@ export default async function SessionPage({
       </div>
     </div>
   );
+}
+
+/** Достаёт почту отправителя обратной формы из meta события (JSON), либо null. */
+function emailFromMeta(meta: string | null): string | null {
+  if (!meta) return null;
+  try {
+    const obj = JSON.parse(meta) as { email?: unknown };
+    return typeof obj.email === "string" && obj.email ? obj.email : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Разбирает query-строку в пары ключ/значение; при сбое возвращает как есть. */

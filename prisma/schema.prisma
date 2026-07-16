@@ -136,8 +136,36 @@ model Project {
   logExceptions LogException[]
   pages         ProjectPage[]
   payments      Payment[]
+  tasks         Task[]
 
   @@index([userId])
+}
+
+// Задачи проекта — простая доска со статусами (канбан). Задачу можно создать вручную
+// или она заводится автоматически при получении сообщения об ошибке из обратной формы
+// (событие USER_REPORT). Статусы: CREATED (создано) → IN_PROGRESS (в работе) →
+// DONE (выполнено). Пользователь редактирует задачи и перетаскивает их между колонками.
+model Task {
+  id          String   @id @default(cuid())
+  projectId   String
+  title       String
+  description String?
+  // CREATED | IN_PROGRESS | DONE. Новая задача и задача из репорта — в статусе CREATED.
+  status      String   @default("CREATED")
+  // Порядок задачи внутри своей колонки (меньше — выше). Обновляется при перетаскивании.
+  position    Int      @default(0)
+  // Источник задачи: MANUAL (создана вручную) | REPORT (из обратной формы ошибок).
+  source      String   @default("MANUAL")
+  // Почта отправителя обратной формы (если задача заведена из репорта и почта указана).
+  reporterEmail String?
+  // Сессия логирования, породившая задачу (для ссылки на неё), если источник — REPORT.
+  sessionId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
 }
 
 // Карта страниц проекта. Наполняется краулером (см. src/lib/crawler.ts): бот один раз

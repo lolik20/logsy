@@ -9,7 +9,12 @@ import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
 import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
 
-export type UserReport = { message: string | null; url: string | null };
+export type UserReport = {
+  message: string | null;
+  url: string | null;
+  // Почта отправителя из обратной формы (если указана), null — не указана.
+  email?: string | null;
+};
 
 /** Базовый адрес панели Logsy (для ссылок на сессию в уведомлениях). */
 function appUrl(): string {
@@ -55,10 +60,12 @@ export async function notifyUserReports(
   for (const report of items) {
     const message = report.message!.trim();
     const page = report.url ?? "";
+    const email = report.email?.trim() || "";
     const subject = `💬 Новое сообщение об ошибке · ${project.name}`;
     const text =
       `Проект: ${project.name} (${project.domain})\n` +
       (page ? `Страница: ${page}\n` : "") +
+      (email ? `Почта отправителя: ${email}\n` : "") +
       `Время: ${when}\n` +
       `\nСообщение пользователя:\n${message}\n` +
       (link ? `\nСессия пользователя: ${link}\n` : "");
@@ -72,6 +79,7 @@ export async function notifyUserReports(
             `<b>💬 Сообщение об ошибке</b>\n` +
             `Проект: ${escapeHtml(project.name)} (${escapeHtml(project.domain)})\n` +
             (page ? `Страница: ${escapeHtml(page)}\n` : "") +
+            (email ? `Почта отправителя: ${escapeHtml(email)}\n` : "") +
             `\n${escapeHtml(message)}` +
             (link ? `\n\n<a href="${escapeHtml(link)}">Открыть сессию пользователя</a>` : "");
           await sendTelegramMessage(contact.value, html, { html: true });
