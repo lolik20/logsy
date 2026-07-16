@@ -12,6 +12,7 @@ import { SdkStatusCard } from "@/components/SdkStatusCard";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
 import { TopIssues } from "@/components/TopIssues";
 import { isProjectServiceActive } from "@/lib/subscription";
+import { getSessionUsage } from "@/lib/logging";
 import { flagEmoji } from "@/lib/geo";
 import { ERROR_TYPES as ISSUE_ERROR_TYPES, topErrors, topSlowRequests, type IssueEvent } from "@/lib/topIssues";
 
@@ -41,6 +42,9 @@ export default async function LoggingPage({
   if (!project || (project.userId !== userId && !admin)) notFound();
 
   const active = isProjectServiceActive(project, admin);
+
+  // Использование суточной квоты сессий — для красной плашки при превышении лимита.
+  const usage = await getSessionUsage(project.id, project.tier);
 
   // День для фильтра: из query или сегодня.
   const dateStr =
@@ -155,6 +159,22 @@ export default async function LoggingPage({
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
           Тариф проекта не активен — приём логов остановлен. Продлите тариф во
           вкладке «Тариф».
+        </div>
+      )}
+
+      {usage.overLimit && (
+        <div className="mb-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-200">
+          <span className="font-semibold">Превышен суточный лимит сессий</span> —{" "}
+          {usage.used.toLocaleString("ru-RU")} из{" "}
+          {usage.quota.toLocaleString("ru-RU")}. Новые сессии сегодня больше не
+          принимаются.{" "}
+          <Link
+            href={`/dashboard/projects/${project.id}/tariff`}
+            className="font-semibold underline underline-offset-2"
+          >
+            Повысьте тариф
+          </Link>
+          , чтобы увеличить лимит.
         </div>
       )}
 

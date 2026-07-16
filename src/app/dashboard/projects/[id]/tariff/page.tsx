@@ -5,6 +5,7 @@ import { ProjectHeader } from "@/components/ProjectHeader";
 import { ProjectBillingManager } from "@/components/ProjectBillingManager";
 import { describeProjectBilling, isProjectFree } from "@/lib/subscription";
 import { getTier, FREE_TIER } from "@/lib/pricing";
+import { getSessionUsage } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,9 @@ export default async function ProjectTariffPage({
   const free = isProjectFree(project);
   const tier = getTier(project.tier);
   const tierLabel = tier ? tier.name : free ? FREE_TIER.name : "—";
+
+  // Использование суточной квоты сессий (сегодня, UTC) — для прогресс-бара ниже.
+  const usage = await getSessionUsage(project.id, project.tier);
 
   return (
     <div>
@@ -70,6 +74,13 @@ export default async function ProjectTariffPage({
         />
       </div>
 
+      <SessionUsageBar
+        used={usage.used}
+        quota={usage.quota}
+        ratio={usage.ratio}
+        overLimit={usage.overLimit}
+      />
+
       {admin ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
           У вас роль администратора — безлимитный доступ ко всем проектам. Оплата
@@ -78,6 +89,65 @@ export default async function ProjectTariffPage({
       ) : isowner ? (
         <ProjectBillingManager projectId={project.id} currentTier={project.tier} />
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Прогресс-бар использования суточной квоты сессий: сколько сессий принято сегодня
+ * из лимита тарифа. При превышении лимита бар и подпись становятся красными.
+ */
+function SessionUsageBar({
+  used,
+  quota,
+  ratio,
+  overLimit,
+}: {
+  used: number;
+  quota: number;
+  ratio: number;
+  overLimit: boolean;
+}) {
+  const percent = Math.round(ratio * 100);
+  return (
+    <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          Сессии за сегодня
+        </div>
+        <div
+          className={`text-sm font-semibold ${
+            overLimit ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-300"
+          }`}
+        >
+          {used.toLocaleString("ru-RU")} из {quota.toLocaleString("ru-RU")}
+          <span className="ml-1 font-normal text-slate-400">({percent}%)</span>
+        </div>
+      </div>
+      <div
+        className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+        role="progressbar"
+        aria-valuenow={used}
+        aria-valuemin={0}
+        aria-valuemax={quota}
+      >
+        <div
+          className={`h-full rounded-full transition-all ${
+            overLimit
+              ? "bg-red-500"
+              : ratio >= 0.9
+                ? "bg-amber-500"
+                : "bg-brand"
+          }`}
+          style={{ width: `${Math.max(ratio * 100, used > 0 ? 2 : 0)}%` }}
+        />
+      </div>
+      {overLimit && (
+        <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+          Суточный лимит сессий исчерпан — новые сессии сегодня не принимаются.
+          Повысьте тариф, чтобы увеличить лимит.
+        </p>
+      )}
     </div>
   );
 }
