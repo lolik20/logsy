@@ -50,6 +50,21 @@ export function truncate(value: string | null | undefined, max = MAX_TEXT_CHARS)
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
+/**
+ * Усечь очень длинную ссылку для показа: сохраняет начало (домен/путь) и хвост
+ * (последний сегмент/параметр), а середину заменяет на «…». Для URL это читабельнее
+ * обычной обрезки с конца — видно и хост, и куда именно ведёт ссылка. Полный URL
+ * стоит отдавать отдельно (например, в атрибуте title) для показа по наведению.
+ */
+export function truncateUrl(url: string | null | undefined, max = 80): string {
+  const s = String(url ?? "");
+  if (s.length <= max) return s;
+  const keep = max - 1; // один символ на многоточие
+  const head = Math.ceil(keep * 0.6);
+  const tail = keep - head;
+  return s.slice(0, head) + "…" + s.slice(s.length - tail);
+}
+
 // Разрешённый набор меток перехода, которые SDK фиксирует при старте сессии:
 // стандартные UTM-параметры и рекламные идентификаторы клика (Яндекс/Google/Facebook,
 // в т.ч. etext текстовых объявлений Яндекс.Директа). Остальные query-параметры лендинга
