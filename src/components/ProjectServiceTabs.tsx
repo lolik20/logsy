@@ -5,6 +5,7 @@ import Link from "next/link";
 const items = [
   { key: "monitoring", label: "Мониторинг", suffix: "" },
   { key: "logging", label: "Логирование", suffix: "/logging" },
+  { key: "tasks", label: "Задачи", suffix: "/tasks" },
   { key: "pages", label: "Страницы", suffix: "/pages" },
   { key: "connection", label: "Подключение", suffix: "/connection" },
   { key: "alerts", label: "Алерты", suffix: "/alerts" },
@@ -14,6 +15,7 @@ const items = [
 export type ProjectServiceKey =
   | "monitoring"
   | "logging"
+  | "tasks"
   | "pages"
   | "connection"
   | "alerts"

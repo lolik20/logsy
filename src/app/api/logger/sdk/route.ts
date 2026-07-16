@@ -510,6 +510,12 @@ const SDK = `(function(){
         + ".close svg{width:16px;height:16px;}"
         + ".ttl{font-size:15px;font-weight:700;margin:0 24px 4px 0;}"
         + ".sub{font-size:12px;color:#64748b;margin:0 0 10px;}"
+        + "input.email{width:100%;border:1px solid #cbd5e1;border-radius:10px;"
+        + "padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a;"
+        + "background:#fff;outline:none;margin-bottom:8px;}"
+        + "input.email:focus{border-color:#4f46e5;box-shadow:0 0 0 2px rgba(79,70,229,.2);}"
+        + "input.email.err,textarea.err{border-color:#dc2626;box-shadow:0 0 0 2px rgba(220,38,38,.2);}"
+        + ".field-err{font-size:12px;color:#dc2626;margin:2px 0 6px;}"
         + "textarea{width:100%;min-height:88px;resize:vertical;border:1px solid #cbd5e1;"
         + "border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;color:#0f172a;"
         + "background:#fff;outline:none;}"
@@ -535,7 +541,10 @@ const SDK = `(function(){
         + '<path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>'
         + '<p class="ttl">Сообщить об ошибке</p>'
         + '<p class="sub">Опишите, что пошло не так — мы это увидим.</p>'
+        + '<input class="email" type="email" inputmode="email" autocomplete="email" maxlength="320" placeholder="Ваша почта для связи" />'
+        + '<div class="field-err email-err" style="display:none">Введите корректную почту</div>'
         + '<textarea maxlength="1000" placeholder="Что случилось?"></textarea>'
+        + '<div class="field-err text-err" style="display:none">Опишите проблему</div>'
         + '<div class="row">'
         + '<a class="powered" href="' + origin + '" target="_blank" rel="noopener noreferrer">Работает на Logsy</a>'
         + '<button type="button" class="act send">Отправить</button>'
@@ -554,12 +563,27 @@ const SDK = `(function(){
 
       var panel = wrap.querySelector(".panel");
       var fab = wrap.querySelector(".fab");
+      var emailInput = wrap.querySelector("input.email");
+      var emailErr = wrap.querySelector(".email-err");
       var ta = wrap.querySelector("textarea");
+      var textErr = wrap.querySelector(".text-err");
       var sendBtn = wrap.querySelector(".send");
       var closeBtn = wrap.querySelector(".close");
 
-      function openPanel() { panel.classList.add("open"); try { ta.focus(); } catch (e) {} }
+      // Простая проверка формата почты (та же логика и на сервере).
+      var EMAIL_RE = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+      function validEmail(v) { return EMAIL_RE.test(v); }
+
+      function openPanel() { panel.classList.add("open"); try { emailInput.focus(); } catch (e) {} }
       function closePanel() { panel.classList.remove("open"); }
+
+      // Скрываем ошибку поля, как только пользователь начал его править.
+      emailInput.addEventListener("input", function () {
+        emailInput.classList.remove("err"); emailErr.style.display = "none";
+      });
+      ta.addEventListener("input", function () {
+        ta.classList.remove("err"); textErr.style.display = "none";
+      });
 
       fab.addEventListener("click", function () {
         if (panel.classList.contains("open")) closePanel(); else openPanel();
@@ -567,11 +591,24 @@ const SDK = `(function(){
       closeBtn.addEventListener("click", closePanel);
 
       sendBtn.addEventListener("click", function () {
+        var email = (emailInput.value || "").trim();
         var text = (ta.value || "").trim();
-        if (!text) { try { ta.focus(); } catch (e) {} return; }
-        push({ type: "USER_REPORT", message: text.slice(0, 1000), url: location.href });
+        var bad = false;
+        // Почта обязательна и должна быть корректной.
+        if (!validEmail(email)) {
+          emailInput.classList.add("err"); emailErr.style.display = "block"; bad = true;
+        }
+        if (!text) {
+          ta.classList.add("err"); textErr.style.display = "block"; bad = true;
+        }
+        if (bad) {
+          try { (!validEmail(email) ? emailInput : ta).focus(); } catch (e) {}
+          return;
+        }
+        push({ type: "USER_REPORT", message: text.slice(0, 1000), email: email.slice(0, 320), url: location.href });
         flush(false);
         ta.value = "";
+        emailInput.value = "";
         // Показываем благодарность и закрываем форму.
         panel.innerHTML = '<div class="ok">Спасибо! Сообщение отправлено.</div>'
           + '<div class="foot"><a href="' + origin + '" target="_blank" rel="noopener noreferrer">Работает на Logsy</a></div>';

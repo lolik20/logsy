@@ -17,11 +17,23 @@ import { accountNewSession, truncate, isBotUserAgent, normalizeUtm, MAX_BODY_CHA
 import { matchesException } from "@/lib/exceptions";
 import { resolveCountry } from "@/lib/geo";
 import { notifyUserReports } from "@/lib/user-report";
+import { createTasksFromReports } from "@/lib/tasks";
 
 export const dynamic = "force-dynamic";
 
 // Ограничиваем размер батча, чтобы одна отправка не могла раздуть запись.
 const MAX_EVENTS_PER_BATCH = 50;
+
+/** Достаёт почту отправителя из meta события USER_REPORT (JSON), либо null. */
+function emailFromMeta(meta: string | null): string | null {
+  if (!meta) return null;
+  try {
+    const obj = JSON.parse(meta) as { email?: unknown };
+    return typeof obj.email === "string" && obj.email ? obj.email : null;
+  } catch {
+    return null;
+  }
+}
 
 const eventSchema = z.object({
   type: z.enum([
@@ -50,6 +62,8 @@ const eventSchema = z.object({
   durationMs: z.number().int().optional().nullable(),
   reqBody: z.string().max(8000).optional().nullable(),
   resBody: z.string().max(8000).optional().nullable(),
+  // Почта отправителя обратной формы ошибок (только для событий USER_REPORT).
+  email: z.string().trim().max(320).optional().nullable(),
   ts: z.number().int().optional().nullable(),
 });
 
@@ -206,6 +220,11 @@ export async function POST(req: Request) {
       durationMs: e.durationMs ?? null,
       reqBody: truncate(e.reqBody, MAX_BODY_CHARS),
       resBody: truncate(e.resBody, MAX_BODY_CHARS),
+      // Для сообщений обратной формы храним почту отправителя в meta (JSON).
+      meta:
+        e.type === "USER_REPORT" && e.email
+          ? JSON.stringify({ email: truncate(e.email, 320) })
+          : null,
       createdAt: e.ts ? new Date(e.ts) : undefined,
     }))
     .filter((row) => !exceptions.some((rule) => matchesException(row, rule)));
@@ -214,16 +233,19 @@ export async function POST(req: Request) {
     await prisma.logEvent.createMany({ data: rows });
   }
 
-  // Обратная форма ошибок: о каждом сообщении пользователя (USER_REPORT) уведомляем
-  // владельца проекта на его контакты. Запускаем в фоне (best-effort), чтобы не
-  // задерживать ответ SDK; в долгоживущем процессе промис доедет до конца.
-  const reports = rows.filter((r) => r.type === "USER_REPORT");
+  // Обратная форма ошибок: по каждому сообщению пользователя (USER_REPORT) заводим
+  // задачу в статусе «Создано» и уведомляем владельца проекта на его контакты.
+  const reports = rows
+    .filter((r) => r.type === "USER_REPORT")
+    .map((r) => ({ message: r.message, url: r.url, email: emailFromMeta(r.meta) }));
   if (reports.length) {
-    void notifyUserReports(
-      project.id,
-      session.id,
-      reports.map((r) => ({ message: r.message, url: r.url })),
-    ).catch((err) =>
+    // Задачи создаём надёжно (await): это основной результат репорта.
+    await createTasksFromReports(project.id, session.id, reports).catch((err) =>
+      console.error("[Logsy] Ошибка создания задачи из сообщения пользователя:", err),
+    );
+    // Уведомления шлём в фоне (best-effort), чтобы не задерживать ответ SDK; в
+    // долгоживущем процессе промис доедет до конца.
+    void notifyUserReports(project.id, session.id, reports).catch((err) =>
       console.error("[Logsy] Ошибка уведомления о сообщении пользователя:", err),
     );
   }
