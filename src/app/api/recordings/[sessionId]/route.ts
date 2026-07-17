@@ -41,13 +41,38 @@ export async function GET(
   const markerEvents = await prisma.logEvent.findMany({
     where: { sessionId: session.id, type: { in: MARKER_TYPES } },
     orderBy: { createdAt: "asc" },
-    select: { type: true, message: true, route: true, createdAt: true },
+    // Полная информация о событии — чтобы плеер показал её в подсказке и дал скопировать.
+    select: {
+      type: true,
+      message: true,
+      route: true,
+      query: true,
+      method: true,
+      statusCode: true,
+      durationMs: true,
+      url: true,
+      reqBody: true,
+      resBody: true,
+      stack: true,
+      createdAt: true,
+    },
   });
   const markers = markerEvents.map((e) => ({
     t: e.createdAt.getTime(),
     kind: e.type === "SLOW_REQUEST" ? ("slow" as const) : ("error" as const),
-    // Подпись для тултипа: сообщение и (если есть) адрес запроса, ограничиваем по длине.
+    // Короткая подпись (тип + адрес) для строки заголовка подсказки.
     label: [e.message, e.route].filter(Boolean).join(" · ").slice(0, 120),
+    type: e.type,
+    message: e.message,
+    method: e.method,
+    route: e.route,
+    query: e.query,
+    statusCode: e.statusCode,
+    durationMs: e.durationMs,
+    url: e.url,
+    reqBody: e.reqBody,
+    resBody: e.resBody,
+    stack: e.stack,
   }));
 
   // Разворачиваем чанки в единый поток событий rrweb. data — JSON-массив событий.

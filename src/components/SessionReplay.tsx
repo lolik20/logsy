@@ -5,13 +5,27 @@ import "rrweb/dist/style.css";
 
 type PlayerState = "idle" | "loading" | "ready" | "empty" | "error";
 
-// Метка таймлайна из логов сессии: время (epoch ms), тип и подпись для тултипа.
-type Marker = { t: number; kind: "error" | "slow"; label: string };
-// Позиционированная метка для дорожки времени: доля 0..1 от длины записи + подпись.
-type PlacedMarker = { pct: number; kind: "error" | "slow"; label: string };
+// Метка таймлайна из логов сессии: время (epoch ms) + полная информация о событии.
+type Marker = {
+  t: number;
+  kind: "error" | "slow";
+  label: string;
+  type?: string | null;
+  message?: string | null;
+  method?: string | null;
+  route?: string | null;
+  query?: string | null;
+  statusCode?: number | null;
+  durationMs?: number | null;
+  url?: string | null;
+  reqBody?: string | null;
+  resBody?: string | null;
+  stack?: string | null;
+};
+// Метка, спозиционированная на дорожку: доля 0..1 + исходные данные для подсказки.
+type PlacedMarker = Marker & { pct: number };
 
-// Минимальный интерфейс rrweb Replayer, которым мы пользуемся. Полные типы тянут за собой
-// весь rrweb; нам нужны только эти методы, поэтому описываем их точечно.
+// Минимальный интерфейс rrweb Replayer, которым мы пользуемся.
 type ReplayerLike = {
   getMetaData: () => { startTime: number; endTime: number; totalTime: number };
   getCurrentTime: () => number;
@@ -34,14 +48,36 @@ function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
+/** Собирает все поля события в многострочный текст (для кнопки «Копировать»). */
+function markerToText(m: Marker): string {
+  const durSec =
+    m.durationMs != null ? `${(m.durationMs / 1000).toFixed(2)} с (${m.durationMs} мс)` : null;
+  const rows: Array<[string, string | number | null | undefined]> = [
+    ["Тип", m.kind === "slow" ? "Медленный запрос" : "Ошибка"],
+    ["Сообщение", m.message],
+    ["Метод", m.method],
+    ["Статус", m.statusCode],
+    ["Длительность", durSec],
+    ["Адрес", m.route],
+    ["Query", m.query],
+    ["Страница", m.url],
+    ["Тело запроса", m.reqBody],
+    ["Ответ", m.resBody],
+    ["Стек", m.stack],
+  ];
+  return rows
+    .filter(([, v]) => v != null && v !== "")
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n");
+}
+
 /**
  * Воспроизведение записи экрана сессии (rrweb).
  *
- * Раньше использовался пакет rrweb-player, но в версии 2.1.0 его Svelte-обёртка при обычном
- * инстанцировании (new rrwebPlayer({ target, props })) НЕ инициализирует Replayer — строится
- * только пустая оболочка, отсюда был «белый экран». Поэтому рендерим через rrweb.Replayer
- * напрямую и рисуем свои контролы: кнопка play/pause, дорожка времени с перемоткой и
- * маркерами ошибок (красные) и медленных запросов (жёлтые) — с иконкой и подписью по наведению.
+ * Пакет rrweb-player@2.1.0 при обычном инстанцировании не инициализирует Replayer (строится
+ * пустая оболочка — был «белый экран»), поэтому рендерим через rrweb.Replayer напрямую и
+ * рисуем свои контролы: play/pause, дорожка времени с перемоткой и маркеры ошибок (красные) и
+ * медленных запросов (жёлтые). По наведению на маркер — карточка со всей информацией и копией.
  */
 export function SessionReplay({
   sessionId,
@@ -58,8 +94,9 @@ export function SessionReplay({
   const replayerRef = useRef<ReplayerLike | null>(null);
   const rafRef = useRef<number | null>(null);
   const startedRef = useRef(false);
-  // Данные записи, дождавшиеся показа контейнера (плеер строится в эффекте, когда он виден).
   const pendingRef = useRef<{ events: RRWebEvent[]; markers: Marker[] } | null>(null);
+  // Размеры записанного вьюпорта (из Meta-события) — нужны для пересчёта масштаба на resize.
+  const vpRef = useRef<{ w: number; h: number }>({ w: 1280, h: 720 });
 
   const [state, setState] = useState<PlayerState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -67,13 +104,13 @@ export function SessionReplay({
   const [cur, setCur] = useState(0); // текущее смещение, мс
   const [total, setTotal] = useState(0); // длительность записи, мс
   const [placed, setPlaced] = useState<PlacedMarker[]>([]);
+  const [openIdx, setOpenIdx] = useState<number | null>(null); // открытая карточка маркера
 
   const stopRaf = useCallback(() => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
   }, []);
 
-  // Цикл обновления бегунка во время воспроизведения.
   const startRaf = useCallback(
     (totalMs: number) => {
       stopRaf();
@@ -93,24 +130,36 @@ export function SessionReplay({
     [stopRaf],
   );
 
-  // Масштабирование записи под ширину контейнера. rrweb рендерит iframe в размерах
-  // записанного вьюпорта (Meta-событие); мы вписываем .replayer-wrapper в контейнер.
-  const rescale = useCallback((vw: number, vh: number) => {
+  // Вписывание записи в контейнер по ШИРИНЕ и ВЫСОТЕ (раньше — только по ширине, из-за чего
+  // высокие/узкие записи вылезали за экран). scale = min(поВысоте, поШирине, 1); запись
+  // центрируем по горизонтали. Высоту ограничиваем видимой областью окна.
+  const rescale = useCallback(() => {
     const frame = frameRef.current;
     if (!frame) return;
     const wrapper = frame.querySelector<HTMLElement>(".replayer-wrapper");
+    const { w: vw, h: vh } = vpRef.current;
     if (!wrapper || !vw || !vh) return;
-    const avail = frame.clientWidth || vw;
-    const scale = avail / vw;
+    const availW = frame.clientWidth || vw;
+    // Оставляем место под шапку страницы и панель управления — чтобы запись влезала в экран.
+    const availH = Math.max(240, (typeof window !== "undefined" ? window.innerHeight : 800) - 260);
+    const scale = Math.min(availW / vw, availH / vh, 1);
+    const dispW = vw * scale;
+    const dispH = vh * scale;
+    wrapper.style.position = "absolute";
     wrapper.style.transformOrigin = "top left";
     wrapper.style.transform = `scale(${scale})`;
+    wrapper.style.top = "0";
+    wrapper.style.left = `${Math.max(0, (availW - dispW) / 2)}px`;
     wrapper.style.margin = "0";
-    frame.style.height = `${Math.round(vh * scale)}px`;
+    frame.style.height = `${Math.round(dispH)}px`;
   }, []);
 
-  // Уничтожаем плеер и останавливаем цикл при размонтировании.
+  // Уничтожаем плеер и снимаем слушатели при размонтировании.
   useEffect(() => {
+    const onResize = () => rescale();
+    window.addEventListener("resize", onResize);
     return () => {
+      window.removeEventListener("resize", onResize);
       stopRaf();
       try {
         replayerRef.current?.pause();
@@ -119,10 +168,9 @@ export function SessionReplay({
         /* ignore */
       }
     };
-  }, [stopRaf]);
+  }, [rescale, stopRaf]);
 
-  // Построение плеера. Только в состоянии "ready", когда контейнер уже отрендерен и виден
-  // (rrweb-обёртке и масштабированию нужны реальные размеры контейнера).
+  // Построение плеера — только когда контейнер отрендерен и виден (state === "ready").
   useEffect(() => {
     if (state !== "ready" || !pendingRef.current) return;
     const { events, markers } = pendingRef.current;
@@ -137,49 +185,47 @@ export function SessionReplay({
         const { Replayer } = await import("rrweb");
         if (cancelled) return;
         frame.innerHTML = "";
-        const rep = new Replayer(events as unknown[] as ConstructorParameters<typeof Replayer>[0], {
-          root: frame,
-          showWarning: false,
-          mouseTail: false,
-          skipInactive: false,
-        }) as unknown as ReplayerLike;
+        const rep = new Replayer(
+          events as unknown[] as ConstructorParameters<typeof Replayer>[0],
+          { root: frame, showWarning: false, mouseTail: false, skipInactive: false },
+        ) as unknown as ReplayerLike;
         replayerRef.current = rep;
 
         const meta = rep.getMetaData();
         setTotal(meta.totalTime);
 
-        // Метки → доли по времени записи (за пределы диапазона не показываем).
         const mk: PlacedMarker[] = [];
         for (const m of markers) {
           if (typeof m.t !== "number") continue;
           const off = m.t - meta.startTime;
           if (off < 0 || off > meta.totalTime) continue;
-          mk.push({ pct: clamp01(off / (meta.totalTime || 1)), kind: m.kind, label: m.label });
+          mk.push({ ...m, pct: clamp01(off / (meta.totalTime || 1)) });
         }
         setPlaced(mk);
 
-        // Размеры записанного вьюпорта из Meta-события — для масштаба.
         const metaEvent = events.find((e) => e.type === 4) as
           | { data?: { width?: number; height?: number } }
           | undefined;
-        let vw = metaEvent?.data?.width || 1280;
-        let vh = metaEvent?.data?.height || 720;
+        vpRef.current = {
+          w: metaEvent?.data?.width || 1280,
+          h: metaEvent?.data?.height || 720,
+        };
         rep.pause(0); // показать первый кадр
-        rescale(vw, vh);
+        rescale();
 
-        // Смена вьюпортом размера в течение сессии — пересчитываем масштаб.
         rep.on("resize", (payload: { width?: number; height?: number }) => {
-          if (payload?.width) vw = payload.width;
-          if (payload?.height) vh = payload.height;
-          rescale(vw, vh);
+          vpRef.current = {
+            w: payload?.width || vpRef.current.w,
+            h: payload?.height || vpRef.current.h,
+          };
+          rescale();
         });
         rep.on("finish", () => {
           setPlaying(false);
           stopRaf();
         });
 
-        // Реагируем на изменение ширины контейнера (адаптив).
-        ro = new ResizeObserver(() => rescale(vw, vh));
+        ro = new ResizeObserver(() => rescale());
         ro.observe(frame);
       } catch (e) {
         if (!cancelled) {
@@ -203,19 +249,16 @@ export function SessionReplay({
       if (!res.ok) throw new Error("Не удалось загрузить запись");
       const data = (await res.json()) as { events?: unknown; markers?: Marker[] };
       const events = (Array.isArray(data.events) ? data.events : []) as RRWebEvent[];
-      // rrweb требует минимум два события (полный снимок + хотя бы один инкремент).
       if (events.length < 2) {
         setState("empty");
         return;
       }
-      // Без полного снимка DOM (rrweb type 2) плееру нечего отрисовать.
       if (!events.some((e) => e && typeof e === "object" && e.type === 2)) {
         setError("В записи нет полного снимка страницы — воспроизводить нечего.");
         setState("error");
         return;
       }
       pendingRef.current = { events, markers: Array.isArray(data.markers) ? data.markers : [] };
-      // Показываем контейнер (ready) → эффект построит в нём плеер.
       setState("ready");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка воспроизведения");
@@ -223,7 +266,6 @@ export function SessionReplay({
     }
   }, [sessionId]);
 
-  // Автозапуск (для выделенной страницы воспроизведения): грузим сразу, без кнопки.
   useEffect(() => {
     if (autoLoad && !startedRef.current) {
       startedRef.current = true;
@@ -246,15 +288,18 @@ export function SessionReplay({
     }
   }
 
-  function seek(clientX: number, track: HTMLElement) {
+  function seekTo(t: number) {
     const rep = replayerRef.current;
     if (!rep || !total) return;
+    const clamped = Math.max(0, Math.min(t, total));
+    setCur(clamped);
+    if (playing) rep.play(clamped);
+    else rep.pause(clamped);
+  }
+
+  function seekFromClick(clientX: number, track: HTMLElement) {
     const rect = track.getBoundingClientRect();
-    const pct = clamp01((clientX - rect.left) / rect.width);
-    const t = pct * total;
-    setCur(t);
-    if (playing) rep.play(t);
-    else rep.pause(t);
+    seekTo(clamp01((clientX - rect.left) / rect.width) * total);
   }
 
   const curPct = total ? clamp01(cur / total) * 100 : 0;
@@ -284,11 +329,10 @@ export function SessionReplay({
         </p>
       )}
 
-      {/* Плеер: область записи + собственные контролы. Виден в состоянии ready. */}
       <div className={state === "ready" ? "" : "hidden"}>
         <div className="overflow-hidden rounded-t-xl border border-slate-200 bg-slate-950 dark:border-slate-800">
-          {/* Контейнер под rrweb.Replayer (масштабируется по ширине). */}
-          <div ref={frameRef} className="relative w-full" />
+          {/* Контейнер под rrweb.Replayer (вписывается по ширине и высоте, центрируется). */}
+          <div ref={frameRef} className="relative mx-auto w-full" />
         </div>
 
         {/* Панель управления */}
@@ -305,45 +349,52 @@ export function SessionReplay({
 
             {/* Дорожка времени с маркерами */}
             <div
-              className="relative h-6 flex-1 cursor-pointer select-none"
-              onClick={(e) => seek(e.clientX, e.currentTarget)}
+              className="relative h-6 flex-1"
+              onClick={(e) => {
+                if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.track)
+                  seekFromClick(e.clientX, e.currentTarget);
+              }}
             >
-              {/* фон дорожки */}
-              <div className="absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-slate-200 dark:bg-slate-700" />
-              {/* заполнение */}
               <div
-                className="absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-brand"
+                data-track="1"
+                className="absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 cursor-pointer rounded-full bg-slate-200 dark:bg-slate-700"
+              />
+              <div
+                className="pointer-events-none absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-brand"
                 style={{ width: `${curPct}%` }}
               />
-              {/* бегунок */}
               <div
-                className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-brand shadow dark:border-slate-900"
+                className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-brand shadow dark:border-slate-900"
                 style={{ left: `${curPct}%` }}
               />
-              {/* маркеры ошибок/медленных */}
+
               {placed.map((m, i) => (
                 <div
                   key={i}
-                  className="absolute top-0 z-10 -translate-x-1/2"
+                  className="absolute top-0 z-20 -translate-x-1/2"
                   style={{ left: `${m.pct * 100}%` }}
-                  title={`${m.kind === "slow" ? "🐢 Медленный запрос" : "⛔ Ошибка"} · ${m.label}`}
+                  onMouseEnter={() => setOpenIdx(i)}
+                  onMouseLeave={() => setOpenIdx((v) => (v === i ? null : v))}
                 >
-                  {/* иконка над дорожкой */}
-                  <span
-                    className={
-                      m.kind === "slow"
-                        ? "block text-amber-500"
-                        : "block text-red-600"
-                    }
+                  {/* иконка над дорожкой + вертикальная рисочка */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      seekTo(m.pct * total);
+                    }}
+                    className={`block cursor-pointer ${m.kind === "slow" ? "text-amber-500" : "text-red-600"}`}
+                    aria-label={m.kind === "slow" ? "Медленный запрос" : "Ошибка"}
                   >
                     {m.kind === "slow" ? <SlowIcon /> : <ErrorIcon />}
-                  </span>
-                  {/* вертикальная рисочка на дорожке */}
+                  </button>
                   <span
-                    className={`absolute left-1/2 top-3 h-3 w-0.5 -translate-x-1/2 ${
+                    className={`pointer-events-none absolute left-1/2 top-3 h-3 w-0.5 -translate-x-1/2 ${
                       m.kind === "slow" ? "bg-amber-500" : "bg-red-600"
                     }`}
                   />
+
+                  {openIdx === i && <MarkerCard m={m} atRight={m.pct > 0.6} atLeft={m.pct < 0.4} />}
                 </div>
               ))}
             </div>
@@ -355,6 +406,81 @@ export function SessionReplay({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Карточка со всей информацией о событии и кнопкой «Копировать». */
+function MarkerCard({ m, atRight, atLeft }: { m: Marker; atRight: boolean; atLeft: boolean }) {
+  // Горизонтальное выравнивание карточки, чтобы у краёв дорожки она не обрезалась.
+  const pos = atLeft ? "left-0" : atRight ? "right-0" : "left-1/2 -translate-x-1/2";
+  const durSec = m.durationMs != null ? `${(m.durationMs / 1000).toFixed(2)} с` : null;
+  const rows: Array<[string, string | null | undefined]> = [
+    ["Сообщение", m.message],
+    ["Метод", m.method],
+    ["Статус", m.statusCode != null ? String(m.statusCode) : null],
+    ["Длительность", durSec],
+    ["Адрес", m.route],
+    ["Query", m.query],
+    ["Страница", m.url],
+    ["Тело запроса", m.reqBody],
+    ["Ответ", m.resBody],
+    ["Стек", m.stack],
+  ];
+  return (
+    // pb-2 создаёт «мост» от иконки до карточки, чтобы курсор не терял наведение.
+    <div className={`absolute bottom-full z-30 pb-2 ${pos}`}>
+      <div className="w-80 max-w-[80vw] rounded-lg border border-slate-200 bg-white p-3 text-left shadow-xl dark:border-slate-700 dark:bg-slate-800">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span
+            className={`inline-flex items-center gap-1 text-xs font-semibold ${
+              m.kind === "slow" ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"
+            }`}
+          >
+            {m.kind === "slow" ? "🐢 Медленный запрос" : "⛔ Ошибка"}
+          </span>
+          <CopyButton text={markerToText(m)} />
+        </div>
+        <dl className="max-h-64 space-y-1.5 overflow-auto">
+          {rows
+            .filter(([, v]) => v != null && v !== "")
+            .map(([k, v]) => (
+              <div key={k}>
+                <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{k}</dt>
+                <dd className="whitespace-pre-wrap break-words font-mono text-xs text-slate-700 dark:text-slate-200">
+                  {v}
+                </dd>
+              </div>
+            ))}
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+/** Кнопка копирования текста в буфер обмена с кратким подтверждением. */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        try {
+          void navigator.clipboard.writeText(text).then(
+            () => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            },
+            () => {},
+          );
+        } catch {
+          /* ignore */
+        }
+      }}
+      className="shrink-0 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+    >
+      {copied ? "Скопировано" : "Копировать"}
+    </button>
   );
 }
 
