@@ -22,6 +22,7 @@ export default async function TasksPage({
   const tasks = await prisma.task.findMany({
     where: { projectId: project.id },
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    include: { _count: { select: { messages: true } } },
   });
 
   const boardTasks: BoardTask[] = tasks.map((t) => ({
@@ -34,6 +35,7 @@ export default async function TasksPage({
     sessionId: t.sessionId,
     position: t.position,
     createdAt: t.createdAt.toISOString(),
+    messageCount: t._count.messages,
   }));
 
   return (

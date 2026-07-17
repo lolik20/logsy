@@ -30,9 +30,13 @@ export type ReportTaskInput = {
 
 /**
  * Заводит задачи в статусе CREATED по сообщениям обратной формы ошибок. Вызывается из
- * ингеста логов: на каждое непустое сообщение USER_REPORT создаётся отдельная задача,
- * привязанная к породившей её сессии. Заголовок — первая строка сообщения (усечён),
- * полный текст — в описании. Best-effort: ошибки не должны мешать приёму логов.
+ * ингеста логов: на каждое непустое сообщение USER_REPORT либо создаётся отдельная
+ * задача (привязанная к породившей её сессии), либо, если в этой же сессии уже есть
+ * незакрытая задача-обращение с той же почтой пользователя, сообщение дописывается в
+ * её переписку (TaskMessage, INCOMING). Так продолжение диалога от одного посетителя
+ * не плодит новые задачи, а превращается в переписку в рамках существующей задачи.
+ * Заголовок новой задачи — первая строка сообщения (усечён), полный текст — в описании.
+ * Best-effort: ошибки не должны мешать приёму логов.
  *
  * Задачи создаём по одной через prisma.task.create (как ручное создание в /api/tasks),
  * а не пачкой createMany: во-первых, это та же операция, что уже работает при ручном
@@ -56,9 +60,39 @@ export async function createTasksFromReports(
 
   for (const r of items) {
     const message = r.message!.trim();
-    const firstLine = message.split("\n")[0]!.trim();
-    const title = firstLine.length > 120 ? `${firstLine.slice(0, 119)}…` : firstLine;
+    const email = r.email?.trim() || null;
+
     try {
+      // Продолжение диалога: если посетитель уже писал в этой сессии (та же почта) и
+      // задача по его обращению ещё не закрыта — дописываем сообщение в её переписку,
+      // а не создаём новую задачу. Почта обязательна: без неё диалог не связать.
+      if (email) {
+        const existing = await prisma.task.findFirst({
+          where: {
+            projectId,
+            sessionId,
+            source: "REPORT",
+            reporterEmail: email,
+            status: { not: "DONE" },
+          },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        });
+        if (existing) {
+          await prisma.taskMessage.create({
+            data: {
+              taskId: existing.id,
+              direction: "INCOMING",
+              body: message,
+              fromEmail: email,
+            },
+          });
+          continue;
+        }
+      }
+
+      const firstLine = message.split("\n")[0]!.trim();
+      const title = firstLine.length > 120 ? `${firstLine.slice(0, 119)}…` : firstLine;
       await prisma.task.create({
         data: {
           projectId,
@@ -66,7 +100,7 @@ export async function createTasksFromReports(
           description: message,
           status: "CREATED",
           source: "REPORT",
-          reporterEmail: r.email?.trim() || null,
+          reporterEmail: email,
           sessionId,
           position: position--,
         },

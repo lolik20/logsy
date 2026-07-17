@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -18,6 +18,19 @@ export type BoardTask = {
   reporterEmail: string | null;
   sessionId: string | null;
   position: number;
+  createdAt: string;
+  // Число сообщений в переписке с пользователем (без учёта первого обращения,
+  // которое хранится в description). Для бейджа-счётчика на карточке.
+  messageCount: number;
+};
+
+// Сообщение переписки с пользователем в рамках задачи (см. /api/tasks/[id]/messages).
+type TaskMessage = {
+  id: string;
+  direction: "INCOMING" | "OUTGOING";
+  body: string;
+  fromEmail: string | null;
+  toEmail: string | null;
   createdAt: string;
 };
 
@@ -207,6 +220,13 @@ export function TaskBoard({
             setEditor(null);
             router.refresh();
           }}
+          onMessageSent={(taskId) => {
+            setTasks((ts) =>
+              ts.map((t) =>
+                t.id === taskId ? { ...t, messageCount: t.messageCount + 1 } : t,
+              ),
+            );
+          }}
         />
       )}
     </div>
@@ -297,6 +317,17 @@ function TaskCard({
               ✉ {task.reporterEmail}
             </a>
           )}
+          {task.messageCount > 0 && (
+            <span
+              title="Сообщений в переписке"
+              className="inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 font-medium text-violet-600 dark:bg-violet-950/40 dark:text-violet-300"
+            >
+              <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              {task.messageCount}
+            </span>
+          )}
           {task.sessionId && (
             <Link
               href={`/dashboard/projects/${projectId}/logging/${task.sessionId}`}
@@ -316,11 +347,13 @@ function TaskEditor({
   editor,
   onClose,
   onSaved,
+  onMessageSent,
 }: {
   projectId: string;
   editor: NonNullable<EditorState>;
   onClose: () => void;
   onSaved: (task: BoardTask, isNew: boolean) => void;
+  onMessageSent: (taskId: string) => void;
 }) {
   const isEdit = editor.mode === "edit";
   const [title, setTitle] = useState(isEdit ? editor.task.title : "");
@@ -329,6 +362,10 @@ function TaskEditor({
   );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Переписка доступна для существующих задач, у которых есть почта пользователя
+  // (обычно это задачи из обратной формы ошибок).
+  const canCorrespond = isEdit && !!editor.task.reporterEmail;
 
   async function save() {
     const t = title.trim();
@@ -369,7 +406,9 @@ function TaskEditor({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900"
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900 ${
+          canCorrespond ? "max-w-lg" : "max-w-md"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-100">
@@ -405,6 +444,13 @@ function TaskEditor({
 
         {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
 
+        {canCorrespond && (
+          <TaskCorrespondence
+            task={editor.task}
+            onMessageSent={() => onMessageSent(editor.task.id)}
+          />
+        )}
+
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
@@ -422,6 +468,164 @@ function TaskEditor({
             {saving ? "Сохранение…" : "Сохранить"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Переписка с пользователем в рамках задачи. Показывает первое обращение (из
+ * description), подгруженную переписку (TaskMessage) в виде ленты сообщений и поле
+ * для ответа: ответ уходит письмом на почту обращения (reporterEmail) и добавляется
+ * в ленту как исходящее сообщение.
+ */
+function TaskCorrespondence({
+  task,
+  onMessageSent,
+}: {
+  task: BoardTask;
+  onMessageSent: () => void;
+}) {
+  const [messages, setMessages] = useState<TaskMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetch(`/api/tasks/${task.id}/messages`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => {
+        if (alive) setMessages(data.messages as TaskMessage[]);
+      })
+      .catch(() => {
+        if (alive) setErr("Не удалось загрузить переписку");
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [task.id]);
+
+  async function send() {
+    const text = body.trim();
+    if (!text) return;
+    setErr(null);
+    setSending(true);
+    const res = await fetch(`/api/tasks/${task.id}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ body: text }),
+    });
+    setSending(false);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setErr(data.error || "Не удалось отправить письмо");
+      return;
+    }
+    setMessages((m) => [...m, data.message as TaskMessage]);
+    setBody("");
+    onMessageSent();
+  }
+
+  function fmt(iso: string): string {
+    return new Date(iso).toLocaleString("ru-RU");
+  }
+
+  return (
+    <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-800">
+      <div className="mb-2 flex items-center gap-2">
+        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+          Переписка с пользователем
+        </h4>
+        <span className="font-mono text-[11px] text-slate-400">{task.reporterEmail}</span>
+      </div>
+
+      <div className="mb-3 max-h-64 space-y-2 overflow-y-auto rounded-xl bg-slate-50 p-3 dark:bg-slate-900/40">
+        {/* Первое обращение пользователя — из описания задачи. */}
+        <MessageBubble
+          direction="INCOMING"
+          body={task.description ?? task.title}
+          who={task.reporterEmail}
+          at={fmt(task.createdAt)}
+        />
+        {loading && (
+          <p className="py-2 text-center text-xs text-slate-400">Загрузка переписки…</p>
+        )}
+        {messages.map((m) => (
+          <MessageBubble
+            key={m.id}
+            direction={m.direction}
+            body={m.body}
+            who={m.direction === "OUTGOING" ? "Вы" : task.reporterEmail}
+            at={fmt(m.createdAt)}
+          />
+        ))}
+      </div>
+
+      <label className="block text-xs font-medium text-slate-500">
+        Ответить письмом на {task.reporterEmail}
+      </label>
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        maxLength={4000}
+        rows={3}
+        placeholder="Текст ответа пользователю…"
+        className="mt-1 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-slate-700 dark:bg-slate-800"
+      />
+
+      {err && <p className="mt-1 text-sm text-red-600">{err}</p>}
+
+      <div className="mt-2 flex justify-end">
+        <button
+          type="button"
+          onClick={send}
+          disabled={sending || !body.trim()}
+          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-light disabled:opacity-60"
+        >
+          {sending ? "Отправка…" : "Отправить письмо"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Одно сообщение переписки: входящее (слева, серое) или исходящее (справа, акцент). */
+function MessageBubble({
+  direction,
+  body,
+  who,
+  at,
+}: {
+  direction: "INCOMING" | "OUTGOING";
+  body: string;
+  who: string | null;
+  at: string;
+}) {
+  const outgoing = direction === "OUTGOING";
+  return (
+    <div className={`flex ${outgoing ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+          outgoing
+            ? "bg-brand text-white"
+            : "border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        }`}
+      >
+        <div
+          className={`mb-0.5 flex items-center gap-2 text-[10px] ${
+            outgoing ? "text-white/70" : "text-slate-400"
+          }`}
+        >
+          <span className="font-medium">{who ?? "Пользователь"}</span>
+          <span>{at}</span>
+        </div>
+        <p className="whitespace-pre-wrap break-words">{body}</p>
       </div>
     </div>
   );
