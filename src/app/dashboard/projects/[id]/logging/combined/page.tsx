@@ -8,7 +8,6 @@ import { collectDepartures } from "@/lib/breadcrumbs";
 import { formatDurationSec, truncateUrl } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
-import { SessionReplay } from "@/components/SessionReplay";
 
 export const dynamic = "force-dynamic";
 
@@ -152,16 +151,32 @@ export default async function CombinedIpPage({
           <h2 className="mb-3 text-lg font-semibold">
             Записи экрана ({recordedSessions.length})
           </h2>
-          <div className="space-y-6">
+          <div className="flex flex-wrap gap-2">
             {recordedSessions.map((s) => (
-              <SessionReplay
+              <Link
                 key={s.id}
-                sessionId={s.id}
-                className=""
-                label={`Сессия ${sessionTag.get(s.id) ?? s.id.slice(0, 6)} · ${new Date(
-                  s.startedAt,
-                ).toLocaleTimeString("ru-RU")}`}
-              />
+                href={`/dashboard/projects/${project.id}/logging/${s.id}/replay`}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm hover:border-brand hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/50"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 text-brand"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                <span>
+                  Смотреть запись
+                  <span className="ml-2 font-mono text-xs text-slate-400">
+                    {sessionTag.get(s.id) ?? s.id.slice(0, 6)} ·{" "}
+                    {new Date(s.startedAt).toLocaleTimeString("ru-RU")}
+                  </span>
+                </span>
+              </Link>
             ))}
           </div>
         </div>

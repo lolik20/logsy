@@ -8,7 +8,6 @@ import { collectDepartures } from "@/lib/breadcrumbs";
 import { formatDurationSec, truncateUrl } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
-import { SessionReplay } from "@/components/SessionReplay";
 
 export const dynamic = "force-dynamic";
 
@@ -264,7 +263,28 @@ export default async function SessionPage({
         </div>
       )}
 
-      {recordingChunks > 0 && <SessionReplay sessionId={session.id} />}
+      {recordingChunks > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-3 text-lg font-semibold">Запись экрана</h2>
+          <Link
+            href={`/dashboard/projects/${session.project.id}/logging/${session.id}/replay`}
+            className="inline-flex items-center gap-2 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            Смотреть запись
+          </Link>
+        </div>
+      )}
 
       <h2 className="mb-3 mt-8 text-lg font-semibold">События</h2>
       <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
