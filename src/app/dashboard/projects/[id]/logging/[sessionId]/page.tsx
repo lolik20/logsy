@@ -233,30 +233,11 @@ export default async function SessionPage({
         {new Date(session.lastSeenAt).toLocaleTimeString("ru-RU")}
       </p>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="mt-6 grid grid-cols-3 gap-4">
         <Stat label="Событий" value={String(session.events.length)} />
         <Stat label="Ошибок" value={String(errorCount)} />
         <Stat label="ID сессии" value={session.sessionKey} mono />
-        <Stat label="IP" value={session.ip ?? "—"} mono />
       </div>
-
-      {parseUtm(session.utm).length > 0 && (
-        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Метки перехода (UTM)
-          </div>
-          <div className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
-            {parseUtm(session.utm).map(([k, v]) => (
-              <div key={k} className="flex gap-2 text-xs">
-                <span className="shrink-0 text-slate-500">{utmLabel(k)}:</span>
-                <span className="min-w-0 break-all font-mono text-slate-700 dark:text-slate-200">
-                  {v}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {session.userAgent && (
         <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
@@ -343,38 +324,6 @@ function parseQuery(q: string): [string, string][] {
     return entries.length ? entries : [[q, ""]];
   } catch {
     return [[q, ""]];
-  }
-}
-
-// Человекочитаемые подписи меток перехода для карточки сессии.
-const UTM_LABELS: Record<string, string> = {
-  utm_source: "Источник",
-  utm_medium: "Канал",
-  utm_campaign: "Кампания",
-  utm_term: "Ключевое слово",
-  utm_content: "Объявление",
-  yclid: "Yandex Click ID",
-  ysclid: "Yandex Click ID",
-  gclid: "Google Click ID",
-  fbclid: "Facebook Click ID",
-  etext: "Яндекс.Директ (etext)",
-};
-
-function utmLabel(key: string): string {
-  return UTM_LABELS[key] ?? key;
-}
-
-/** Разбирает JSON-метки перехода сессии в пары ключ/значение; при сбое — пустой список. */
-function parseUtm(utm: string | null): [string, string][] {
-  if (!utm) return [];
-  try {
-    const obj = JSON.parse(utm) as Record<string, unknown>;
-    if (!obj || typeof obj !== "object") return [];
-    return Object.entries(obj)
-      .filter(([, v]) => typeof v === "string" && v)
-      .map(([k, v]) => [k, String(v)] as [string, string]);
-  } catch {
-    return [];
   }
 }
 

@@ -22,10 +22,10 @@ export function TopIssues({
   return (
     <section className="mb-6 grid gap-4 md:grid-cols-2">
       {/* Топ ошибок */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-lg font-semibold">Топ 10 ошибок</h2>
-          <span className="text-xs text-slate-400">за день</span>
+          <span className="shrink-0 whitespace-nowrap text-xs text-slate-400">за день</span>
         </div>
         {errors.length === 0 ? (
           <p className="mt-4 rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 dark:border-slate-700">
@@ -65,10 +65,10 @@ export function TopIssues({
       </div>
 
       {/* Топ медленных запросов */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-lg font-semibold">Топ 10 медленных запросов</h2>
-          <span className="text-xs text-slate-400">по макс. времени</span>
+          <span className="shrink-0 whitespace-nowrap text-xs text-slate-400">по макс. времени</span>
         </div>
         {slow.length === 0 ? (
           <p className="mt-4 rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 dark:border-slate-700">
