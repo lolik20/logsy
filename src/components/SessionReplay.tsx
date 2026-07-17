@@ -15,7 +15,18 @@ type PlayerState = "idle" | "loading" | "ready" | "empty" | "error";
  * таймлайном и управлением. rrweb-player — Svelte-компонент, поэтому создаём его в
  * контейнере императивно и уничтожаем при размонтировании.
  */
-export function SessionReplay({ sessionId }: { sessionId: string }) {
+export function SessionReplay({
+  sessionId,
+  label,
+  className,
+}: {
+  sessionId: string;
+  /** Подпись вместо заголовка «Запись экрана» — например, метка и время сессии.
+   *  Нужна, когда на странице несколько записей (combined-вид сессий одного IP). */
+  label?: string;
+  /** Переопределяет внешний отступ корня (по умолчанию mt-8). */
+  className?: string;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<RRWebPlayer | null>(null);
   const [state, setState] = useState<PlayerState>("idle");
@@ -78,9 +89,9 @@ export function SessionReplay({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <div className="mt-8">
+    <div className={className ?? "mt-8"}>
       <div className="mb-3 flex items-center gap-3">
-        <h2 className="text-lg font-semibold">Запись экрана</h2>
+        <h2 className="text-lg font-semibold">{label ?? "Запись экрана"}</h2>
         {state === "idle" && (
           <button
             type="button"

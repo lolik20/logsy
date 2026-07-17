@@ -8,6 +8,7 @@ import { collectDepartures } from "@/lib/breadcrumbs";
 import { formatDurationSec, truncateUrl } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
+import { SessionReplay } from "@/components/SessionReplay";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,23 @@ export default async function CombinedIpPage({
     orderBy: { createdAt: "asc" },
   });
 
+  // Записи экрана (rrweb) сессий этого IP. Раньше плеер был только на странице отдельной
+  // сессии (logging/[sessionId]), а сюда — на основной экран, куда ведёт список сессий, —
+  // пользователь попадал минуя её, и записи «не появлялись». Показываем их прямо здесь:
+  // считаем чанки по каждой сессии и рендерим плеер для тех, у кого запись есть.
+  const recCounts = sessionIds.length
+    ? await prisma.recordingChunk.groupBy({
+        by: ["sessionId"],
+        where: { sessionId: { in: sessionIds } },
+        _count: { _all: true },
+      })
+    : [];
+  const recordedIds = new Set(
+    recCounts.filter((r) => r._count._all > 0).map((r) => r.sessionId),
+  );
+  // Порядок — как у сессий (по времени возр.), чтобы записи шли в хронологии визитов.
+  const recordedSessions = sessions.filter((s) => recordedIds.has(s.id));
+
   const errorCount = events.filter((e) => ERROR_TYPES.includes(e.type)).length;
 
   // Крошки перед уходом: считаем по каждой сессии отдельно (события здесь идут единым
@@ -126,6 +144,26 @@ export default async function CombinedIpPage({
       {commonUa && (
         <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
           <span className="font-semibold">User-Agent:</span> {commonUa}
+        </div>
+      )}
+
+      {recordedSessions.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-3 text-lg font-semibold">
+            Записи экрана ({recordedSessions.length})
+          </h2>
+          <div className="space-y-6">
+            {recordedSessions.map((s) => (
+              <SessionReplay
+                key={s.id}
+                sessionId={s.id}
+                className=""
+                label={`Сессия ${sessionTag.get(s.id) ?? s.id.slice(0, 6)} · ${new Date(
+                  s.startedAt,
+                ).toLocaleTimeString("ru-RU")}`}
+              />
+            ))}
+          </div>
         </div>
       )}
 
