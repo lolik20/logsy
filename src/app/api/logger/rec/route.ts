@@ -86,6 +86,13 @@ export async function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   const { origin, project } = await resolveProject(req);
   if (!origin || !project) {
+    // Частая причина «запись не пишется»: домен сайта не совпадает с Project.domain,
+    // либо запрос пришёл без заголовка Origin. Логируем, чтобы это было видно.
+    console.warn(
+      `[logsy/rec] отклонено 403: проект не определён по Origin` +
+        ` (origin=${origin ?? "—"}, host=${originHostname(origin) ?? "—"}).` +
+        ` Проверьте, что домен сайта совпадает с Project.domain.`,
+    );
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const headers = corsHeaders(origin);
@@ -93,6 +100,10 @@ export async function POST(req: Request) {
   // Запись выключена для проекта — молча принимаем (200), чтобы SDK не ретраил.
   // (SDK не должен слать сюда с выключенной записью, но подстраховываемся.)
   if (!project.recordSession) {
+    console.warn(
+      `[logsy/rec] чанк отброшен: запись экрана выключена для проекта ${project.id}` +
+        ` (recordSession=false). Включите запись в настройках проекта.`,
+    );
     return NextResponse.json({ stored: false, reason: "disabled" }, { status: 200, headers });
   }
 
@@ -102,12 +113,22 @@ export async function POST(req: Request) {
   try {
     json = JSON.parse(raw);
   } catch {
+    console.warn(
+      `[logsy/rec] отклонено 400 (проект ${project.id}): тело не является JSON` +
+        ` (длина=${raw.length}).`,
+    );
     return NextResponse.json({ error: "bad json" }, { status: 400, headers });
   }
 
   const parsed = batchSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "invalid payload" }, { status: 400, headers });
+    // Раньше причина «invalid payload» была скрыта — при рассинхроне формата чанка с
+    // клиентом это выглядело как «запись молча не пишется». Логируем детали валидации.
+    const issues = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ");
+    console.warn(`[logsy/rec] отклонено 400 (проект ${project.id}): невалидный payload — ${issues}`);
+    return NextResponse.json({ error: "invalid payload", issues }, { status: 400, headers });
   }
 
   const { sessionKey, userAgent, chunks } = parsed.data;
@@ -115,6 +136,10 @@ export async function POST(req: Request) {
   // Ботов не записываем: их «сессии» — мусор (та же логика, что в ingest).
   const uaForBotCheck = userAgent ?? req.headers.get("user-agent");
   if (isBotUserAgent(uaForBotCheck)) {
+    console.warn(
+      `[logsy/rec] чанк отброшен: запрос распознан как бот` +
+        ` (проект ${project.id}, ua=${truncate(uaForBotCheck, 120)}).`,
+    );
     return NextResponse.json({ stored: false, reason: "bot" }, { status: 200, headers });
   }
 
@@ -128,6 +153,10 @@ export async function POST(req: Request) {
   if (!session) {
     const usage = await accountNewSession(project.id, project.tier);
     if (usage.overQuota) {
+      console.warn(
+        `[logsy/rec] чанк отброшен: превышена суточная квота сессий проекта ${project.id}` +
+          ` (использовано ${usage.totalSessions}). Запись новых сессий приостановлена до конца суток.`,
+      );
       return NextResponse.json({ stored: false, reason: "quota" }, { status: 200, headers });
     }
     session = await prisma.logSession.upsert({
@@ -162,9 +191,22 @@ export async function POST(req: Request) {
     // Отбрасываем аномально большие чанки, чтобы не раздуть хранилище.
     .filter((r) => r.data.length <= MAX_DATA_CHARS);
 
+  const dropped = chunks.length - rows.length;
+  if (dropped > 0) {
+    console.warn(
+      `[logsy/rec] проект ${project.id}, сессия ${session!.id}: отброшено ${dropped} из` +
+        ` ${chunks.length} чанков — превышен лимит размера ${MAX_DATA_CHARS} символов на чанк.`,
+    );
+  }
+
   if (rows.length) {
     await prisma.recordingChunk.createMany({ data: rows });
   }
+
+  console.log(
+    `[logsy/rec] проект ${project.id}, сессия ${session!.id}: сохранено ${rows.length} чанк(ов)` +
+      ` (событий: ${rows.reduce((n, r) => n + r.events, 0)}).`,
+  );
 
   return NextResponse.json({ stored: true, chunks: rows.length }, { status: 200, headers });
 }
