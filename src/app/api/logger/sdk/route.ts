@@ -21,6 +21,30 @@ const SDK = `(function(){
     var origin = (self && self.src) ? new URL(self.src, location.href).origin : location.origin;
     var ENDPOINT = origin + "/api/logger/ingest";
 
+    // Диагностика (в первую очередь для записи экрана). Весь путь записи раньше был
+    // «немым» — ошибки глотались пустыми catch, и понять, на каком шаге всё встало,
+    // было нельзя. Логи включаются точечно, чтобы не засорять консоль всех посетителей:
+    //   • атрибут data-debug на теге скрипта (<script ... data-debug>),
+    //   • window.__logsy_debug = true до загрузки скрипта,
+    //   • localStorage.logsy_debug = "1" (удобно включить прямо в консоли и перезагрузить).
+    // По умолчанию молчим. Каждое сообщение помечено префиксом [logsy].
+    var DEBUG = false;
+    try {
+      var dbgAttr = (self && self.getAttribute) ? self.getAttribute("data-debug") : null;
+      if (dbgAttr != null && dbgAttr !== "" && dbgAttr !== "false" && dbgAttr !== "0") DEBUG = true;
+      if (!DEBUG && window.__logsy_debug === true) DEBUG = true;
+      if (!DEBUG) { try { if (localStorage.getItem("logsy_debug") === "1") DEBUG = true; } catch (e) {} }
+    } catch (e) {}
+    function dbg() {
+      if (!DEBUG) return;
+      try {
+        var args = ["[logsy]"];
+        for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+        (console.debug || console.log).apply(console, args);
+      } catch (e) {}
+    }
+    dbg("SDK загружен, origin=" + origin + ", sessionKey будет назначен ниже");
+
     // Наш эндпоинт определения публичного IP пользователя (без сторонних сервисов).
     var IP_URL = origin + "/api/logger/ip";
     var clientIp = null;
@@ -89,14 +113,20 @@ const SDK = `(function(){
         _origFetch(CONFIG_URL, { credentials: "omit", mode: "cors" })
           .then(function (r) { return r.json(); })
           .then(function (d) {
-            if (!d) return;
+            if (!d) { dbg("config: пустой ответ — фичи не активируются"); return; }
+            dbg("config получен:", d);
             // Порог «медленного» из панели проекта — если на теге нет явного data-slow-ms.
             if (!slowFromAttr && typeof d.slowMs === "number" && d.slowMs >= 0) SLOW_MS = d.slowMs;
-            if (d.feedback) { try { initFeedback(); } catch (e) {} }
+            if (d.feedback) { try { initFeedback(); } catch (e) { dbg("initFeedback бросил исключение", e); } }
             // Запись экрана сессии (rrweb) — включается флагом record из конфига проекта.
-            if (d.record) { try { initRecorder(); } catch (e) {} }
+            if (d.record) {
+              dbg("запись экрана включена в конфиге (record=true) — инициализация рекордера");
+              try { initRecorder(); } catch (e) { dbg("initRecorder бросил исключение", e); }
+            } else {
+              dbg("запись экрана ВЫКЛючена в конфиге проекта (record=false) — рекордер не стартует");
+            }
           })
-          .catch(function () {});
+          .catch(function (e) { dbg("запрос config не удался (сеть/CORS?) — фичи не активируются", e); });
       }
     } catch (e) {}
 
@@ -651,9 +681,11 @@ const SDK = `(function(){
     var recStop = null;        // функция остановки записи, которую вернёт rrweb.record
 
     function recFlush(useBeacon) {
-      if (!recBuffer.length) return;
+      if (!recBuffer.length) { dbg("recFlush: буфер записи пуст — отправлять нечего"); return; }
       var chunk = { seq: recSeq++, events: recBuffer.splice(0, recBuffer.length) };
       var body = JSON.stringify({ sessionKey: sid, userAgent: ua, chunks: [chunk] });
+      dbg("отправка чанка записи seq=" + chunk.seq + " событий=" + chunk.events.length +
+          " байт=" + body.length + (useBeacon ? " (beacon/keepalive)" : " (fetch)") + " → " + REC_ENDPOINT);
       // Тело записи бывает крупным: полный DOM-снимок легко превышает 64 КБ. У sendBeacon
       // и у keepalive-fetch в браузерах жёсткий лимит тела ~64 КБ — крупный батч они просто
       // не отправят (fetch зависнет в pending и отменится). Поэтому в обычном периодическом
@@ -666,8 +698,9 @@ const SDK = `(function(){
           if (navigator.sendBeacon && body.length < 60000) {
             try {
               sent = navigator.sendBeacon(REC_ENDPOINT, new Blob([body], { type: "text/plain" }));
-            } catch (e) { sent = false; }
+            } catch (e) { sent = false; dbg("sendBeacon бросил исключение", e); }
           }
+          dbg("sendBeacon результат:", sent, "(false = не поместилось/недоступно, уходим в keepalive-fetch)");
           // Крупный «хвост» при выгрузке надёжно доставить нельзя (лимит keepalive), но
           // основную массу уже отправили периодические флаши — пробуем keepalive как есть.
           if (!sent) {
@@ -678,7 +711,8 @@ const SDK = `(function(){
               keepalive: true,
               credentials: "omit",
               mode: "cors"
-            }).catch(function(){});
+            }).then(function (r) { dbg("keepalive-fetch чанка seq=" + chunk.seq + " ответ", r.status); })
+              .catch(function (e) { dbg("keepalive-fetch чанка seq=" + chunk.seq + " ОШИБКА (сеть/CORS?)", e); });
           }
         } else {
           fetch(REC_ENDPOINT, {
@@ -687,23 +721,43 @@ const SDK = `(function(){
             body: body,
             credentials: "omit",
             mode: "cors"
-          }).catch(function(){});
+          }).then(function (r) {
+            dbg("чанк записи seq=" + chunk.seq + " отправлен, ответ сервера " + r.status);
+            return r.text().then(function (t) { dbg("тело ответа /api/logger/rec:", t); }, function () {});
+          }).catch(function (e) { dbg("ОШИБКА отправки чанка записи seq=" + chunk.seq + " (сеть/CORS?)", e); });
         }
-      } catch (e) {}
+      } catch (e) { dbg("recFlush исключение", e); }
     }
 
     var recInited = false;
+    var recEmitCount = 0;
     function initRecorder() {
-      if (recInited) return;
+      if (recInited) { dbg("initRecorder вызван повторно — пропуск"); return; }
       recInited = true;
+      dbg("загрузка скрипта рекордера:", REC_SRC);
       var s = document.createElement("script");
       s.src = REC_SRC;
       s.async = true;
+      // Раньше onerror отсутствовал: если /logsy-rec.js не отдавался (404), блокировался
+      // CSP сайта или падал по сети — запись просто не стартовала, без единого следа.
+      s.onerror = function (e) {
+        dbg("НЕ удалось загрузить скрипт рекордера " + REC_SRC +
+            " — проверьте доступность /logsy-rec.js и правила CSP (script-src) на сайте", e);
+      };
       s.onload = function () {
         try {
-          if (!window.rrweb || !window.rrweb.record) return;
+          if (!window.rrweb || !window.rrweb.record) {
+            dbg("скрипт рекордера загрузился, но window.rrweb.record отсутствует — " +
+                "возможно, конфликт версий или скрипт перезаписан на сайте");
+            return;
+          }
+          dbg("rrweb доступен — запускаем запись экрана");
           recStop = window.rrweb.record({
             emit: function (event) {
+              recEmitCount++;
+              if (recEmitCount === 1) {
+                dbg("первое rrweb-событие получено (type=" + (event && event.type) + ") — запись реально идёт");
+              }
               recBuffer.push(event);
               if (recBuffer.length >= REC_MAX_EVENTS) recFlush(false);
             },
@@ -719,11 +773,17 @@ const SDK = `(function(){
             checkoutEveryNms: 5 * 60 * 1000
           });
           window.LOGSY._rec = recStop;
+          dbg("запись rrweb запущена (флаш каждые " + REC_FLUSH_MS + " мс, ранний флаш через 1200 мс)");
           // Ранний первый флаш — чтобы стартовый DOM-снимок ушёл сразу, а не через интервал
           // (иначе короткие сессии не успевают отправить запись).
-          setTimeout(function () { recFlush(false); }, 1200);
+          setTimeout(function () {
+            if (recEmitCount === 0) {
+              dbg("через 1200 мс rrweb не эмитнул ни одного события — снимок DOM не сделан?");
+            }
+            recFlush(false);
+          }, 1200);
           setInterval(function () { recFlush(false); }, REC_FLUSH_MS);
-        } catch (e) {}
+        } catch (e) { dbg("ошибка старта записи rrweb", e); }
       };
       (document.head || document.documentElement).appendChild(s);
     }
