@@ -164,10 +164,11 @@ export default async function LoggingPage({
 
       {usage.overLimit && (
         <div className="mb-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-200">
-          <span className="font-semibold">Превышен суточный лимит сессий</span> —{" "}
-          {usage.used.toLocaleString("ru-RU")} из{" "}
-          {usage.quota.toLocaleString("ru-RU")}. Новые сессии сегодня больше не
-          принимаются.{" "}
+          <span className="font-semibold">
+            Превышен суточный лимит сессий
+          </span>{" "}
+          ({usage.quota.toLocaleString("ru-RU")} в сутки). Новые сессии сегодня
+          больше не принимаются.{" "}
           <Link
             href={`/dashboard/projects/${project.id}/tariff`}
             className="font-semibold underline underline-offset-2"

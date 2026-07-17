@@ -125,8 +125,12 @@ export function startOfDayUtc(now: Date = new Date()): Date {
 /**
  * Учесть новую пользовательскую сессию за сегодня и вернуть, не превышена ли суточная
  * квота тарифа по числу сессий. Вызывается только для сессий, которых сегодня ещё не было.
- * Инкремент атомарный (upsert + increment). Возвращает { overQuota } — если true,
- * сессию и её события сохранять не нужно.
+ *
+ * Важно: сессия сверх квоты НЕ сохраняется как LogSession, поэтому на каждый следующий
+ * батч того же браузера ingest снова видит её как «новую» и зовёт этот метод. Чтобы
+ * счётчик не рос по числу батчей (то есть по числу логов, а не сессий), при уже
+ * превышенной квоте (счётчик > quota) инкремент не делаем — значение фиксируется на
+ * quota + 1 как признак превышения.
  */
 export async function accountNewSession(
   projectId: string,
@@ -134,17 +138,33 @@ export async function accountNewSession(
   now: Date = new Date(),
 ): Promise<{ overQuota: boolean; totalSessions: number }> {
   const day = startOfDayUtc(now);
+  const quota = dailySessionQuota(tier);
+
+  // Квота уже превышена ранее — больше не инкрементим (иначе счётчик раздувается по
+  // числу батчей отклонённых сессий). Отдаём текущее значение как есть.
+  const current = await prisma.logUsage.findUnique({
+    where: { projectId_day: { projectId, day } },
+    select: { sessions: true },
+  });
+  if (current && current.sessions > quota) {
+    return { overQuota: true, totalSessions: current.sessions };
+  }
+
   const row = await prisma.logUsage.upsert({
     where: { projectId_day: { projectId, day } },
     create: { projectId, day, sessions: 1 },
     update: { sessions: { increment: 1 } },
   });
-  return { overQuota: row.sessions > dailySessionQuota(tier), totalSessions: row.sessions };
+  return { overQuota: row.sessions > quota, totalSessions: row.sessions };
 }
 
 /** Использование суточной квоты сессий проектом. */
 export type SessionUsage = {
-  /** Сколько новых сессий учтено за сегодня (UTC). */
+  /**
+   * Сколько новых сессий учтено за сегодня (UTC), для показа. Ограничено сверху квотой:
+   * ровно quota сессий помещается, следующие отклоняются, поэтому «использовано» не может
+   * быть больше лимита. Заодно это защищает от старых раздутых значений счётчика.
+   */
   used: number;
   /** Суточная квота тарифа по числу сессий. */
   quota: number;
@@ -152,8 +172,7 @@ export type SessionUsage = {
   ratio: number;
   /**
    * Превышена ли квота — новые сессии уже не принимаются. Совпадает с условием
-   * overQuota в accountNewSession (used > quota): ровно quota сессий помещается,
-   * следующая отбрасывается.
+   * overQuota в accountNewSession (счётчик > quota).
    */
   overLimit: boolean;
 };
@@ -161,7 +180,9 @@ export type SessionUsage = {
 /**
  * Текущее использование суточной квоты сессий проектом: сколько новых сессий учтено
  * сегодня (UTC) и каков лимит по тарифу. Читает суточный счётчик LogUsage — тот же,
- * что инкрементит accountNewSession, поэтому цифры совпадают с реальным приёмом логов.
+ * что инкрементит accountNewSession. Значение «использовано» ограничивается квотой:
+ * счётчик может слегка превышать лимит (сентинел превышения), а реально принято не
+ * больше quota сессий.
  */
 export async function getSessionUsage(
   projectId: string,
@@ -173,13 +194,14 @@ export async function getSessionUsage(
     where: { projectId_day: { projectId, day } },
     select: { sessions: true },
   });
-  const used = row?.sessions ?? 0;
+  const counter = row?.sessions ?? 0;
   const quota = dailySessionQuota(tier);
+  const used = Math.min(counter, quota);
   return {
     used,
     quota,
-    ratio: quota > 0 ? Math.min(used / quota, 1) : 0,
-    overLimit: used > quota,
+    ratio: quota > 0 ? used / quota : 0,
+    overLimit: counter > quota,
   };
 }
 
