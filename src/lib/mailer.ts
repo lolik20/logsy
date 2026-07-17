@@ -26,6 +26,10 @@ export interface MailMessage {
   subject: string;
   text: string;
   html?: string;
+  // Адрес для ответа получателя (Reply-To). Используется, например, в переписке по
+  // задачам: письмо уходит с технического SMTP_FROM, но ответ пользователя должен
+  // прийти на почту владельца проекта.
+  replyTo?: string;
 }
 
 /**
@@ -42,6 +46,7 @@ export async function sendMail(message: MailMessage): Promise<void> {
         `From:    ${from}\n` +
         `To:      ${message.to}\n` +
         `Subject: ${message.subject}\n` +
+        (message.replyTo ? `Reply-To: ${message.replyTo}\n` : "") +
         `---\n${message.text}\n` +
         "============================================================\n",
     );
@@ -54,5 +59,6 @@ export async function sendMail(message: MailMessage): Promise<void> {
     subject: message.subject,
     text: message.text,
     html: message.html,
+    replyTo: message.replyTo,
   });
 }
