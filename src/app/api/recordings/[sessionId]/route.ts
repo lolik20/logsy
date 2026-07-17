@@ -33,6 +33,23 @@ export async function GET(
     select: { data: true },
   });
 
+  // Метки для таймлайна плеера: ошибки и медленные запросы этой сессии. Плеер (rrweb-player)
+  // рисует их как цветные рисочки на дорожке времени. Время события (createdAt) выставляется
+  // из клиентского ts при приёме (см. /api/logger/ingest), т.е. идёт по тем же часам, что и
+  // timestamp событий rrweb, — поэтому метки встают на запись точно по времени.
+  const MARKER_TYPES = ["ERROR", "UNHANDLED_REJECTION", "HTTP_ERROR", "SLOW_REQUEST"];
+  const markerEvents = await prisma.logEvent.findMany({
+    where: { sessionId: session.id, type: { in: MARKER_TYPES } },
+    orderBy: { createdAt: "asc" },
+    select: { type: true, message: true, route: true, createdAt: true },
+  });
+  const markers = markerEvents.map((e) => ({
+    t: e.createdAt.getTime(),
+    kind: e.type === "SLOW_REQUEST" ? ("slow" as const) : ("error" as const),
+    // Подпись для тултипа: сообщение и (если есть) адрес запроса, ограничиваем по длине.
+    label: [e.message, e.route].filter(Boolean).join(" · ").slice(0, 120),
+  }));
+
   // Разворачиваем чанки в единый поток событий rrweb. data — JSON-массив событий.
   const events: Array<{ timestamp?: number }> = [];
   let corrupt = 0;
@@ -59,7 +76,7 @@ export async function GET(
   events.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
 
   return NextResponse.json(
-    { events },
+    { events, markers },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
