@@ -115,8 +115,8 @@ export default async function LandingPage() {
 
       {/* Логирование фронтенда — новое направление */}
       <section id="logging" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
-        <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-500 to-brand p-[1.5px] shadow-card">
-          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl sm:p-12 dark:bg-slate-900/80">
+        <div className="overflow-hidden rounded-3xl shadow-card">
+          <div className="rounded-3xl bg-white/80 p-8 backdrop-blur-xl sm:p-12 dark:bg-slate-900/80">
             <div className="text-center">
               <h2 className="mx-auto max-w-3xl text-3xl font-bold sm:text-4xl">
                 Следите за ошибками прода{" "}
