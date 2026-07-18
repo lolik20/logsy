@@ -744,6 +744,72 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* Безопасность и соответствие 152-ФЗ */}
+      <section id="security" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
+        <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-brand p-[1.5px] shadow-card">
+          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl sm:p-12 dark:bg-slate-900/80">
+            <div className="grid items-center gap-8 md:grid-cols-2">
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+                  🛡️ Безопасность и 152-ФЗ
+                </span>
+                <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
+                  Данные под защитой и хранятся в России
+                </h2>
+                <p className="mt-4 text-slate-600 dark:text-slate-300">
+                  Все данные размещены на серверах в РФ в соответствии с
+                  Федеральным законом № 152-ФЗ «О персональных данных».
+                  Конфиденциальные данные — реквизиты банковских карт и пароли —
+                  не сохраняются: они маскируются на стороне пользователя ещё до
+                  отправки.
+                </p>
+                <Link
+                  href="/register"
+                  className="mt-6 inline-block rounded-xl bg-gradient-to-r from-emerald-500 to-brand px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
+                >
+                  Начать бесплатно
+                </Link>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  {
+                    icon: "🇷🇺",
+                    t: "Серверы в России",
+                    s: "Хранение и обработка данных на площадках в РФ.",
+                  },
+                  {
+                    icon: "📜",
+                    t: "Соответствие 152-ФЗ",
+                    s: "Работаем по закону «О персональных данных».",
+                  },
+                  {
+                    icon: "💳",
+                    t: "Карты не сохраняем",
+                    s: "Реквизиты карт не попадают в логи и записи.",
+                  },
+                  {
+                    icon: "🔑",
+                    t: "Пароли маскируются",
+                    s: "Значения полей ввода скрываются на клиенте.",
+                  },
+                ].map((c) => (
+                  <div
+                    key={c.t}
+                    className="rounded-2xl border border-white/60 bg-white/70 p-5 backdrop-blur-md dark:border-white/10 dark:bg-white/5"
+                  >
+                    <div className="text-2xl">{c.icon}</div>
+                    <h3 className="mt-3 text-base font-semibold">{c.t}</h3>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                      {c.s}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Тарифы — за проект, три уровня */}
       <section id="pricing" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
         <h2 className="text-center text-3xl font-bold">Тарифы — за проект</h2>
