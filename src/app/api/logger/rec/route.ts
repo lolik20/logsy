@@ -68,11 +68,28 @@ async function resolveProject(req: Request) {
   const origin = req.headers.get("origin");
   const host = originHostname(origin);
   if (!origin || !host) {
-    return { origin, project: null as null | { id: string; tier: string | null; recordSession: boolean } };
+    return {
+      origin,
+      project: null as null | {
+        id: string;
+        billingStatus: string;
+        currentPeriodEnd: Date | null;
+        sessionsPerDay: number;
+        retentionHours: number;
+        recordSession: boolean;
+      },
+    };
   }
   const project = await prisma.project.findUnique({
     where: { domain: host },
-    select: { id: true, tier: true, recordSession: true },
+    select: {
+      id: true,
+      billingStatus: true,
+      currentPeriodEnd: true,
+      sessionsPerDay: true,
+      retentionHours: true,
+      recordSession: true,
+    },
   });
   return { origin, project };
 }
@@ -151,7 +168,7 @@ export async function POST(req: Request) {
     select: { id: true },
   });
   if (!session) {
-    const usage = await accountNewSession(project.id, project.tier);
+    const usage = await accountNewSession(project.id, project);
     if (usage.overQuota) {
       console.warn(
         `[logsy/rec] чанк отброшен: превышена суточная квота сессий проекта ${project.id}` +

@@ -1,9 +1,9 @@
-// Тарифные планы Logsy Pro и расчёт цены со скидками за длительный период.
-// Используется и на сервере (роут оплаты), и на клиенте (виджет оплаты),
+// Тарифные планы Logsy и расчёт цены. Кастомная тарификация: базовый бесплатный
+// объём (сессии + срок хранения логов), а сверх него — доплата по ползункам.
+// Используется и на сервере (роут оплаты), и на клиенте (форма оплаты),
 // поэтому здесь не должно быть серверных импортов.
 
-/** Базовая цена за один сайт в месяц, ₽. */
-export const PRICE_PER_SITE_RUB = 300;
+// ------------------------------- Периоды оплаты -------------------------------
 
 export type BillingPeriod = "1m" | "3m" | "12m";
 
@@ -28,11 +28,14 @@ export function getPlan(id: string): PlanInfo | undefined {
   return BILLING_PLANS.find((p) => p.id === id);
 }
 
-/**
- * Цена за один сайт за весь период тарифа (со скидкой), ₽.
- * Считаем именно per-site, чтобы итог всегда делился на число сайтов —
- * так позиция чека Т-Кассы получается ровной (Price × Quantity = Amount).
- */
+// --------------------------- Легаси per-site тарификация ---------------------------
+// Старый биллинг «за сайт» (компонент BillingManager). Оставлен для совместимости —
+// новый проектный биллинг считается кастомно (см. ниже).
+
+/** Базовая цена за один сайт в месяц, ₽. */
+export const PRICE_PER_SITE_RUB = 300;
+
+/** Цена за один сайт за весь период тарифа (со скидкой), ₽. */
 export function perSitePriceRub(plan: PlanInfo): number {
   return Math.round(PRICE_PER_SITE_RUB * plan.months * (1 - plan.discountPercent / 100));
 }
@@ -47,97 +50,103 @@ export function basePriceRub(plan: PlanInfo, sites: number): number {
   return PRICE_PER_SITE_RUB * plan.months * sites;
 }
 
-// ------------------------------- Тарифы за проект -------------------------------
-// Тарификация идёт за проект (а не за сайт мониторинга): бесплатный тариф плюс два
-// платных уровня, в каждый входит uptime-мониторинг, логирование с суточной квотой по
-// числу сессий и алертинг. Скидки за длительный период переиспользуются из BILLING_PLANS.
+// ----------------------------- Кастомная тарификация -----------------------------
+// Тарификация за проект настраивается ползунками: пользователь сам задаёт суточную
+// квоту сессий и срок хранения логов. Базовый объём — бесплатный навсегда, сверх него
+// начисляется помесячная доплата. Скидки за длительный период берутся из BILLING_PLANS.
 
-export type TierId = "T1000" | "T3000";
+/** Бесплатная суточная квота сессий. */
+export const FREE_SESSIONS_PER_DAY = 300;
+/** Бесплатный срок хранения логов, часов. */
+export const FREE_RETENTION_HOURS = 12;
 
-export type TierInfo = {
-  id: TierId;
-  /** Цена за месяц, ₽. */
-  monthlyRub: number;
-  /** Название тарифа для интерфейса. */
-  name: string;
+/** Доплата в месяц за каждую суточную сессию сверх бесплатных 300, ₽. */
+export const RUB_PER_SESSION_MONTH = 1;
+/** Доплата в месяц за каждый час хранения логов сверх бесплатных 12, ₽. */
+export const RUB_PER_RETENTION_HOUR_MONTH = 10;
+
+/** Верхняя граница ползунка суточных сессий. */
+export const MAX_SESSIONS_PER_DAY = 50000;
+/** Шаг ползунка суточных сессий. */
+export const SESSIONS_STEP = 100;
+/** Верхняя граница ползунка хранения (30 суток). */
+export const MAX_RETENTION_HOURS = 720;
+/** Шаг ползунка хранения, часов. */
+export const RETENTION_STEP = 12;
+
+/** Конфигурация проекта, которую задаёт пользователь ползунками. */
+export type CustomPlan = {
   /** Суточная квота на число пользовательских сессий. */
   sessionsPerDay: number;
-  /** Сколько суток хранятся логи. */
-  retentionDays: number;
-  /** Короткое человекочитаемое описание квоты сессий. */
-  sessionsLabel: string;
-  /** Список того, что входит в тариф (для карточек цен). */
-  features: string[];
+  /** Срок хранения логов, часов. */
+  retentionHours: number;
 };
 
-/**
- * Бесплатный тариф — состояние проекта по умолчанию (billingStatus = FREE, tier = null).
- * Действует без ограничения по времени: 300 сессий в сутки и хранение логов 12 часов.
- * Не участвует в оплате, поэтому описан отдельно от платных TIERS.
- */
+/** Бесплатный набор параметров (состояние проекта по умолчанию). */
 export const FREE_TIER = {
   name: "Бесплатный",
-  sessionsPerDay: 300,
-  retentionHours: 12,
-  sessionsLabel: "до 300 сессий в сутки",
+  sessionsPerDay: FREE_SESSIONS_PER_DAY,
+  retentionHours: FREE_RETENTION_HOURS,
+  sessionsLabel: `до ${FREE_SESSIONS_PER_DAY} сессий в сутки`,
   features: [
     "Uptime-мониторинг",
     "Логирование фронт-ошибок и сессий",
-    "до 300 сессий в сутки",
+    `до ${FREE_SESSIONS_PER_DAY} сессий в сутки`,
     "Хранение логов 12 часов",
     "Алертинг",
   ],
 } as const;
 
-export const TIERS: TierInfo[] = [
-  {
-    id: "T1000",
-    monthlyRub: 1000,
-    name: "Про",
-    sessionsPerDay: 5000,
-    retentionDays: 3,
-    sessionsLabel: "до 5000 сессий в сутки",
-    features: [
-      "Uptime-мониторинг",
-      "Логирование фронт-ошибок и сессий",
-      "до 5000 сессий в сутки",
-      "Хранение логов 3 суток",
-      "Алерты",
-    ],
-  },
-  {
-    id: "T3000",
-    monthlyRub: 3000,
-    name: "Бизнес",
-    sessionsPerDay: 10000,
-    retentionDays: 3,
-    sessionsLabel: "до 10 000 сессий в сутки",
-    features: [
-      "Uptime-мониторинг",
-      "Логирование фронт-ошибок и сессий",
-      "до 10 000 сессий в сутки",
-      "Хранение логов 3 суток",
-      "AI-анализ ошибок",
-      "Алерты",
-      "Приоритетная поддержка",
-    ],
-  },
-];
+/** Округляет к ближайшему шагу и зажимает значение в границы [min, max]. */
+function clampToStep(value: number, min: number, max: number, step: number): number {
+  if (!Number.isFinite(value)) return min;
+  const rounded = Math.round(value / step) * step;
+  return Math.min(max, Math.max(min, rounded));
+}
 
-export function getTier(id: string | null | undefined): TierInfo | undefined {
-  return TIERS.find((t) => t.id === id);
+/** Приводит число сессий к допустимому диапазону и шагу ползунка. */
+export function clampSessions(value: number): number {
+  return clampToStep(value, FREE_SESSIONS_PER_DAY, MAX_SESSIONS_PER_DAY, SESSIONS_STEP);
+}
+
+/** Приводит срок хранения к допустимому диапазону и шагу ползунка. */
+export function clampRetention(value: number): number {
+  return clampToStep(value, FREE_RETENTION_HOURS, MAX_RETENTION_HOURS, RETENTION_STEP);
+}
+
+/** На бесплатном ли объёме конфигурация (доплаты нет). */
+export function isFreeConfig(cfg: CustomPlan): boolean {
+  return (
+    cfg.sessionsPerDay <= FREE_SESSIONS_PER_DAY &&
+    cfg.retentionHours <= FREE_RETENTION_HOURS
+  );
+}
+
+/** Помесячная цена конфигурации, ₽ (0 — если в пределах бесплатного объёма). */
+export function monthlyCustomPriceRub(cfg: CustomPlan): number {
+  const extraSessions = Math.max(0, cfg.sessionsPerDay - FREE_SESSIONS_PER_DAY);
+  const extraHours = Math.max(0, cfg.retentionHours - FREE_RETENTION_HOURS);
+  return extraSessions * RUB_PER_SESSION_MONTH + extraHours * RUB_PER_RETENTION_HOUR_MONTH;
 }
 
 /**
- * Цена тарифа за весь период (со скидкой за длительность), ₽.
- * Скидка берётся из BILLING_PLANS (1м — 0%, 3м — −10%, год — −20%),
- * так же как в perSitePriceRub, чтобы позиция чека делилась ровно.
+ * Цена конфигурации за весь период (со скидкой за длительность), ₽.
+ * Скидка берётся из BILLING_PLANS (1м — 0%, 3м — −10%, год — −20%).
  */
-export function tierPriceRub(tier: TierInfo, plan: PlanInfo): number {
-  return Math.round(tier.monthlyRub * plan.months * (1 - plan.discountPercent / 100));
+export function customPriceRub(cfg: CustomPlan, plan: PlanInfo): number {
+  return Math.round(monthlyCustomPriceRub(cfg) * plan.months * (1 - plan.discountPercent / 100));
 }
 
-/** Цена тарифа за период без скидки (для зачёркнутой цены), ₽. */
-export function tierBasePriceRub(tier: TierInfo, plan: PlanInfo): number {
-  return tier.monthlyRub * plan.months;
+/** Цена конфигурации за период без скидки (для зачёркнутой цены), ₽. */
+export function customBasePriceRub(cfg: CustomPlan, plan: PlanInfo): number {
+  return monthlyCustomPriceRub(cfg) * plan.months;
+}
+
+/** Человекочитаемый срок хранения логов («12 часов» / «3 суток»). */
+export function retentionHoursLabel(hours: number): string {
+  if (hours % 24 === 0) {
+    const days = hours / 24;
+    return `${days} ${days === 1 ? "сутки" : "суток"}`;
+  }
+  return `${hours} ${hours === 1 ? "час" : "часов"}`;
 }
