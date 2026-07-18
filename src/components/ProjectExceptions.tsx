@@ -44,7 +44,7 @@ export function ProjectExceptions({ exceptions }: { exceptions: ProjectException
           Исключения ({exceptions.length})
         </summary>
         <p className="mt-1 text-xs text-slate-400">
-          События, подходящие под правило, не сохраняются во всём проекте.
+          События, подходящие под правило, не сохраняются во всём сайте.
           «Вернуть» — снова начать их записывать.
         </p>
         <ul className="mt-3 space-y-2">

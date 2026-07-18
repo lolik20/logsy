@@ -58,7 +58,7 @@ export default async function MonitorPage({
         href={`/dashboard/projects/${monitor.projectId}`}
         className="text-sm text-slate-500 hover:text-brand"
       >
-        ← К проекту «{monitor.project.name}»
+        ← К сайту «{monitor.project.name}»
       </Link>
 
       <div className="mt-2 flex items-start justify-between">

@@ -8,6 +8,7 @@ import { isStaticAssetEvent } from "@/lib/staticAssets";
 import { collectDepartures } from "@/lib/breadcrumbs";
 import { formatDurationSec, truncateUrl } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
+import { CopyEventButton } from "@/components/CopyEventButton";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
 
 export const dynamic = "force-dynamic";
@@ -260,18 +261,41 @@ export default async function CombinedIpPage({
           <span className="text-slate-400">—</span>
         )}
       </td>
-      <td className="px-4 py-2 text-right">
-        {eventKind(e.type) && eventUrl(e) ? (
-          <AddExceptionButton
-            projectId={project.id}
-            eventType={e.type}
-            route={e.route}
-            url={e.url}
-            excluded={exceptions.some((rule) => matchesException(e, rule))}
-          />
-        ) : (
-          <span className="text-slate-300">—</span>
-        )}
+      <td className="px-4 py-2">
+        {(() => {
+          const showCopy =
+            ERROR_TYPES.includes(e.type) ||
+            !!(e.route || e.reqBody || e.resBody || e.statusCode != null);
+          const showException = !!(eventKind(e.type) && eventUrl(e));
+          if (!showCopy && !showException)
+            return <span className="text-slate-300">—</span>;
+          return (
+            <div className="flex items-center justify-end gap-2">
+              {showCopy && (
+                <CopyEventButton
+                  data={{
+                    message: e.message,
+                    page: e.url,
+                    method: e.method,
+                    requestUrl: e.route,
+                    reqBody: e.reqBody,
+                    resBody: e.resBody,
+                    statusCode: e.statusCode,
+                  }}
+                />
+              )}
+              {showException && (
+                <AddExceptionButton
+                  projectId={project.id}
+                  eventType={e.type}
+                  route={e.route}
+                  url={e.url}
+                  excluded={exceptions.some((rule) => matchesException(e, rule))}
+                />
+              )}
+            </div>
+          );
+        })()}
       </td>
     </tr>
   );
@@ -282,7 +306,7 @@ export default async function CombinedIpPage({
         href={`/dashboard/projects/${project.id}/logging?date=${dateStr}`}
         className="text-sm text-slate-500 hover:text-brand"
       >
-        ← К сессиям проекта «{project.name}»
+        ← К сессиям сайта «{project.name}»
       </Link>
 
       <h1 className="mt-2 text-2xl font-bold">Все события пользователя</h1>

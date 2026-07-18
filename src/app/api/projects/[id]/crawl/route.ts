@@ -24,7 +24,7 @@ export async function POST(
     select: { id: true, userId: true },
   });
   if (!project || (project.userId !== userId && !admin)) {
-    return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
+    return NextResponse.json({ error: "Сайт не найден" }, { status: 404 });
   }
 
   try {

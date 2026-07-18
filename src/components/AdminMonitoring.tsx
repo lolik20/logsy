@@ -47,9 +47,9 @@ export async function AdminMonitoring() {
       <StatusAutoRefresh initialSignature={signature} scope="all" />
 
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Мониторинг · все проекты</h1>
+        <h1 className="text-2xl font-bold">Мониторинг · все сайты</h1>
         <p className="text-sm text-slate-500">
-          Проектов: {projectCount} · мониторов: {allMonitors.length}
+          Сайтов: {projectCount} · мониторов: {allMonitors.length}
           {downCount > 0 && (
             <span className="text-red-600"> · {downCount} недоступно</span>
           )}
@@ -63,7 +63,7 @@ export async function AdminMonitoring() {
 
       {usersWithProjects.length === 0 && (
         <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500 dark:border-slate-700">
-          Пока ни у одного пользователя нет проектов.
+          Пока ни у одного пользователя нет сайтов.
         </p>
       )}
 
@@ -76,7 +76,7 @@ export async function AdminMonitoring() {
               </h2>
               <span className="text-xs text-slate-400">{u.email}</span>
               <span className="text-xs text-slate-400">
-                · {u.projects.length} проект(ов)
+                · {u.projects.length} сайт(ов)
               </span>
             </div>
 

@@ -16,7 +16,7 @@ export function ProjectHeader({
   return (
     <div className="mb-6">
       <Link href="/dashboard" className="text-sm text-slate-500 hover:text-brand">
-        ← К проектам
+        ← К сайтам
       </Link>
       <div className="mt-2">
         <h1 className="text-2xl font-bold">{name}</h1>

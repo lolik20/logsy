@@ -22,7 +22,7 @@ export function ProjectManager({ canAdd }: { canAdd: boolean }) {
     setLoading(false);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(data.error || "Не удалось создать проект");
+      setError(data.error || "Не удалось создать сайт");
       return;
     }
     setDomain("");
@@ -39,7 +39,7 @@ export function ProjectManager({ canAdd }: { canAdd: boolean }) {
           className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
           title={canAdd ? "" : "Достигнут лимит тарифа — оформите подписку"}
         >
-          + Добавить проект
+          + Добавить сайт
         </button>
         {!canAdd && (
           <p className="mt-2 text-sm text-slate-500">
@@ -55,7 +55,7 @@ export function ProjectManager({ canAdd }: { canAdd: boolean }) {
       onSubmit={onSubmit}
       className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
     >
-      <h3 className="mb-4 font-semibold">Новый проект</h3>
+      <h3 className="mb-4 font-semibold">Новый сайт</h3>
       <div className="grid gap-3">
         <input
           required

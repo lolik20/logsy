@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
@@ -54,6 +55,20 @@ export default async function TasksPage({
           обратной формы ошибок попадают сюда автоматически в статусе «Создано».
         </p>
       </div>
+
+      {!project.feedbackEnabled && (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          Обратная форма не включена — посетители сайта не могут сообщить об ошибке,
+          и задачи из обращений не создаются. Включите её во вкладке{" "}
+          <Link
+            href={`/dashboard/projects/${project.id}/connection`}
+            className="font-semibold underline underline-offset-2"
+          >
+            «Подключение»
+          </Link>
+          .
+        </div>
+      )}
 
       <TaskBoard projectId={project.id} tasks={boardTasks} />
     </div>

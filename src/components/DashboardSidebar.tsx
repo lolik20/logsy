@@ -160,7 +160,7 @@ export type SidebarProject = { id: string; name: string };
 // Сервисы внутри проекта (второй уровень меню). href — суффикс к /dashboard/projects/[id].
 const SERVICES = [
   { key: "monitoring", label: "Мониторинг", suffix: "", Icon: GridIcon },
-  { key: "logging", label: "Логирование", suffix: "/logging", Icon: LogsIcon },
+  { key: "logging", label: "Сессии", suffix: "/logging", Icon: LogsIcon },
   { key: "tasks", label: "Задачи", suffix: "/tasks", Icon: BoardIcon },
   { key: "pages", label: "Страницы", suffix: "/pages", Icon: SitemapIcon },
   { key: "connection", label: "Подключение", suffix: "/connection", Icon: PlugIcon },
@@ -223,16 +223,16 @@ function SidebarContent({
           }`}
         >
           <GridIcon className="h-5 w-5 shrink-0" />
-          <span>Все проекты</span>
+          <span>Все сайты</span>
         </Link>
 
         <div className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-          Проекты
+          Сайты
         </div>
 
         {projects.length === 0 && (
           <div className="px-3 py-2 text-xs text-slate-400">
-            Пока нет проектов
+            Пока нет сайтов
           </div>
         )}
 

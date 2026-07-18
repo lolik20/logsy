@@ -10,7 +10,7 @@ export function ClearLogsButton({ projectId }: { projectId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   async function clear() {
-    if (!window.confirm("Удалить все логи проекта? Действие необратимо.")) return;
+    if (!window.confirm("Удалить все логи сайта? Действие необратимо.")) return;
     setLoading(true);
     setError(null);
     try {

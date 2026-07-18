@@ -22,7 +22,7 @@ export async function PATCH(
 
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project || project.userId !== userId) {
-    return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
+    return NextResponse.json({ error: "Сайт не найден" }, { status: 404 });
   }
 
   const parsed = patchSchema.safeParse(await req.json().catch(() => null));
@@ -90,7 +90,7 @@ export async function DELETE(
 
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project || project.userId !== userId) {
-    return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
+    return NextResponse.json({ error: "Сайт не найден" }, { status: 404 });
   }
 
   await prisma.project.delete({ where: { id: params.id } });

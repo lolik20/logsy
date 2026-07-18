@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { EventTypeIcon } from "@/components/EventTypeIcon";
+import { CopyEventButton } from "@/components/CopyEventButton";
 import type { TopError, TopSlow } from "@/lib/topIssues";
 
 // Блок «Топ ошибок и медленных запросов» на вкладке логирования: за выбранный день
@@ -34,10 +35,10 @@ export function TopIssues({
         ) : (
           <ul className="mt-3 space-y-1.5">
             {errors.map((e, i) => (
-              <li key={e.key}>
+              <li key={e.key} className="flex items-center gap-1">
                 <Link
                   href={sessionHref(e.sessionId)}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                 >
                   <span className="w-4 shrink-0 text-right text-xs text-slate-400">
                     {i + 1}
@@ -58,6 +59,18 @@ export function TopIssues({
                     ×{e.count}
                   </span>
                 </Link>
+                <CopyEventButton
+                  className="shrink-0"
+                  data={{
+                    message: e.label,
+                    page: e.page,
+                    method: e.method,
+                    requestUrl: e.requestUrl,
+                    reqBody: e.reqBody,
+                    resBody: e.resBody,
+                    statusCode: e.statusCode,
+                  }}
+                />
               </li>
             ))}
           </ul>

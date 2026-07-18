@@ -46,6 +46,15 @@ export default async function ProjectPage({
   const isowner = project.userId === userId;
   const signature = statusSignature(project.monitors);
 
+  // Подключён ли хоть один канал уведомлений: подтверждённая почта или Telegram.
+  // Именно такие контакты реально получают оповещения (см. checker/ssl-checker и др.).
+  const usableContacts = isowner
+    ? await prisma.contact.count({
+        where: { userId, OR: [{ verified: true }, { type: { not: "EMAIL" } }] },
+      })
+    : 1;
+  const hasContacts = usableContacts > 0;
+
   return (
     <div>
       <StatusAutoRefresh
@@ -55,7 +64,7 @@ export default async function ProjectPage({
       />
       <div className="mb-6">
         <Link href="/dashboard" className="text-sm text-slate-500 hover:text-brand">
-          ← К проектам
+          ← К сайтам
         </Link>
         <div className="mt-2 flex items-center justify-between">
           <div>
@@ -66,6 +75,20 @@ export default async function ProjectPage({
         </div>
         <ProjectServiceTabs projectId={project.id} active="monitoring" />
       </div>
+
+      {isowner && !hasContacts && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+          У сайта не подключены контакты — оповещения о падении, SSL, домене и
+          тарифе отправлять некуда. Добавьте канал уведомлений во вкладке{" "}
+          <Link
+            href={`/dashboard/projects/${project.id}/contacts`}
+            className="font-semibold underline underline-offset-2"
+          >
+            «Контакты»
+          </Link>
+          .
+        </div>
+      )}
 
       {isowner ? (
         <>
@@ -111,7 +134,7 @@ export default async function ProjectPage({
         </>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-          Просмотр проекта пользователя в режиме администратора.
+          Просмотр сайта пользователя в режиме администратора.
         </div>
       )}
 

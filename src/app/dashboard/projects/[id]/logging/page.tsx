@@ -105,6 +105,8 @@ export default async function LoggingPage({
           statusCode: true,
           durationMs: true,
           url: true,
+          reqBody: true,
+          resBody: true,
           createdAt: true,
         },
       })
@@ -157,7 +159,7 @@ export default async function LoggingPage({
 
       {!active && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
-          Тариф проекта не активен — приём логов остановлен. Продлите тариф во
+          Тариф сайта не активен — приём логов остановлен. Продлите тариф во
           вкладке «Тариф».
         </div>
       )}
@@ -176,6 +178,20 @@ export default async function LoggingPage({
             Повысьте тариф
           </Link>
           , чтобы увеличить лимит.
+        </div>
+      )}
+
+      {!project.recordSession && (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          Запись сессий не включена — экран посетителей не записывается.
+          Включите её во вкладке{" "}
+          <Link
+            href={`/dashboard/projects/${project.id}/connection`}
+            className="font-semibold underline underline-offset-2"
+          >
+            «Подключение»
+          </Link>
+          , чтобы просматривать сессии как видео.
         </div>
       )}
 
