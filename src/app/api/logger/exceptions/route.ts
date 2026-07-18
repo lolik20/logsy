@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     where: { id: projectId },
     select: { userId: true },
   });
-  if (!project) return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
+  if (!project) return NextResponse.json({ error: "Сайт не найден" }, { status: 404 });
 
   const denied = await accessError(project.userId);
   if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status });

@@ -4,7 +4,7 @@ import Link from "next/link";
 // удобно на мобильных, где сайдбар скрыт). active — ключ текущего сервиса.
 const items = [
   { key: "monitoring", label: "Мониторинг", suffix: "" },
-  { key: "logging", label: "Логирование", suffix: "/logging" },
+  { key: "logging", label: "Сессии", suffix: "/logging" },
   { key: "tasks", label: "Задачи", suffix: "/tasks" },
   { key: "pages", label: "Страницы", suffix: "/pages" },
   { key: "connection", label: "Подключение", suffix: "/connection" },

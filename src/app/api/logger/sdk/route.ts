@@ -175,6 +175,100 @@ const SDK = `(function(){
       return v.length > MAX_BODY ? v.slice(0, MAX_BODY) + "…" : v;
     }
 
+    // ---- Маскирование паролей в теле запроса ----
+    // Значения полей с типом password не должны утекать в лог: перед отправкой на лог-апи
+    // заменяем их звёздочками. Имена «парольных» полей собираем со страницы (input[type=password])
+    // и дополняем частыми именами (password/pass/pwd/пароль). Работает для тел запросов в виде
+    // FormData, URLSearchParams, urlencoded-строк и JSON.
+    var PW_MASK = "********";
+    var PW_COMMON = { password: 1, pass: 1, pwd: 1, passwd: 1, "new_password": 1,
+                      "old_password": 1, "current_password": 1, "confirm_password": 1, "пароль": 1 };
+    function passwordKeys() {
+      var set = {};
+      for (var c in PW_COMMON) set[c] = true;
+      try {
+        var els = document.querySelectorAll("input[type=password]");
+        for (var i = 0; i < els.length; i++) {
+          var el = els[i];
+          if (el.name) set[String(el.name).toLowerCase()] = true;
+          if (el.id) set[String(el.id).toLowerCase()] = true;
+        }
+      } catch (e) {}
+      return set;
+    }
+    function isPwKey(k, set) { return !!(k != null && set[String(k).toLowerCase()]); }
+    // Рекурсивно маскирует значения «парольных» ключей во вложенном объекте/массиве.
+    function maskDeep(v, set) {
+      if (v && typeof v === "object") {
+        if (Object.prototype.toString.call(v) === "[object Array]") {
+          for (var i = 0; i < v.length; i++) v[i] = maskDeep(v[i], set);
+          return v;
+        }
+        for (var k in v) {
+          if (Object.prototype.hasOwnProperty.call(v, k)) {
+            v[k] = isPwKey(k, set) ? PW_MASK : maskDeep(v[k], set);
+          }
+        }
+        return v;
+      }
+      return v;
+    }
+    // Пересобирает URLSearchParams, заменяя значения парольных полей звёздочками.
+    function maskParamsToString(p, set) {
+      var out = [];
+      p.forEach(function (val, k) {
+        out.push(encodeURIComponent(k) + "=" + encodeURIComponent(isPwKey(k, set) ? PW_MASK : val));
+      });
+      return out.join("&");
+    }
+    // Маскирует строковое тело: JSON-объект/массив или urlencoded-форму.
+    function maskString(s, set) {
+      var t = s.replace(/^\\s+/, "");
+      var ch = t.charAt(0);
+      if (ch === "{" || ch === "[") {
+        try { return JSON.stringify(maskDeep(JSON.parse(s), set)); } catch (e) {}
+      }
+      if (s.indexOf("=") >= 0 && s.indexOf(" ") < 0) {
+        try {
+          var p = new URLSearchParams(s);
+          var has = false;
+          p.forEach(function (_v, k) { if (isPwKey(k, set)) has = true; });
+          if (has) return maskParamsToString(p, set);
+        } catch (e) {}
+      }
+      return s;
+    }
+    // Как clip, но дополнительно маскирует парольные поля (для тела запроса).
+    function clipReq(v) {
+      if (v == null) return null;
+      var set = passwordKeys();
+      var out;
+      try {
+        if (typeof URLSearchParams !== "undefined" && v instanceof URLSearchParams) {
+          out = maskParamsToString(v, set);
+        } else if (typeof FormData !== "undefined" && v instanceof FormData) {
+          var o = {};
+          v.forEach(function (val, k) {
+            o[k] = isPwKey(k, set) ? PW_MASK : ((typeof val === "string") ? val : "[file]");
+          });
+          out = JSON.stringify(o);
+        } else if ((typeof Blob !== "undefined" && v instanceof Blob) ||
+                   (typeof ArrayBuffer !== "undefined" && v instanceof ArrayBuffer)) {
+          out = "[binary]";
+        } else if (typeof v === "string") {
+          out = maskString(v, set);
+        } else {
+          out = JSON.stringify(maskDeep(v, set));
+        }
+      } catch (e) {
+        try { out = String(v); } catch (e2) { out = "[unserializable]"; }
+      }
+      if (typeof out !== "string") {
+        try { out = String(out); } catch (e) { out = "[unserializable]"; }
+      }
+      return out.length > MAX_BODY ? out.slice(0, MAX_BODY) + "…" : out;
+    }
+
     // Извлекает query-строку из URL запроса (без ведущего "?").
     function queryOf(url) {
       try {
@@ -255,7 +349,7 @@ const SDK = `(function(){
         method: method || "GET",
         statusCode: status || null,
         durationMs: durationMs,
-        reqBody: clip(reqBody),
+        reqBody: clipReq(reqBody),
         resBody: clip(resBody),
         url: location.href
       });
@@ -493,7 +587,7 @@ const SDK = `(function(){
         var type = (el.type || "").toLowerCase();
         var name = el.name || el.id || (el.getAttribute && el.getAttribute("placeholder")) || type || tag;
         var val;
-        if (type === "password") val = "[скрыто]";
+        if (type === "password") val = PW_MASK;
         else if (type === "checkbox" || type === "radio") val = el.checked ? "✓ вкл" : "✗ выкл";
         else val = String(el.value == null ? "" : el.value).slice(0, 100);
         push({ type: "INPUT", message: "Ввод: " + name + " = " + val, url: location.href });

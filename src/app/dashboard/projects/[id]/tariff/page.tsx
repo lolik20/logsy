@@ -58,7 +58,7 @@ export default async function ProjectTariffPage({
 
       {free && (
         <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
-          🎁 Проект на бесплатном тарифе — {FREE_TIER.sessionsLabel}, хранение
+          🎁 Сайт на бесплатном тарифе — {FREE_TIER.sessionsLabel}, хранение
           логов 12 часов. Настройте лимиты ползунками ниже, чтобы поднять квоту
           сессий и увеличить срок хранения.
         </div>
@@ -83,7 +83,7 @@ export default async function ProjectTariffPage({
 
       {admin ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-          У вас роль администратора — безлимитный доступ ко всем проектам. Оплата
+          У вас роль администратора — безлимитный доступ ко всем сайтам. Оплата
           не требуется.
         </div>
       ) : isowner ? (

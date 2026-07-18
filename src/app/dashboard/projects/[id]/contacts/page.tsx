@@ -54,7 +54,7 @@ export default async function ProjectContactsPage({
         <>
           <p className="mb-4 text-sm text-slate-500">
             Каналы уведомлений общие для аккаунта — приходят, когда мониторы
-            проекта падают или восстанавливаются, а также при истечении SSL,
+            сайта падают или восстанавливаются, а также при истечении SSL,
             регистрации домена и тарифа.
           </p>
           <ContactManager
@@ -84,7 +84,7 @@ export default async function ProjectContactsPage({
             {alerts.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
-                  Оповещений по проекту ещё не было.
+                  Оповещений по сайту ещё не было.
                 </td>
               </tr>
             )}

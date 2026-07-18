@@ -25,7 +25,7 @@ export async function GET(
     select: { id: true, userId: true, domain: true },
   });
   if (!project || (project.userId !== userId && !admin)) {
-    return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
+    return NextResponse.json({ error: "Сайт не найден" }, { status: 404 });
   }
 
   const result = await checkSdkInstalled(project.domain);

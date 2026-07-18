@@ -14,11 +14,11 @@ export const dynamic = "force-dynamic";
 const monitoringFaq = [
   {
     q: "Как добавить сайт для мониторинга?",
-    a: 'Нажмите «Добавить проект», укажите название и домен сайта (например example.ru). Проект — это ваш сайт, внутри которого можно завести несколько проверок.',
+    a: 'Нажмите «Добавить сайт», укажите название и домен (например example.ru). Внутри сайта можно завести несколько проверок.',
   },
   {
     q: "Как добавить монитор (проверку)?",
-    a: "Откройте проект и нажмите «Добавить монитор». Укажите путь для проверки, HTTP-метод и периодичность — мы будем регулярно опрашивать адрес и сообщать, если он станет недоступен.",
+    a: "Откройте сайт и нажмите «Добавить монитор». Укажите путь для проверки, HTTP-метод и периодичность — мы будем регулярно опрашивать адрес и сообщать, если он станет недоступен.",
   },
   {
     q: "Как я узнаю, что сайт упал?",
@@ -57,19 +57,19 @@ export default async function DashboardPage() {
   const onboardingSteps: OnboardingStep[] = [
     {
       key: "project",
-      title: "Добавьте первый проект",
+      title: "Добавьте первый сайт",
       description:
-        "Проект — это ваш сайт. Укажите название и домен — мы сразу заведём проверку главной страницы.",
+        "Укажите название и домен сайта — мы сразу заведём проверку главной страницы.",
       done: projects.length > 0,
     },
     {
       key: "monitor",
       title: "Проверка главной страницы работает",
       description:
-        "Вместе с проектом создаётся монитор главной страницы (GET /). Мы регулярно опрашиваем сайт и следим за доступностью.",
+        "Вместе с сайтом создаётся монитор главной страницы (GET /). Мы регулярно опрашиваем сайт и следим за доступностью.",
       done: hasMonitor,
       href: firstProjectId ? `/dashboard/projects/${firstProjectId}` : undefined,
-      actionLabel: "Открыть проект",
+      actionLabel: "Открыть сайт",
     },
     {
       key: "alerts",
@@ -90,9 +90,9 @@ export default async function DashboardPage() {
       <Onboarding steps={onboardingSteps} />
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Проекты</h1>
+          <h1 className="text-2xl font-bold">Сайты</h1>
           <p className="text-sm text-slate-500">
-            Тарификация — за проект. Новый проект работает на бесплатном тарифе.
+            Тарификация — за сайт. Новый сайт работает на бесплатном тарифе.
           </p>
         </div>
       </div>
@@ -102,7 +102,7 @@ export default async function DashboardPage() {
       <div className="mt-6 grid gap-4">
         {projects.length === 0 && (
           <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500 dark:border-slate-700">
-            Пока нет проектов. Добавьте свой первый сайт для мониторинга.
+            Пока нет сайтов. Добавьте свой первый сайт для мониторинга.
           </p>
         )}
         {projects.map((p) => {

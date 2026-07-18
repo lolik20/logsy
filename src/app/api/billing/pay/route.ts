@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     select: { id: true, userId: true, name: true },
   });
   if (!project || project.userId !== userId) {
-    return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
+    return NextResponse.json({ error: "Сайт не найден" }, { status: 404 });
   }
 
   const amountRub = customPriceRub(config, plan);

@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   });
   if (taken) {
     return NextResponse.json(
-      { error: "Этот домен уже используется в другом проекте." },
+      { error: "Этот домен уже используется на другом сайте." },
       { status: 409 },
     );
   }
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       // Гонка по уникальному домену.
       if (e.code === "P2002") {
         return NextResponse.json(
-          { error: "Этот домен уже используется в другом проекте." },
+          { error: "Этот домен уже используется на другом сайте." },
           { status: 409 },
         );
       }
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
     console.error("POST /api/projects failed:", e);
     const message = e instanceof Error ? e.message : "Неизвестная ошибка";
     return NextResponse.json(
-      { error: `Не удалось создать проект: ${message}` },
+      { error: `Не удалось создать сайт: ${message}` },
       { status: 500 },
     );
   }

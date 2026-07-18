@@ -45,7 +45,7 @@ export function AddExceptionButton({
         title={
           excluded
             ? "Событие уже подходит под правило-исключение. Открыть, чтобы добавить ещё одно"
-            : "Больше не сохранять такие события во всём проекте"
+            : "Больше не сохранять такие события во всём сайте"
         }
         className={`whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-medium ${
           excluded
@@ -127,7 +127,7 @@ function ExceptionModal({
       >
         <h3 className="text-base font-semibold">Добавить в исключения</h3>
         <p className="mt-1 text-xs text-slate-500">
-          События, подходящие под правило, перестанут сохраняться во всём проекте.
+          События, подходящие под правило, перестанут сохраняться во всём сайте.
           Уже записанные события останутся.
         </p>
 

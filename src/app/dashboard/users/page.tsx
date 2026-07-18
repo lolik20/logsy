@@ -51,7 +51,7 @@ export default async function UsersPage() {
               <th className="px-4 py-2 font-medium">Пользователь</th>
               <th className="px-4 py-2 font-medium">Роль</th>
               <th className="px-4 py-2 font-medium">Подписка</th>
-              <th className="px-4 py-2 font-medium">Проекты</th>
+              <th className="px-4 py-2 font-medium">Сайты</th>
               <th className="px-4 py-2 font-medium">Мониторы</th>
               <th className="px-4 py-2 font-medium">Регистрация</th>
             </tr>

@@ -21,6 +21,8 @@ export type IssueEvent = {
   statusCode: number | null;
   durationMs: number | null;
   url: string | null;
+  reqBody: string | null;
+  resBody: string | null;
   createdAt: Date;
 };
 
@@ -32,6 +34,13 @@ export type TopError = {
   statusCode: number | null;
   count: number;
   sessionId: string; // самая свежая сессия с этой ошибкой — для перехода
+  // Детали самой свежей ошибки этой сигнатуры — для кнопки «Скопировать».
+  message: string | null;
+  page: string | null; // URL страницы
+  method: string | null;
+  requestUrl: string | null; // URL/маршрут запроса
+  reqBody: string | null;
+  resBody: string | null;
 };
 
 /** Одна строка топа медленных запросов: эндпоинт с числом обращений и длительностью. */
@@ -76,7 +85,7 @@ export function topErrors(events: IssueEvent[], limit = 10): TopError[] {
     if (existing) {
       existing.count += 1;
     } else {
-      // Первое (самое свежее) вхождение задаёт сессию для перехода.
+      // Первое (самое свежее) вхождение задаёт сессию для перехода и детали для копирования.
       map.set(key, {
         key,
         label,
@@ -84,6 +93,12 @@ export function topErrors(events: IssueEvent[], limit = 10): TopError[] {
         statusCode: e.statusCode,
         count: 1,
         sessionId: e.sessionId,
+        message: e.message,
+        page: e.url,
+        method: e.method,
+        requestUrl: e.route ?? e.url,
+        reqBody: e.reqBody,
+        resBody: e.resBody,
       });
     }
   }

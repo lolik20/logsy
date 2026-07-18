@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     where: { id: parsed.data.projectId },
   });
   if (!project || project.userId !== userId) {
-    return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
+    return NextResponse.json({ error: "Сайт не найден" }, { status: 404 });
   }
 
   // Оставляем только непустые заголовки; сохраняем как JSON-строку.
