@@ -89,36 +89,76 @@ export function SdkStatusCard({
 
   if (state.status === "missing") {
     return (
-      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
-        <div className="flex items-center justify-between gap-3">
-          <span className="flex items-center gap-2 font-medium">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />
-            Скрипт SDK не найден на сайте
-          </span>
-          {recheckBtn}
+      <>
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 font-medium">
+              <span className="h-2 w-2 rounded-full bg-amber-500" />
+              Скрипт SDK не найден на сайте
+            </span>
+            {recheckBtn}
+          </div>
+          {!compact && (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300/80">
+              Мы запросили{" "}
+              {state.checkedUrl && <span className="font-mono">{state.checkedUrl}</span>}, но не
+              нашли тег скрипта в <code className="font-mono">&lt;head&gt;</code>. Вставьте тег из
+              блока ниже и проверьте снова.
+            </p>
+          )}
         </div>
-        {!compact && (
-          <p className="mt-2 text-xs text-amber-700 dark:text-amber-300/80">
-            Мы запросили{" "}
-            {state.checkedUrl && <span className="font-mono">{state.checkedUrl}</span>}, но не
-            нашли тег скрипта в <code className="font-mono">&lt;head&gt;</code>. Вставьте тег из
-            блока ниже и проверьте снова.
-          </p>
-        )}
-      </div>
+        {!compact && <ConnectHelpCard />}
+      </>
     );
   }
 
   // error
   return (
-    <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-200">
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-2 font-medium">
-          <span className="h-2 w-2 rounded-full bg-red-500" />
-          Не удалось проверить подключение: {state.message}
-        </span>
-        {recheckBtn}
+    <>
+      <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-200">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2 font-medium">
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            Не удалось проверить подключение: {state.message}
+          </span>
+          {recheckBtn}
+        </div>
       </div>
+      {!compact && <ConnectHelpCard />}
+    </>
+  );
+}
+
+// Блок помощи: показывается на вкладке «Подключение», когда скрипт ещё не подключён.
+// Предлагает бесплатное подключение силами команды через менеджера в Telegram.
+function ConnectHelpCard() {
+  return (
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand-50 px-5 py-4 dark:border-brand/30 dark:bg-brand/10">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+          Возникли проблемы с подключением?
+        </h3>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
+          Напишите менеджеру в Telegram — подключим скрипт на сайт бесплатно.
+        </p>
+      </div>
+      <a
+        href="https://telegram.me/tritex_manager"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#229ED9] px-4 py-2 text-sm font-medium text-white hover:bg-[#1c86ba]"
+      >
+        <TelegramIcon className="h-4 w-4" />
+        Запросить бесплатное подключение
+      </a>
     </div>
+  );
+}
+
+function TelegramIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M21.94 4.6 18.7 19.86c-.24 1.08-.88 1.34-1.79.84l-4.94-3.64-2.38 2.29c-.26.26-.48.48-.99.48l.35-5.02 9.13-8.25c.4-.35-.09-.55-.62-.2L5.19 13.02.34 11.5c-1.05-.33-1.07-1.05.22-1.56L20.58 2.2c.88-.33 1.65.2 1.36 2.4Z" />
+    </svg>
   );
 }
