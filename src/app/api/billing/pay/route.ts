@@ -3,17 +3,28 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { initPayment, tbankConfigured, type ReceiptItem } from "@/lib/tbank";
-import { getPlan, getTier, tierPriceRub } from "@/lib/pricing";
+import {
+  getPlan,
+  clampSessions,
+  clampRetention,
+  monthlyCustomPriceRub,
+  customPriceRub,
+  retentionHoursLabel,
+  isFreeConfig,
+  type CustomPlan,
+} from "@/lib/pricing";
 
-// Инициация оплаты тарифа проекта через Т-Кассу.
-// Тарификация — за проект: T1000 | T3000 (бесплатный тариф не оплачивается).
+// Инициация оплаты кастомного тарифа проекта через Т-Кассу.
+// Тарификация — за проект: пользователь ползунками задаёт суточную квоту сессий и
+// срок хранения логов, доплата начисляется помесячно сверх бесплатного объёма
+// (1 ₽/мес за сессию сверх 300, 10 ₽/мес за час хранения сверх 12).
 // Период: 1 мес (без скидки) | 3 мес (−10%) | год (−20%). Создаёт платёж методом
-// Init с чеком (Receipt: УСН + email пользователя) и возвращает PaymentURL для
-// редиректа на страницу оплаты.
+// Init с чеком (Receipt: УСН + email пользователя) и возвращает PaymentURL.
 
 const schema = z.object({
   projectId: z.string().min(1),
-  tier: z.enum(["T1000", "T3000"]),
+  sessionsPerDay: z.number().int().positive(),
+  retentionHours: z.number().int().positive(),
   period: z.enum(["1m", "3m", "12m"]).default("1m"),
 });
 
@@ -37,8 +48,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Некорректные данные" }, { status: 400 });
   }
   const { projectId, period } = parsed.data;
-  const tier = getTier(parsed.data.tier)!;
   const plan = getPlan(period)!;
+  // Нормализуем конфигурацию к границам/шагу ползунков (клиенту не доверяем).
+  const config: CustomPlan = {
+    sessionsPerDay: clampSessions(parsed.data.sessionsPerDay),
+    retentionHours: clampRetention(parsed.data.retentionHours),
+  };
+  // В пределах бесплатного объёма платить не за что.
+  if (isFreeConfig(config) || monthlyCustomPriceRub(config) <= 0) {
+    return NextResponse.json(
+      { error: "Выбранная конфигурация бесплатна — оплата не требуется" },
+      { status: 400 },
+    );
+  }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user?.email) {
@@ -54,15 +76,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
   }
 
-  const amountRub = tierPriceRub(tier, plan);
+  const amountRub = customPriceRub(config, plan);
   const amountKopecks = amountRub * 100;
+  const configLabel = `${config.sessionsPerDay} сессий/сутки, хранение ${retentionHoursLabel(config.retentionHours)}`;
 
   // Создаём запись платежа — её id используем как OrderId.
   const payment = await prisma.payment.create({
     data: {
       userId,
       projectId,
-      tier: tier.id,
+      sessionsPerDay: config.sessionsPerDay,
+      retentionHours: config.retentionHours,
       orderId: "",
       months: plan.months,
       amountRub,
@@ -74,7 +98,7 @@ export async function POST(req: Request) {
 
   const items: ReceiptItem[] = [
     {
-      Name: `Logsy «${project.name}» — тариф ${tier.name}, ${plan.label}`,
+      Name: `Logsy «${project.name}» — тариф (${configLabel}), ${plan.label}`,
       Price: amountKopecks,
       Quantity: 1,
       Amount: amountKopecks,
@@ -89,7 +113,7 @@ export async function POST(req: Request) {
     const result = await initPayment({
       amountKopecks,
       orderId,
-      description: `Тариф ${tier.name} для «${project.name}», ${plan.label}, ${amountRub} ₽`,
+      description: `Тариф для «${project.name}» (${configLabel}), ${plan.label}, ${amountRub} ₽`,
       email: user.email,
       items,
       successUrl: `${returnUrl}?paid=1`,

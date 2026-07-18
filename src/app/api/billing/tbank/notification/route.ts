@@ -52,7 +52,9 @@ export async function POST(req: Request) {
       await prisma.project.update({
         where: { id: payment.projectId },
         data: {
-          tier: payment.tier ?? "T1000",
+          // Применяем оплаченную кастомную конфигурацию (сессии + срок хранения).
+          ...(payment.sessionsPerDay != null ? { sessionsPerDay: payment.sessionsPerDay } : {}),
+          ...(payment.retentionHours != null ? { retentionHours: payment.retentionHours } : {}),
           billingStatus: "ACTIVE",
           currentPeriodEnd: periodEnd,
         },

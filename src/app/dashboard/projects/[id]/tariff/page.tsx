@@ -4,8 +4,8 @@ import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { ProjectBillingManager } from "@/components/ProjectBillingManager";
 import { describeProjectBilling, isProjectFree } from "@/lib/subscription";
-import { getTier, FREE_TIER } from "@/lib/pricing";
-import { getSessionUsage } from "@/lib/logging";
+import { FREE_TIER } from "@/lib/pricing";
+import { getSessionUsage, retentionLabel, dailySessionQuota } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +26,13 @@ export default async function ProjectTariffPage({
   const isowner = project.userId === userId;
   const status = describeProjectBilling(project, admin);
   const free = isProjectFree(project);
-  const tier = getTier(project.tier);
-  const tierLabel = tier ? tier.name : free ? FREE_TIER.name : "—";
+  // Эффективные лимиты с учётом оплаты (для карточек статуса).
+  const effectiveSessions = dailySessionQuota(project);
+  const effectiveRetention = retentionLabel(project);
+  const tierLabel = free ? FREE_TIER.name : "Кастомный";
 
   // Использование суточной квоты сессий (сегодня, UTC) — для прогресс-бара ниже.
-  const usage = await getSessionUsage(project.id, project.tier);
+  const usage = await getSessionUsage(project.id, project);
 
   return (
     <div>
@@ -57,21 +59,19 @@ export default async function ProjectTariffPage({
       {free && (
         <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
           🎁 Проект на бесплатном тарифе — {FREE_TIER.sessionsLabel}, хранение
-          логов 12 часов. Выберите платный тариф, чтобы поднять лимиты и увеличить
-          срок хранения.
+          логов 12 часов. Настройте лимиты ползунками ниже, чтобы поднять квоту
+          сессий и увеличить срок хранения.
         </div>
       )}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid gap-4 sm:grid-cols-4">
         <Card
           label="Статус"
           value={status.showPeriodEnd ? `${status.label} · до ${status.periodEnd}` : status.label}
         />
         <Card label="Тариф" value={tierLabel} />
-        <Card
-          label="Сессий в сутки"
-          value={(tier ?? FREE_TIER).sessionsLabel.replace("до ", "")}
-        />
+        <Card label="Сессий в сутки" value={effectiveSessions.toLocaleString("ru-RU")} />
+        <Card label="Хранение логов" value={effectiveRetention} />
       </div>
 
       <SessionUsageBar
@@ -87,7 +87,11 @@ export default async function ProjectTariffPage({
           не требуется.
         </div>
       ) : isowner ? (
-        <ProjectBillingManager projectId={project.id} currentTier={project.tier} />
+        <ProjectBillingManager
+          projectId={project.id}
+          currentSessions={project.sessionsPerDay}
+          currentRetention={project.retentionHours}
+        />
       ) : null}
     </div>
   );

@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { TIERS, FREE_TIER } from "@/lib/pricing";
+import {
+  FREE_TIER,
+  FREE_SESSIONS_PER_DAY,
+  FREE_RETENTION_HOURS,
+  RUB_PER_SESSION_MONTH,
+  RUB_PER_RETENTION_HOUR_MONTH,
+  retentionHoursLabel,
+} from "@/lib/pricing";
 import { LandingNav } from "@/components/LandingNav";
 
 const features = [
@@ -810,11 +817,15 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* Тарифы — за проект, три уровня */}
-      <section id="pricing" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
-        <h2 className="text-center text-3xl font-bold">Тарифы — за проект</h2>
+      {/* Тарифы — кастомные, настраиваются ползунками */}
+      <section id="pricing" className="relative z-10 mx-auto max-w-5xl px-6 py-16">
+        <h2 className="text-center text-3xl font-bold">Тарифы — платите за нужное</h2>
+        <p className="mx-auto mt-3 max-w-2xl text-center text-slate-500">
+          Никаких фиксированных пакетов. Настройте суточную квоту сессий и срок
+          хранения логов ползунками — цена считается автоматически.
+        </p>
 
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
+        <div className="mt-10 grid gap-6 md:grid-cols-2">
           {/* Бесплатный тариф */}
           <div className="rounded-3xl bg-white/50 p-[1.5px] shadow-card transition-transform hover:-translate-y-1 dark:bg-white/10">
             <div className="flex h-full flex-col rounded-[calc(1.5rem-1.5px)] bg-white/85 p-7 backdrop-blur-xl dark:bg-slate-900/85">
@@ -830,7 +841,10 @@ export default async function LandingPage() {
                 <span className="text-4xl font-extrabold">0 ₽</span>
                 <span className="text-slate-500">/ проект в месяц</span>
               </div>
-              <div className="mt-2 text-sm font-medium text-slate-500">{FREE_TIER.sessionsLabel}</div>
+              <div className="mt-2 text-sm font-medium text-slate-500">
+                {FREE_SESSIONS_PER_DAY} сессий в сутки · хранение{" "}
+                {retentionHoursLabel(FREE_RETENTION_HOURS)}
+              </div>
 
               <ul className="mt-5 flex-1 space-y-2.5 text-sm">
                 {FREE_TIER.features.map((item) => (
@@ -850,58 +864,61 @@ export default async function LandingPage() {
             </div>
           </div>
 
-          {TIERS.map((t, idx) => {
-            const highlighted = t.id === "T1000";
-            return (
-              <div
-                key={t.id}
-                className={`rounded-3xl p-[1.5px] shadow-card transition-transform hover:-translate-y-1 ${
-                  highlighted
-                    ? "bg-gradient-to-br from-brand to-indigo-500"
-                    : "bg-white/50 dark:bg-white/10"
-                }`}
-              >
-                <div className="flex h-full flex-col rounded-[calc(1.5rem-1.5px)] bg-white/85 p-7 backdrop-blur-xl dark:bg-slate-900/85">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold uppercase tracking-wide text-brand">
-                      {t.name}
-                    </span>
-                    {highlighted && (
-                      <span className="rounded-full bg-brand px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                        Популярный
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-3 flex items-baseline gap-1">
-                    <span className="text-4xl font-extrabold">{t.monthlyRub} ₽</span>
-                    <span className="text-slate-500">/ проект в месяц</span>
-                  </div>
-                  <div className="mt-2 text-sm font-medium text-slate-500">{t.sessionsLabel}</div>
-
-                  <ul className="mt-5 flex-1 space-y-2.5 text-sm">
-                    {t.features.map((item) => (
-                      <li key={item} className="flex items-start gap-2">
-                        <span className="text-brand">✓</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <Link
-                    href="/register"
-                    className={`mt-6 block rounded-xl px-6 py-3 text-center font-semibold shadow-card transition-transform hover:-translate-y-0.5 ${
-                      highlighted
-                        ? "bg-gradient-to-r from-brand to-indigo-500 text-white"
-                        : "border border-brand/40 text-brand hover:bg-brand/5"
-                    }`}
-                  >
-                    Начать бесплатно
-                  </Link>
-                  <span className="sr-only">Тариф {idx + 1}</span>
-                </div>
+          {/* Кастомный тариф */}
+          <div className="rounded-3xl bg-gradient-to-br from-brand to-indigo-500 p-[1.5px] shadow-card transition-transform hover:-translate-y-1">
+            <div className="flex h-full flex-col rounded-[calc(1.5rem-1.5px)] bg-white/85 p-7 backdrop-blur-xl dark:bg-slate-900/85">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold uppercase tracking-wide text-brand">
+                  Кастомный
+                </span>
+                <span className="rounded-full bg-brand px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  Ползунки
+                </span>
               </div>
-            );
-          })}
+              <div className="mt-3 flex items-baseline gap-1">
+                <span className="text-4xl font-extrabold">от 0 ₽</span>
+                <span className="text-slate-500">/ проект в месяц</span>
+              </div>
+              <div className="mt-2 text-sm font-medium text-slate-500">
+                Сколько нужно сессий и хранения — столько и платите
+              </div>
+
+              <ul className="mt-5 flex-1 space-y-2.5 text-sm">
+                <li className="flex items-start gap-2">
+                  <span className="text-brand">✓</span>
+                  <span>
+                    Первые {FREE_SESSIONS_PER_DAY} сессий в сутки и{" "}
+                    {retentionHoursLabel(FREE_RETENTION_HOURS)} хранения — бесплатно
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-brand">✓</span>
+                  <span>
+                    {RUB_PER_SESSION_MONTH} ₽/мес за каждую суточную сессию сверх{" "}
+                    {FREE_SESSIONS_PER_DAY}
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-brand">✓</span>
+                  <span>
+                    {RUB_PER_RETENTION_HOUR_MONTH} ₽/мес за каждый час хранения сверх{" "}
+                    {FREE_RETENTION_HOURS}
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-brand">✓</span>
+                  <span>Скидки за период: −10% на 3 месяца, −20% на год</span>
+                </li>
+              </ul>
+
+              <Link
+                href="/register"
+                className="mt-6 block rounded-xl bg-gradient-to-r from-brand to-indigo-500 px-6 py-3 text-center font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
+              >
+                Настроить тариф
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
