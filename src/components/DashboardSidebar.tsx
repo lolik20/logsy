@@ -48,6 +48,15 @@ function UsersIcon({ className }: IconProps) {
   );
 }
 
+function TagIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3H4a1 1 0 0 0-1 1v5.59A2 2 0 0 0 3.83 11l9.58 9.59a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.83Z" />
+      <circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 function GaugeIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -317,6 +326,21 @@ function SidebarContent({
           >
             <GaugeIcon className="h-5 w-5 shrink-0" />
             <span>Проверки скорости</span>
+          </Link>
+        )}
+
+        {isAdmin && (
+          <Link
+            href="/dashboard/pricing"
+            onClick={onNavigate}
+            className={`mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+              pathname.startsWith("/dashboard/pricing")
+                ? "bg-brand-50 text-brand dark:bg-brand/15"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            }`}
+          >
+            <TagIcon className="h-5 w-5 shrink-0" />
+            <span>Тарифы</span>
           </Link>
         )}
       </nav>

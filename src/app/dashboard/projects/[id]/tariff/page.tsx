@@ -4,7 +4,8 @@ import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { ProjectBillingManager } from "@/components/ProjectBillingManager";
 import { describeProjectBilling, isProjectFree } from "@/lib/subscription";
-import { FREE_TIER } from "@/lib/pricing";
+import { FREE_TIER, retentionHoursLabel } from "@/lib/pricing";
+import { getPricingSettings } from "@/lib/pricing-settings";
 import { getSessionUsage, retentionLabel, dailySessionQuota } from "@/lib/logging";
 
 export const dynamic = "force-dynamic";
@@ -26,9 +27,10 @@ export default async function ProjectTariffPage({
   const isowner = project.userId === userId;
   const status = describeProjectBilling(project, admin);
   const free = isProjectFree(project);
+  const pricing = await getPricingSettings();
   // Эффективные лимиты с учётом оплаты (для карточек статуса).
-  const effectiveSessions = dailySessionQuota(project);
-  const effectiveRetention = retentionLabel(project);
+  const effectiveSessions = dailySessionQuota(project, pricing);
+  const effectiveRetention = retentionLabel(project, pricing);
   const tierLabel = free ? FREE_TIER.name : "Кастомный";
 
   // Использование суточной квоты сессий (сегодня, UTC) — для прогресс-бара ниже.
@@ -58,9 +60,10 @@ export default async function ProjectTariffPage({
 
       {free && (
         <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
-          🎁 Проект на бесплатном тарифе — {FREE_TIER.sessionsLabel}, хранение
-          логов 12 часов. Настройте лимиты ползунками ниже, чтобы поднять квоту
-          сессий и увеличить срок хранения.
+          🎁 Проект на бесплатном тарифе — до {pricing.freeSessionsPerDay} сессий в
+          сутки, хранение логов {retentionHoursLabel(pricing.freeRetentionHours)}.
+          Настройте лимиты ползунками ниже, чтобы поднять квоту сессий и увеличить
+          срок хранения.
         </div>
       )}
 
@@ -91,6 +94,7 @@ export default async function ProjectTariffPage({
           projectId={project.id}
           currentSessions={project.sessionsPerDay}
           currentRetention={project.retentionHours}
+          pricing={pricing}
         />
       ) : null}
     </div>

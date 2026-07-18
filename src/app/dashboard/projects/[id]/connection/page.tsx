@@ -7,6 +7,7 @@ import { RecordSessionSettings } from "@/components/RecordSessionSettings";
 import { SlowThresholdSettings } from "@/components/SlowThresholdSettings";
 import { SdkStatusCard } from "@/components/SdkStatusCard";
 import { retentionLabel } from "@/lib/logging";
+import { getPricingSettings } from "@/lib/pricing-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function ConnectionPage({
   const project = await prisma.project.findUnique({ where: { id: params.id } });
   if (!project || (project.userId !== userId && !admin)) notFound();
 
+  const pricing = await getPricingSettings();
   const snippet = `<script src="${appUrl()}/api/logger/sdk" async></script>`;
 
   return (
@@ -58,7 +60,7 @@ export default async function ConnectionPage({
           собирает карту загрузки страниц (время до прогрузки контента и медленные
           статические файлы), группирует всё в сессии и отправляет батчами раз в 10
           секунд. Порог «медленного» запроса настраивается ниже. Логи хранятся{" "}
-          {retentionLabel(project)}.
+          {retentionLabel(project, pricing)}.
         </p>
       </div>
 

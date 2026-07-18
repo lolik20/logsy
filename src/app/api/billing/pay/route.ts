@@ -13,6 +13,7 @@ import {
   isFreeConfig,
   type CustomPlan,
 } from "@/lib/pricing";
+import { getPricingSettings } from "@/lib/pricing-settings";
 
 // Инициация оплаты кастомного тарифа проекта через Т-Кассу.
 // Тарификация — за проект: пользователь ползунками задаёт суточную квоту сессий и
@@ -49,13 +50,15 @@ export async function POST(req: Request) {
   }
   const { projectId, period } = parsed.data;
   const plan = getPlan(period)!;
+  // Актуальные ставки тарификации (заданы администратором).
+  const pricing = await getPricingSettings();
   // Нормализуем конфигурацию к границам/шагу ползунков (клиенту не доверяем).
   const config: CustomPlan = {
-    sessionsPerDay: clampSessions(parsed.data.sessionsPerDay),
-    retentionHours: clampRetention(parsed.data.retentionHours),
+    sessionsPerDay: clampSessions(parsed.data.sessionsPerDay, pricing),
+    retentionHours: clampRetention(parsed.data.retentionHours, pricing),
   };
   // В пределах бесплатного объёма платить не за что.
-  if (isFreeConfig(config) || monthlyCustomPriceRub(config) <= 0) {
+  if (isFreeConfig(config, pricing) || monthlyCustomPriceRub(config, pricing) <= 0) {
     return NextResponse.json(
       { error: "Выбранная конфигурация бесплатна — оплата не требуется" },
       { status: 400 },
@@ -76,7 +79,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
   }
 
-  const amountRub = customPriceRub(config, plan);
+  const amountRub = customPriceRub(config, plan, pricing);
   const amountKopecks = amountRub * 100;
   const configLabel = `${config.sessionsPerDay} сессий/сутки, хранение ${retentionHoursLabel(config.retentionHours)}`;
 

@@ -1,5 +1,7 @@
 // Тарифные планы Logsy и расчёт цены. Кастомная тарификация: базовый бесплатный
 // объём (сессии + срок хранения логов), а сверх него — доплата по ползункам.
+// Ставки и бесплатный объём настраиваются администратором (см. PricingSettings в
+// БД и src/lib/pricing-settings.ts) и передаются сюда как PricingConfig.
 // Используется и на сервере (роут оплаты), и на клиенте (форма оплаты),
 // поэтому здесь не должно быть серверных импортов.
 
@@ -53,17 +55,27 @@ export function basePriceRub(plan: PlanInfo, sites: number): number {
 // ----------------------------- Кастомная тарификация -----------------------------
 // Тарификация за проект настраивается ползунками: пользователь сам задаёт суточную
 // квоту сессий и срок хранения логов. Базовый объём — бесплатный навсегда, сверх него
-// начисляется помесячная доплата. Скидки за длительный период берутся из BILLING_PLANS.
+// начисляется помесячная доплата. Ставки и бесплатный объём задаёт администратор.
 
-/** Бесплатная суточная квота сессий. */
-export const FREE_SESSIONS_PER_DAY = 300;
-/** Бесплатный срок хранения логов, часов. */
-export const FREE_RETENTION_HOURS = 12;
+/** Настраиваемые администратором параметры тарификации. */
+export type PricingConfig = {
+  /** Бесплатная суточная квота сессий. */
+  freeSessionsPerDay: number;
+  /** Бесплатный срок хранения логов, часов. */
+  freeRetentionHours: number;
+  /** Доплата в месяц за каждую суточную сессию сверх бесплатной квоты, ₽. */
+  rubPerSessionMonth: number;
+  /** Доплата в месяц за каждый час хранения логов сверх бесплатного срока, ₽. */
+  rubPerRetentionHourMonth: number;
+};
 
-/** Доплата в месяц за каждую суточную сессию сверх бесплатных 300, ₽. */
-export const RUB_PER_SESSION_MONTH = 3;
-/** Доплата в месяц за каждый час хранения логов сверх бесплатных 12, ₽. */
-export const RUB_PER_RETENTION_HOUR_MONTH = 10;
+/** Значения по умолчанию (совпадают с дефолтами модели PricingSettings). */
+export const DEFAULT_PRICING: PricingConfig = {
+  freeSessionsPerDay: 300,
+  freeRetentionHours: 12,
+  rubPerSessionMonth: 3,
+  rubPerRetentionHourMonth: 10,
+};
 
 /** Верхняя граница ползунка суточных сессий. */
 export const MAX_SESSIONS_PER_DAY = 50000;
@@ -82,17 +94,12 @@ export type CustomPlan = {
   retentionHours: number;
 };
 
-/** Бесплатный набор параметров (состояние проекта по умолчанию). */
+/** Название бесплатного тарифа и его постоянные преимущества (без числовых лимитов). */
 export const FREE_TIER = {
   name: "Бесплатный",
-  sessionsPerDay: FREE_SESSIONS_PER_DAY,
-  retentionHours: FREE_RETENTION_HOURS,
-  sessionsLabel: `до ${FREE_SESSIONS_PER_DAY} сессий в сутки`,
   features: [
     "Uptime-мониторинг",
     "Логирование фронт-ошибок и сессий",
-    `до ${FREE_SESSIONS_PER_DAY} сессий в сутки`,
-    "Хранение логов 12 часов",
     "Алертинг",
   ],
 } as const;
@@ -105,41 +112,57 @@ function clampToStep(value: number, min: number, max: number, step: number): num
 }
 
 /** Приводит число сессий к допустимому диапазону и шагу ползунка. */
-export function clampSessions(value: number): number {
-  return clampToStep(value, FREE_SESSIONS_PER_DAY, MAX_SESSIONS_PER_DAY, SESSIONS_STEP);
+export function clampSessions(value: number, pricing: PricingConfig = DEFAULT_PRICING): number {
+  return clampToStep(value, pricing.freeSessionsPerDay, MAX_SESSIONS_PER_DAY, SESSIONS_STEP);
 }
 
 /** Приводит срок хранения к допустимому диапазону и шагу ползунка. */
-export function clampRetention(value: number): number {
-  return clampToStep(value, FREE_RETENTION_HOURS, MAX_RETENTION_HOURS, RETENTION_STEP);
+export function clampRetention(value: number, pricing: PricingConfig = DEFAULT_PRICING): number {
+  return clampToStep(value, pricing.freeRetentionHours, MAX_RETENTION_HOURS, RETENTION_STEP);
 }
 
 /** На бесплатном ли объёме конфигурация (доплаты нет). */
-export function isFreeConfig(cfg: CustomPlan): boolean {
+export function isFreeConfig(cfg: CustomPlan, pricing: PricingConfig = DEFAULT_PRICING): boolean {
   return (
-    cfg.sessionsPerDay <= FREE_SESSIONS_PER_DAY &&
-    cfg.retentionHours <= FREE_RETENTION_HOURS
+    cfg.sessionsPerDay <= pricing.freeSessionsPerDay &&
+    cfg.retentionHours <= pricing.freeRetentionHours
   );
 }
 
 /** Помесячная цена конфигурации, ₽ (0 — если в пределах бесплатного объёма). */
-export function monthlyCustomPriceRub(cfg: CustomPlan): number {
-  const extraSessions = Math.max(0, cfg.sessionsPerDay - FREE_SESSIONS_PER_DAY);
-  const extraHours = Math.max(0, cfg.retentionHours - FREE_RETENTION_HOURS);
-  return extraSessions * RUB_PER_SESSION_MONTH + extraHours * RUB_PER_RETENTION_HOUR_MONTH;
+export function monthlyCustomPriceRub(
+  cfg: CustomPlan,
+  pricing: PricingConfig = DEFAULT_PRICING,
+): number {
+  const extraSessions = Math.max(0, cfg.sessionsPerDay - pricing.freeSessionsPerDay);
+  const extraHours = Math.max(0, cfg.retentionHours - pricing.freeRetentionHours);
+  return (
+    extraSessions * pricing.rubPerSessionMonth +
+    extraHours * pricing.rubPerRetentionHourMonth
+  );
 }
 
 /**
  * Цена конфигурации за весь период (со скидкой за длительность), ₽.
  * Скидка берётся из BILLING_PLANS (1м — 0%, 3м — −10%, год — −20%).
  */
-export function customPriceRub(cfg: CustomPlan, plan: PlanInfo): number {
-  return Math.round(monthlyCustomPriceRub(cfg) * plan.months * (1 - plan.discountPercent / 100));
+export function customPriceRub(
+  cfg: CustomPlan,
+  plan: PlanInfo,
+  pricing: PricingConfig = DEFAULT_PRICING,
+): number {
+  return Math.round(
+    monthlyCustomPriceRub(cfg, pricing) * plan.months * (1 - plan.discountPercent / 100),
+  );
 }
 
 /** Цена конфигурации за период без скидки (для зачёркнутой цены), ₽. */
-export function customBasePriceRub(cfg: CustomPlan, plan: PlanInfo): number {
-  return monthlyCustomPriceRub(cfg) * plan.months;
+export function customBasePriceRub(
+  cfg: CustomPlan,
+  plan: PlanInfo,
+  pricing: PricingConfig = DEFAULT_PRICING,
+): number {
+  return monthlyCustomPriceRub(cfg, pricing) * plan.months;
 }
 
 /** Человекочитаемый срок хранения логов («12 часов» / «3 суток»). */

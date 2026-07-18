@@ -396,6 +396,21 @@ model LogUsage {
   @@index([projectId, day])
 }
 
+// Глобальные настройки кастомной тарификации, редактируемые администратором на
+// вкладке «Тарифы» (admin). Синглтон: всегда одна строка с фиксированным id.
+// Значения по умолчанию совпадают с DEFAULT_PRICING в src/lib/pricing.ts.
+model PricingSettings {
+  id                       String   @id @default("singleton")
+  // Бесплатная суточная квота сессий и бесплатный срок хранения логов (часов).
+  freeSessionsPerDay       Int      @default(300)
+  freeRetentionHours       Int      @default(12)
+  // Помесячная доплата: за суточную сессию сверх бесплатной квоты и за час хранения
+  // сверх бесплатного срока, ₽.
+  rubPerSessionMonth       Int      @default(3)
+  rubPerRetentionHourMonth Int      @default(10)
+  updatedAt                DateTime @updatedAt
+}
+
 // Прогоны публичного инструмента проверки скорости сайта (см. /api/speed-test).
 // Каждый запуск сохраняется для админ-статистики: какой домен проверяли, когда и
 // с какой скоростью (готовность DOM). Личных данных не содержит.

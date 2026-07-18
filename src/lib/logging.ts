@@ -3,15 +3,17 @@
 
 import { prisma } from "@/lib/prisma";
 import {
-  FREE_SESSIONS_PER_DAY,
-  FREE_RETENTION_HOURS,
+  DEFAULT_PRICING,
   retentionHoursLabel,
+  type PricingConfig,
 } from "@/lib/pricing";
+import { getPricingSettings } from "@/lib/pricing-settings";
 
 /**
  * Тарифные поля проекта, влияющие на квоты. Кастомные лимиты (sessionsPerDay,
  * retentionHours) действуют только пока тариф оплачен (billingStatus = ACTIVE и
- * оплаченный период не истёк); иначе проект работает на бесплатном объёме.
+ * оплаченный период не истёк); иначе проект работает на бесплатном объёме,
+ * величина которого задаётся администратором (PricingConfig).
  */
 export type QuotaProject = {
   billingStatus: string;
@@ -32,31 +34,34 @@ function isPaidActive(
 /** Суточная квота на число новых пользовательских сессий с учётом оплаты тарифа. */
 export function dailySessionQuota(
   project: QuotaProject | null | undefined,
+  pricing: PricingConfig = DEFAULT_PRICING,
   now: Date = new Date(),
 ): number {
   if (isPaidActive(project, now)) {
-    return Math.max(FREE_SESSIONS_PER_DAY, project!.sessionsPerDay);
+    return Math.max(pricing.freeSessionsPerDay, project!.sessionsPerDay);
   }
-  return FREE_SESSIONS_PER_DAY;
+  return pricing.freeSessionsPerDay;
 }
 
 /** Срок хранения логов проекта в часах с учётом оплаты тарифа. */
 export function retentionHours(
   project: QuotaProject | null | undefined,
+  pricing: PricingConfig = DEFAULT_PRICING,
   now: Date = new Date(),
 ): number {
   if (isPaidActive(project, now)) {
-    return Math.max(FREE_RETENTION_HOURS, project!.retentionHours);
+    return Math.max(pricing.freeRetentionHours, project!.retentionHours);
   }
-  return FREE_RETENTION_HOURS;
+  return pricing.freeRetentionHours;
 }
 
 /** Человекочитаемый срок хранения логов проекта («12 часов» / «3 суток»). */
 export function retentionLabel(
   project: QuotaProject | null | undefined,
+  pricing: PricingConfig = DEFAULT_PRICING,
   now: Date = new Date(),
 ): string {
-  return retentionHoursLabel(retentionHours(project, now));
+  return retentionHoursLabel(retentionHours(project, pricing, now));
 }
 
 /** Максимальная длина текстовых полей события (стек/сообщение/тело запроса). */
@@ -163,7 +168,8 @@ export async function accountNewSession(
   now: Date = new Date(),
 ): Promise<{ overQuota: boolean; totalSessions: number }> {
   const day = startOfDayUtc(now);
-  const quota = dailySessionQuota(project, now);
+  const pricing = await getPricingSettings();
+  const quota = dailySessionQuota(project, pricing, now);
 
   // Квота уже превышена ранее — больше не инкрементим (иначе счётчик раздувается по
   // числу батчей отклонённых сессий). Отдаём текущее значение как есть.
@@ -220,7 +226,8 @@ export async function getSessionUsage(
     select: { sessions: true },
   });
   const counter = row?.sessions ?? 0;
-  const quota = dailySessionQuota(project, now);
+  const pricing = await getPricingSettings();
+  const quota = dailySessionQuota(project, pricing, now);
   const used = Math.min(counter, quota);
   return {
     used,
@@ -246,9 +253,10 @@ export async function purgeExpiredLogs(now: Date = new Date()): Promise<{ delete
       retentionHours: true,
     },
   });
+  const pricing = await getPricingSettings();
   const byHours = new Map<number, string[]>();
   for (const p of projects) {
-    const hours = retentionHours(p, now);
+    const hours = retentionHours(p, pricing, now);
     const list = byHours.get(hours) ?? [];
     list.push(p.id);
     byHours.set(hours, list);

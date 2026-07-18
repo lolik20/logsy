@@ -3,14 +3,10 @@
 import { useState } from "react";
 import {
   BILLING_PLANS,
-  FREE_SESSIONS_PER_DAY,
-  FREE_RETENTION_HOURS,
   MAX_SESSIONS_PER_DAY,
   MAX_RETENTION_HOURS,
   SESSIONS_STEP,
   RETENTION_STEP,
-  RUB_PER_SESSION_MONTH,
-  RUB_PER_RETENTION_HOUR_MONTH,
   clampSessions,
   clampRetention,
   monthlyCustomPriceRub,
@@ -20,22 +16,25 @@ import {
   retentionHoursLabel,
   type BillingPeriod,
   type CustomPlan,
+  type PricingConfig,
 } from "@/lib/pricing";
 
 export function ProjectBillingManager({
   projectId,
   currentSessions,
   currentRetention,
+  pricing,
 }: {
   projectId: string;
   currentSessions: number;
   currentRetention: number;
+  pricing: PricingConfig;
 }) {
   const [sessions, setSessions] = useState<number>(
-    clampSessions(currentSessions || FREE_SESSIONS_PER_DAY),
+    clampSessions(currentSessions || pricing.freeSessionsPerDay, pricing),
   );
   const [retention, setRetention] = useState<number>(
-    clampRetention(currentRetention || FREE_RETENTION_HOURS),
+    clampRetention(currentRetention || pricing.freeRetentionHours, pricing),
   );
   const [period, setPeriod] = useState<BillingPeriod>("1m");
   const [loading, setLoading] = useState(false);
@@ -43,14 +42,14 @@ export function ProjectBillingManager({
 
   const config: CustomPlan = { sessionsPerDay: sessions, retentionHours: retention };
   const plan = BILLING_PLANS.find((p) => p.id === period)!;
-  const monthly = monthlyCustomPriceRub(config);
-  const total = customPriceRub(config, plan);
-  const base = customBasePriceRub(config, plan);
+  const monthly = monthlyCustomPriceRub(config, pricing);
+  const total = customPriceRub(config, plan, pricing);
+  const base = customBasePriceRub(config, plan, pricing);
   const hasDiscount = plan.discountPercent > 0 && total < base;
-  const free = isFreeConfig(config) || monthly <= 0;
+  const free = isFreeConfig(config, pricing) || monthly <= 0;
 
-  const extraSessions = Math.max(0, sessions - FREE_SESSIONS_PER_DAY);
-  const extraHours = Math.max(0, retention - FREE_RETENTION_HOURS);
+  const extraSessions = Math.max(0, sessions - pricing.freeSessionsPerDay);
+  const extraHours = Math.max(0, retention - pricing.freeRetentionHours);
 
   async function pay() {
     setLoading(true);
@@ -83,25 +82,25 @@ export function ProjectBillingManager({
     <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
       <div className="mb-1 text-lg font-semibold">Настройте тариф под себя</div>
       <p className="mb-6 text-sm text-slate-500">
-        {FREE_SESSIONS_PER_DAY} сессий в сутки и хранение логов{" "}
-        {retentionHoursLabel(FREE_RETENTION_HOURS)} — бесплатно навсегда. Дальше:{" "}
-        {RUB_PER_SESSION_MONTH} ₽/мес за каждую суточную сессию и{" "}
-        {RUB_PER_RETENTION_HOUR_MONTH} ₽/мес за каждый час хранения.
+        {pricing.freeSessionsPerDay} сессий в сутки и хранение логов{" "}
+        {retentionHoursLabel(pricing.freeRetentionHours)} — бесплатно навсегда. Дальше:{" "}
+        {pricing.rubPerSessionMonth} ₽/мес за каждую суточную сессию и{" "}
+        {pricing.rubPerRetentionHourMonth} ₽/мес за каждый час хранения.
       </p>
 
       {/* Ползунок: суточные сессии */}
       <Slider
         label="Пользовательских сессий в сутки"
         value={sessions}
-        min={FREE_SESSIONS_PER_DAY}
+        min={pricing.freeSessionsPerDay}
         max={MAX_SESSIONS_PER_DAY}
         step={SESSIONS_STEP}
-        onChange={(v) => setSessions(clampSessions(v))}
+        onChange={(v) => setSessions(clampSessions(v, pricing))}
         format={(v) => v.toLocaleString("ru-RU")}
         hint={
           extraSessions > 0
             ? `+${extraSessions.toLocaleString("ru-RU")} сверх бесплатных → ${(
-                extraSessions * RUB_PER_SESSION_MONTH
+                extraSessions * pricing.rubPerSessionMonth
               ).toLocaleString("ru-RU")} ₽/мес`
             : "в пределах бесплатного объёма"
         }
@@ -111,15 +110,15 @@ export function ProjectBillingManager({
       <Slider
         label="Хранение логов"
         value={retention}
-        min={FREE_RETENTION_HOURS}
+        min={pricing.freeRetentionHours}
         max={MAX_RETENTION_HOURS}
         step={RETENTION_STEP}
-        onChange={(v) => setRetention(clampRetention(v))}
+        onChange={(v) => setRetention(clampRetention(v, pricing))}
         format={(v) => retentionHoursLabel(v)}
         hint={
           extraHours > 0
             ? `+${extraHours} ч сверх бесплатных → ${(
-                extraHours * RUB_PER_RETENTION_HOUR_MONTH
+                extraHours * pricing.rubPerRetentionHourMonth
               ).toLocaleString("ru-RU")} ₽/мес`
             : "в пределах бесплатного объёма"
         }
@@ -149,7 +148,7 @@ export function ProjectBillingManager({
                 )}
                 <div className="text-sm font-semibold">{p.label}</div>
                 <div className="mt-1 text-xs text-slate-500">
-                  {customPriceRub(config, p).toLocaleString("ru-RU")} ₽
+                  {customPriceRub(config, p, pricing).toLocaleString("ru-RU")} ₽
                 </div>
               </button>
             );

@@ -1,13 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import {
-  FREE_TIER,
-  FREE_SESSIONS_PER_DAY,
-  FREE_RETENTION_HOURS,
-  RUB_PER_SESSION_MONTH,
-  RUB_PER_RETENTION_HOUR_MONTH,
-  retentionHoursLabel,
-} from "@/lib/pricing";
+import { FREE_TIER, retentionHoursLabel } from "@/lib/pricing";
+import { getPricingSettings } from "@/lib/pricing-settings";
 import { LandingNav } from "@/components/LandingNav";
 
 const features = [
@@ -63,6 +57,7 @@ const problems = [
 
 export default async function LandingPage() {
   const session = await auth();
+  const pricing = await getPricingSettings();
 
   return (
     <main className="relative min-h-screen overflow-hidden">
@@ -669,8 +664,8 @@ export default async function LandingPage() {
                 <span className="text-slate-500">/ проект в месяц</span>
               </div>
               <div className="mt-2 text-sm font-medium text-slate-500">
-                {FREE_SESSIONS_PER_DAY} сессий в сутки · хранение{" "}
-                {retentionHoursLabel(FREE_RETENTION_HOURS)}
+                {pricing.freeSessionsPerDay} сессий в сутки · хранение{" "}
+                {retentionHoursLabel(pricing.freeRetentionHours)}
               </div>
 
               <ul className="mt-5 flex-1 space-y-2.5 text-sm">
@@ -714,22 +709,22 @@ export default async function LandingPage() {
                 <li className="flex items-start gap-2">
                   <span className="text-brand">✓</span>
                   <span>
-                    Первые {FREE_SESSIONS_PER_DAY} сессий в сутки и{" "}
-                    {retentionHoursLabel(FREE_RETENTION_HOURS)} хранения — бесплатно
+                    Первые {pricing.freeSessionsPerDay} сессий в сутки и{" "}
+                    {retentionHoursLabel(pricing.freeRetentionHours)} хранения — бесплатно
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-brand">✓</span>
                   <span>
-                    {RUB_PER_SESSION_MONTH} ₽/мес за каждую суточную сессию сверх{" "}
-                    {FREE_SESSIONS_PER_DAY}
+                    {pricing.rubPerSessionMonth} ₽/мес за каждую суточную сессию сверх{" "}
+                    {pricing.freeSessionsPerDay}
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-brand">✓</span>
                   <span>
-                    {RUB_PER_RETENTION_HOUR_MONTH} ₽/мес за каждый час хранения сверх{" "}
-                    {FREE_RETENTION_HOURS}
+                    {pricing.rubPerRetentionHourMonth} ₽/мес за каждый час хранения сверх{" "}
+                    {pricing.freeRetentionHours}
                   </span>
                 </li>
                 <li className="flex items-start gap-2">

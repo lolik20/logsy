@@ -5,6 +5,7 @@ import { ProjectHeader } from "@/components/ProjectHeader";
 import { CrawlButton } from "@/components/CrawlButton";
 import { PagesMap } from "@/components/PagesMap";
 import { retentionHours } from "@/lib/logging";
+import { getPricingSettings } from "@/lib/pricing-settings";
 import {
   aggregatePageLoads,
   aggregateCriticalRequests,
@@ -43,7 +44,8 @@ export default async function PagesPage({
   });
 
   // Метрики берём из событий сессий за срок хранения тарифа.
-  const since = new Date(Date.now() - retentionHours(project) * 60 * 60 * 1000);
+  const pricing = await getPricingSettings();
+  const since = new Date(Date.now() - retentionHours(project, pricing) * 60 * 60 * 1000);
   const metricEvents = await prisma.logEvent.findMany({
     where: {
       projectId: project.id,
