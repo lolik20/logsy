@@ -114,9 +114,9 @@ export default async function LandingPage() {
       </section>
 
       {/* Логирование фронтенда — новое направление */}
-      <section id="logging" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
+      <section id="logging" className="relative z-10 mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="overflow-hidden rounded-3xl shadow-card">
-          <div className="rounded-3xl bg-white/80 p-8 backdrop-blur-xl sm:p-12 dark:bg-slate-900/80">
+          <div className="rounded-3xl bg-white/80 p-5 backdrop-blur-xl sm:p-8 md:p-12 dark:bg-slate-900/80">
             <div className="text-center">
               <h2 className="mx-auto max-w-3xl text-3xl font-bold sm:text-4xl">
                 Следите за ошибками прода{" "}
@@ -363,7 +363,7 @@ export default async function LandingPage() {
                     </div>
 
                     {/* Форма обратной связи (виджет всегда светлый — как в реальном SDK) */}
-                    <div className="absolute bottom-16 right-3 w-60 rounded-xl bg-white p-3 text-left shadow-2xl ring-1 ring-black/5">
+                    <div className="absolute bottom-16 right-3 w-52 rounded-xl bg-white p-3 text-left shadow-2xl ring-1 ring-black/5 sm:w-60">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-[13px] font-bold text-slate-900">Сообщить об ошибке</p>
                         <svg
@@ -685,7 +685,7 @@ export default async function LandingPage() {
       {/* Решение как сервис */}
       <section className="relative z-10 mx-auto max-w-6xl px-6 py-8">
         <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-sky-500 p-[1.5px] shadow-card">
-          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl sm:p-12 dark:bg-slate-900/80">
+          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-5 backdrop-blur-xl sm:p-8 md:p-12 dark:bg-slate-900/80">
             <div className="grid items-center gap-8 md:grid-cols-2">
               <div>
                 <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand dark:bg-brand/10">
@@ -754,7 +754,7 @@ export default async function LandingPage() {
       {/* Безопасность и соответствие 152-ФЗ */}
       <section id="security" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
         <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-brand p-[1.5px] shadow-card">
-          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl sm:p-12 dark:bg-slate-900/80">
+          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-5 backdrop-blur-xl sm:p-8 md:p-12 dark:bg-slate-900/80">
             <div className="grid items-center gap-8 md:grid-cols-2">
               <div>
                 <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
