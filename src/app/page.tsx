@@ -9,6 +9,7 @@ import {
   retentionHoursLabel,
 } from "@/lib/pricing";
 import { LandingNav } from "@/components/LandingNav";
+import { LandingFooter } from "@/components/LandingFooter";
 
 const features = [
   {
@@ -922,19 +923,64 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-slate-200 py-8 text-center text-sm text-slate-500 dark:border-slate-800">
-        <p>© {new Date().getFullYear()} Logsy — мониторинг доступности сайтов.</p>
-        <p className="mt-2">ИП Федоткин Максим Сергеевич, ИНН 920358422008</p>
-        <p className="mt-2">
-          Поддержка:{" "}
-          <a
-            href="mailto:support@logsy.ru"
-            className="text-brand hover:underline"
-          >
-            support@logsy.ru
-          </a>
-        </p>
-      </footer>
+      {/* Страницы под роль — офферы для конкретной аудитории */}
+      <section className="relative z-10 mx-auto max-w-6xl px-6 py-16">
+        <div className="text-center">
+          <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand dark:bg-brand/10">
+            Кому подходит Logsy
+          </span>
+          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
+            Выберите оффер под свою задачу
+          </h2>
+        </div>
+        <div className="mt-10 grid gap-6 sm:grid-cols-3">
+          {[
+            {
+              href: "/for-owners",
+              icon: "🛍️",
+              title: "Владельцам сайтов",
+              text: "Не теряйте заказы из-за сбоя оплаты. Узнавайте о падении за 60 секунд.",
+              cta: "Смотреть оффер",
+            },
+            {
+              href: "/for-marketers",
+              icon: "📈",
+              title: "Маркетологам",
+              text: "Не сливайте бюджет на ошибки. Смотрите, где лид тонет в воронке.",
+              cta: "Смотреть оффер",
+            },
+            {
+              href: "/for-developers",
+              icon: "👩‍💻",
+              title: "Программистам",
+              text: "Стектрейсы, 4xx/5xx с payload и запись сессии. Одна строка в <head>.",
+              cta: "Смотреть оффер",
+            },
+          ].map((r) => (
+            <Link
+              key={r.href}
+              href={r.href}
+              className="group flex flex-col rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl transition-transform hover:-translate-y-1.5 dark:border-white/10 dark:bg-slate-900/50"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 text-2xl dark:from-brand/20 dark:to-brand/10">
+                {r.icon}
+              </div>
+              <h3 className="mt-4 text-lg font-semibold">{r.title}</h3>
+              <p className="mt-2 flex-1 text-sm text-slate-600 dark:text-slate-400">
+                {r.text}
+              </p>
+              <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand">
+                {r.cta}
+                <span className="transition-transform group-hover:translate-x-0.5">
+                  →
+                </span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <LandingFooter />
     </main>
   );
 }
