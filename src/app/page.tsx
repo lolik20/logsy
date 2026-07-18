@@ -106,103 +106,6 @@ export default async function LandingPage() {
 
       </section>
 
-      {/* Проблемы */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 py-16">
-        <div className="text-center">
-          <span className="inline-block rounded-full bg-red-50 px-4 py-1.5 text-sm font-medium text-red-600 dark:bg-red-950/40 dark:text-red-400">
-            Знакомо?
-          </span>
-          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
-            Сайт «лежит», а вы узнаёте последними
-          </h2>
-        </div>
-        <div className="mt-10 grid gap-6 sm:grid-cols-3">
-          {problems.map((p) => (
-            <div
-              key={p.title}
-              className="rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-2xl dark:bg-red-950/40">
-                {p.icon}
-              </div>
-              <h3 className="mt-4 text-lg font-semibold">{p.title}</h3>
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                {p.text}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Решение как сервис */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 py-8">
-        <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-sky-500 p-[1.5px] shadow-card">
-          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl sm:p-12 dark:bg-slate-900/80">
-            <div className="grid items-center gap-8 md:grid-cols-2">
-              <div>
-                <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand dark:bg-brand/10">
-                  Решение — Logsy как сервис
-                </span>
-                <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
-                  Мы следим за вашим бизнесом 24/7
-                </h2>
-                <p className="mt-4 text-slate-600 dark:text-slate-300">
-                  Круглосуточно проверяем оплату, авторизацию и ключевые API из
-                  РФ и шлём уведомление при сбое на почту и в Telegram — вы
-                  чините раньше, чем заметят клиенты.
-                </p>
-                <Link
-                  href="/register"
-                  className="mt-6 inline-block rounded-xl bg-gradient-to-r from-brand to-brand-light px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
-                >
-                  Подключить мониторинг
-                </Link>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { t: "Оплата на сайте", s: "проверяем каждую минуту" },
-                  { t: "Вход и авторизация", s: "API входа под контролем" },
-                  { t: "Почта и Telegram", s: "уведомление мгновенно при сбое" },
-                ].map((row) => (
-                  <div
-                    key={row.t}
-                    className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/70 p-4 backdrop-blur-md dark:border-white/10 dark:bg-white/5"
-                  >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-950/50">
-                      ✓
-                    </span>
-                    <div>
-                      <div className="text-sm font-semibold">{row.t}</div>
-                      <div className="text-xs text-slate-500">{row.s}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Фичи */}
-      <section id="features" className="relative z-10 mx-auto max-w-6xl px-6 py-12">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((f) => (
-            <div
-              key={f.title}
-              className="rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl transition-transform duration-200 hover:-translate-y-1.5 dark:border-white/10 dark:bg-slate-900/50"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 text-2xl dark:from-brand/20 dark:to-brand/10">
-                {f.icon}
-              </div>
-              <h3 className="mt-4 text-lg font-semibold">{f.title}</h3>
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                {f.text}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* Логирование фронтенда — новое направление */}
       <section id="logging" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
         <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-500 to-brand p-[1.5px] shadow-card">
@@ -214,6 +117,112 @@ export default async function LandingPage() {
                   глазами пользователя
                 </span>
               </h2>
+            </div>
+
+            {/* Запись экрана сессий — блок со «скриншотом» плеера воспроизведения */}
+            <div className="mt-12 grid items-center gap-8 md:grid-cols-2">
+              {/* Текст (на десктопе — слева) */}
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand dark:bg-brand/10">
+                  🎬 Запись сессий
+                </span>
+                <h3 className="mt-3 text-2xl font-bold sm:text-3xl">
+                  Смотрите сессию как видео
+                </h3>
+                <p className="mt-3 text-slate-600 dark:text-slate-400">
+                  Включите запись экрана — и каждая сессия воспроизводится как
+                  видео: видно, что пользователь видел и куда нажимал перед сбоем.
+                  На дорожке отмечены ошибки и медленные запросы — перематывайте
+                  прямо к нужному моменту.
+                </p>
+                <ul className="mt-5 space-y-2.5 text-sm">
+                  {[
+                    "Точное воспроизведение экрана сессии без нагрузки на сайт",
+                    "Метки ошибок и тормозов прямо на таймлайне — клик, и вы на месте сбоя",
+                    "Поля ввода и пароли маскируются на клиенте — приватность сохранена",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <span className="mt-0.5 text-brand">✓</span>
+                      <span className="text-slate-600 dark:text-slate-300">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* «Скриншот»: окно плеера воспроизведения сессии */}
+              <div className="mx-auto w-full max-w-md">
+                <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card dark:border-slate-700/70 dark:bg-slate-900">
+                  {/* Верхняя панель браузера */}
+                  <div className="flex items-center gap-1.5 border-b border-slate-200/80 bg-slate-50 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-800/60">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-green-400" />
+                    <span className="ml-2 flex-1 truncate rounded-md bg-white px-2 py-0.5 text-[10px] text-slate-400 dark:bg-slate-900">
+                      example.ru/checkout
+                    </span>
+                    <span className="flex items-center gap-1 rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+                      REC
+                    </span>
+                  </div>
+                  {/* Воспроизводимая страница с кнопкой play */}
+                  <div className="relative h-56 bg-white dark:bg-slate-900">
+                    <div className="space-y-2.5 p-4">
+                      <div className="h-3.5 w-1/3 rounded bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-2.5 w-3/4 rounded bg-slate-100 dark:bg-slate-800" />
+                      <div className="h-20 w-full rounded-lg bg-slate-100 dark:bg-slate-800" />
+                      <div className="flex gap-2">
+                        <div className="h-8 w-24 rounded-lg bg-brand/20" />
+                        <div className="h-8 w-16 rounded-lg bg-slate-100 dark:bg-slate-800" />
+                      </div>
+                    </div>
+                    {/* Курсор пользователя */}
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="absolute left-[38%] top-[58%] h-5 w-5 -rotate-12 fill-slate-900 drop-shadow dark:fill-white"
+                    >
+                      <path d="M5 3l14 8-6 1.5L9 20 5 3z" />
+                    </svg>
+                    {/* Кнопка воспроизведения по центру */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand/90 text-white shadow-lg backdrop-blur">
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 h-5 w-5">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </span>
+                    </div>
+                  </div>
+                  {/* Панель управления плеером с таймлайном */}
+                  <div className="border-t border-slate-200/80 px-4 py-3 dark:border-slate-700/70">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 h-3 w-3">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </span>
+                      {/* Дорожка воспроизведения с метками событий */}
+                      <div className="relative h-1.5 flex-1 rounded-full bg-slate-200 dark:bg-slate-700">
+                        <span className="absolute inset-y-0 left-0 rounded-full bg-brand" style={{ width: "40%" }} />
+                        <span
+                          className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-brand shadow"
+                          style={{ left: "40%" }}
+                        />
+                        <span
+                          className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-amber-500"
+                          style={{ left: "55%" }}
+                          title="Медленный запрос"
+                        />
+                        <span
+                          className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-red-500"
+                          style={{ left: "72%" }}
+                          title="Ошибка"
+                        />
+                      </div>
+                      <span className="shrink-0 font-mono text-[10px] text-slate-400">1:24 / 3:47</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Подробный мониторинг сессий — блок со «скриншотом» ленты событий */}
@@ -604,6 +613,7 @@ export default async function LandingPage() {
 
             <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {[
+                { t: "Запись сессий", s: "Записываем экран сессии и воспроизводим как видео — с метками ошибок и медленных запросов на таймлайне. Поля ввода маскируются.", icon: "🎬" },
                 { t: "Фронт-ошибки", s: "Ловим необработанные исключения и отклонённые промисы со стеком.", icon: "🐞" },
                 { t: "Ошибки бэкенда на фронте", s: "Видим упавшие 4xx/5xx запросы: маршрут, метод, payload, код ответа.", icon: "🔌" },
                 { t: "Медленные запросы", s: "Отмечаем всё, что грузится дольше заданного порога — узкие места видны сразу.", icon: "🐢" },
@@ -634,6 +644,103 @@ export default async function LandingPage() {
               </Link>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Проблемы */}
+      <section className="relative z-10 mx-auto max-w-6xl px-6 py-16">
+        <div className="text-center">
+          <span className="inline-block rounded-full bg-red-50 px-4 py-1.5 text-sm font-medium text-red-600 dark:bg-red-950/40 dark:text-red-400">
+            Знакомо?
+          </span>
+          <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
+            Сайт «лежит», а вы узнаёте последними
+          </h2>
+        </div>
+        <div className="mt-10 grid gap-6 sm:grid-cols-3">
+          {problems.map((p) => (
+            <div
+              key={p.title}
+              className="rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-2xl dark:bg-red-950/40">
+                {p.icon}
+              </div>
+              <h3 className="mt-4 text-lg font-semibold">{p.title}</h3>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                {p.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Решение как сервис */}
+      <section className="relative z-10 mx-auto max-w-6xl px-6 py-8">
+        <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-sky-500 p-[1.5px] shadow-card">
+          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-8 backdrop-blur-xl sm:p-12 dark:bg-slate-900/80">
+            <div className="grid items-center gap-8 md:grid-cols-2">
+              <div>
+                <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand dark:bg-brand/10">
+                  Решение — Logsy как сервис
+                </span>
+                <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
+                  Мы следим за вашим бизнесом 24/7
+                </h2>
+                <p className="mt-4 text-slate-600 dark:text-slate-300">
+                  Круглосуточно проверяем оплату, авторизацию и ключевые API из
+                  РФ и шлём уведомление при сбое на почту и в Telegram — вы
+                  чините раньше, чем заметят клиенты.
+                </p>
+                <Link
+                  href="/register"
+                  className="mt-6 inline-block rounded-xl bg-gradient-to-r from-brand to-brand-light px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
+                >
+                  Подключить мониторинг
+                </Link>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { t: "Оплата на сайте", s: "проверяем каждую минуту" },
+                  { t: "Вход и авторизация", s: "API входа под контролем" },
+                  { t: "Почта и Telegram", s: "уведомление мгновенно при сбое" },
+                ].map((row) => (
+                  <div
+                    key={row.t}
+                    className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/70 p-4 backdrop-blur-md dark:border-white/10 dark:bg-white/5"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-950/50">
+                      ✓
+                    </span>
+                    <div>
+                      <div className="text-sm font-semibold">{row.t}</div>
+                      <div className="text-xs text-slate-500">{row.s}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Фичи */}
+      <section id="features" className="relative z-10 mx-auto max-w-6xl px-6 py-12">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {features.map((f) => (
+            <div
+              key={f.title}
+              className="rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl transition-transform duration-200 hover:-translate-y-1.5 dark:border-white/10 dark:bg-slate-900/50"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 text-2xl dark:from-brand/20 dark:to-brand/10">
+                {f.icon}
+              </div>
+              <h3 className="mt-4 text-lg font-semibold">{f.title}</h3>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                {f.text}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 
