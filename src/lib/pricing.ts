@@ -61,7 +61,7 @@ export const FREE_SESSIONS_PER_DAY = 300;
 export const FREE_RETENTION_HOURS = 12;
 
 /** Доплата в месяц за каждую суточную сессию сверх бесплатных 300, ₽. */
-export const RUB_PER_SESSION_MONTH = 1;
+export const RUB_PER_SESSION_MONTH = 2;
 /** Доплата в месяц за каждый час хранения логов сверх бесплатных 12, ₽. */
 export const RUB_PER_RETENTION_HOUR_MONTH = 10;
 
