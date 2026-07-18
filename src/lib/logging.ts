@@ -2,36 +2,61 @@
 // Хранение — в основной PostgreSQL (модели LogSession/LogEvent/LogUsage).
 
 import { prisma } from "@/lib/prisma";
+import {
+  FREE_SESSIONS_PER_DAY,
+  FREE_RETENTION_HOURS,
+  retentionHoursLabel,
+} from "@/lib/pricing";
 
-/** Уровни платного тарифа проекта. */
-export type Tier = "T1000" | "T3000";
+/**
+ * Тарифные поля проекта, влияющие на квоты. Кастомные лимиты (sessionsPerDay,
+ * retentionHours) действуют только пока тариф оплачен (billingStatus = ACTIVE и
+ * оплаченный период не истёк); иначе проект работает на бесплатном объёме.
+ */
+export type QuotaProject = {
+  billingStatus: string;
+  currentPeriodEnd: Date | null;
+  sessionsPerDay: number;
+  retentionHours: number;
+};
 
-/** Суточная квота на число новых пользовательских сессий по тарифу. */
-export function dailySessionQuota(tier: string | null | undefined): number {
-  switch (tier) {
-    case "T3000":
-      return 10000;
-    case "T1000":
-      return 5000;
-    default:
-      return 300; // бесплатный тариф (tier не выбран)
-  }
+/** Оплачен ли кастомный тариф проекта прямо сейчас. */
+function isPaidActive(
+  project: QuotaProject | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!project || project.billingStatus !== "ACTIVE") return false;
+  return !project.currentPeriodEnd || project.currentPeriodEnd.getTime() > now.getTime();
 }
 
-/** Срок хранения логов по тарифу, в часах. */
-export function retentionHours(tier: string | null | undefined): number {
-  // Бесплатный тариф — 12 часов; T1000/T3000 — 3 суток (72 часа).
-  return tier === "T1000" || tier === "T3000" ? 72 : 12;
+/** Суточная квота на число новых пользовательских сессий с учётом оплаты тарифа. */
+export function dailySessionQuota(
+  project: QuotaProject | null | undefined,
+  now: Date = new Date(),
+): number {
+  if (isPaidActive(project, now)) {
+    return Math.max(FREE_SESSIONS_PER_DAY, project!.sessionsPerDay);
+  }
+  return FREE_SESSIONS_PER_DAY;
 }
 
-/** Человекочитаемый срок хранения логов по тарифу («12 часов» / «3 суток»). */
-export function retentionLabel(tier: string | null | undefined): string {
-  const hours = retentionHours(tier);
-  if (hours % 24 === 0) {
-    const days = hours / 24;
-    return `${days} ${days === 1 ? "сутки" : "суток"}`;
+/** Срок хранения логов проекта в часах с учётом оплаты тарифа. */
+export function retentionHours(
+  project: QuotaProject | null | undefined,
+  now: Date = new Date(),
+): number {
+  if (isPaidActive(project, now)) {
+    return Math.max(FREE_RETENTION_HOURS, project!.retentionHours);
   }
-  return `${hours} ${hours === 1 ? "час" : "часов"}`;
+  return FREE_RETENTION_HOURS;
+}
+
+/** Человекочитаемый срок хранения логов проекта («12 часов» / «3 суток»). */
+export function retentionLabel(
+  project: QuotaProject | null | undefined,
+  now: Date = new Date(),
+): string {
+  return retentionHoursLabel(retentionHours(project, now));
 }
 
 /** Максимальная длина текстовых полей события (стек/сообщение/тело запроса). */
@@ -134,11 +159,11 @@ export function startOfDayUtc(now: Date = new Date()): Date {
  */
 export async function accountNewSession(
   projectId: string,
-  tier: string | null | undefined,
+  project: QuotaProject | null | undefined,
   now: Date = new Date(),
 ): Promise<{ overQuota: boolean; totalSessions: number }> {
   const day = startOfDayUtc(now);
-  const quota = dailySessionQuota(tier);
+  const quota = dailySessionQuota(project, now);
 
   // Квота уже превышена ранее — больше не инкрементим (иначе счётчик раздувается по
   // числу батчей отклонённых сессий). Отдаём текущее значение как есть.
@@ -186,7 +211,7 @@ export type SessionUsage = {
  */
 export async function getSessionUsage(
   projectId: string,
-  tier: string | null | undefined,
+  project: QuotaProject | null | undefined,
   now: Date = new Date(),
 ): Promise<SessionUsage> {
   const day = startOfDayUtc(now);
@@ -195,7 +220,7 @@ export async function getSessionUsage(
     select: { sessions: true },
   });
   const counter = row?.sessions ?? 0;
-  const quota = dailySessionQuota(tier);
+  const quota = dailySessionQuota(project, now);
   const used = Math.min(counter, quota);
   return {
     used,
@@ -211,11 +236,19 @@ export async function getSessionUsage(
  * Запускается по расписанию из планировщика (см. src/lib/scheduler.ts).
  */
 export async function purgeExpiredLogs(now: Date = new Date()): Promise<{ deletedEvents: number }> {
-  // Группируем проекты по сроку хранения в часах: 12 (бесплатный) и 72 (T1000/T3000).
-  const projects = await prisma.project.findMany({ select: { id: true, tier: true } });
+  // Группируем проекты по эффективному сроку хранения в часах (с учётом оплаты).
+  const projects = await prisma.project.findMany({
+    select: {
+      id: true,
+      billingStatus: true,
+      currentPeriodEnd: true,
+      sessionsPerDay: true,
+      retentionHours: true,
+    },
+  });
   const byHours = new Map<number, string[]>();
   for (const p of projects) {
-    const hours = retentionHours(p.tier);
+    const hours = retentionHours(p, now);
     const list = byHours.get(hours) ?? [];
     list.push(p.id);
     byHours.set(hours, list);

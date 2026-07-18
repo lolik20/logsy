@@ -44,7 +44,7 @@ export default async function LoggingPage({
   const active = isProjectServiceActive(project, admin);
 
   // Использование суточной квоты сессий — для красной плашки при превышении лимита.
-  const usage = await getSessionUsage(project.id, project.tier);
+  const usage = await getSessionUsage(project.id, project);
 
   // День для фильтра: из query или сегодня.
   const dateStr =

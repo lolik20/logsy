@@ -3,33 +3,54 @@
 import { useState } from "react";
 import {
   BILLING_PLANS,
-  TIERS,
-  tierPriceRub,
-  tierBasePriceRub,
-  getTier,
+  FREE_SESSIONS_PER_DAY,
+  FREE_RETENTION_HOURS,
+  MAX_SESSIONS_PER_DAY,
+  MAX_RETENTION_HOURS,
+  SESSIONS_STEP,
+  RETENTION_STEP,
+  RUB_PER_SESSION_MONTH,
+  RUB_PER_RETENTION_HOUR_MONTH,
+  clampSessions,
+  clampRetention,
+  monthlyCustomPriceRub,
+  customPriceRub,
+  customBasePriceRub,
+  isFreeConfig,
+  retentionHoursLabel,
   type BillingPeriod,
-  type TierId,
+  type CustomPlan,
 } from "@/lib/pricing";
 
 export function ProjectBillingManager({
   projectId,
-  currentTier,
+  currentSessions,
+  currentRetention,
 }: {
   projectId: string;
-  currentTier: string | null;
+  currentSessions: number;
+  currentRetention: number;
 }) {
-  const [tierId, setTierId] = useState<TierId>(
-    (currentTier as TierId) || "T1000",
+  const [sessions, setSessions] = useState<number>(
+    clampSessions(currentSessions || FREE_SESSIONS_PER_DAY),
+  );
+  const [retention, setRetention] = useState<number>(
+    clampRetention(currentRetention || FREE_RETENTION_HOURS),
   );
   const [period, setPeriod] = useState<BillingPeriod>("1m");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const tier = getTier(tierId)!;
+  const config: CustomPlan = { sessionsPerDay: sessions, retentionHours: retention };
   const plan = BILLING_PLANS.find((p) => p.id === period)!;
-  const total = tierPriceRub(tier, plan);
-  const base = tierBasePriceRub(tier, plan);
-  const hasDiscount = plan.discountPercent > 0;
+  const monthly = monthlyCustomPriceRub(config);
+  const total = customPriceRub(config, plan);
+  const base = customBasePriceRub(config, plan);
+  const hasDiscount = plan.discountPercent > 0 && total < base;
+  const free = isFreeConfig(config) || monthly <= 0;
+
+  const extraSessions = Math.max(0, sessions - FREE_SESSIONS_PER_DAY);
+  const extraHours = Math.max(0, retention - FREE_RETENTION_HOURS);
 
   async function pay() {
     setLoading(true);
@@ -38,7 +59,12 @@ export function ProjectBillingManager({
       const res = await fetch("/api/billing/pay", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ projectId, tier: tierId, period }),
+        body: JSON.stringify({
+          projectId,
+          sessionsPerDay: sessions,
+          retentionHours: retention,
+          period,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.url) {
@@ -54,53 +80,55 @@ export function ProjectBillingManager({
   }
 
   return (
-    <div>
-      {/* Выбор тарифа */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {TIERS.map((t) => {
-          const selected = t.id === tierId;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTierId(t.id)}
-              className={`rounded-2xl border-2 p-5 text-left transition ${
-                selected
-                  ? "border-brand bg-brand/5"
-                  : "border-slate-200 hover:border-brand/50 dark:border-slate-700"
-              }`}
-            >
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm font-semibold uppercase tracking-wide text-brand">
-                  {t.name}
-                </span>
-                {currentTier === t.id && (
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-800">
-                    текущий
-                  </span>
-                )}
-              </div>
-              <div className="mt-2 text-2xl font-extrabold">
-                {t.monthlyRub} ₽
-                <span className="text-sm font-normal text-slate-500">/мес</span>
-              </div>
-              <ul className="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
-                {t.features.map((f) => (
-                  <li key={f} className="flex gap-2">
-                    <span className="text-brand">✓</span>
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-            </button>
-          );
-        })}
-      </div>
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-1 text-lg font-semibold">Настройте тариф под себя</div>
+      <p className="mb-6 text-sm text-slate-500">
+        {FREE_SESSIONS_PER_DAY} сессий в сутки и хранение логов{" "}
+        {retentionHoursLabel(FREE_RETENTION_HOURS)} — бесплатно навсегда. Дальше:{" "}
+        {RUB_PER_SESSION_MONTH} ₽/мес за каждую суточную сессию и{" "}
+        {RUB_PER_RETENTION_HOUR_MONTH} ₽/мес за каждый час хранения.
+      </p>
+
+      {/* Ползунок: суточные сессии */}
+      <Slider
+        label="Пользовательских сессий в сутки"
+        value={sessions}
+        min={FREE_SESSIONS_PER_DAY}
+        max={MAX_SESSIONS_PER_DAY}
+        step={SESSIONS_STEP}
+        onChange={(v) => setSessions(clampSessions(v))}
+        format={(v) => v.toLocaleString("ru-RU")}
+        hint={
+          extraSessions > 0
+            ? `+${extraSessions.toLocaleString("ru-RU")} сверх бесплатных → ${(
+                extraSessions * RUB_PER_SESSION_MONTH
+              ).toLocaleString("ru-RU")} ₽/мес`
+            : "в пределах бесплатного объёма"
+        }
+      />
+
+      {/* Ползунок: срок хранения */}
+      <Slider
+        label="Хранение логов"
+        value={retention}
+        min={FREE_RETENTION_HOURS}
+        max={MAX_RETENTION_HOURS}
+        step={RETENTION_STEP}
+        onChange={(v) => setRetention(clampRetention(v))}
+        format={(v) => retentionHoursLabel(v)}
+        hint={
+          extraHours > 0
+            ? `+${extraHours} ч сверх бесплатных → ${(
+                extraHours * RUB_PER_RETENTION_HOUR_MONTH
+              ).toLocaleString("ru-RU")} ₽/мес`
+            : "в пределах бесплатного объёма"
+        }
+      />
 
       {/* Период оплаты */}
-      <div className="mt-6 max-w-md">
+      <div className="mt-6">
         <div className="text-sm text-slate-500">Период оплаты</div>
-        <div className="mt-2 grid grid-cols-3 gap-2">
+        <div className="mt-2 grid max-w-md grid-cols-3 gap-2">
           {BILLING_PLANS.map((p) => {
             const selected = p.id === period;
             return (
@@ -121,40 +149,106 @@ export function ProjectBillingManager({
                 )}
                 <div className="text-sm font-semibold">{p.label}</div>
                 <div className="mt-1 text-xs text-slate-500">
-                  {tierPriceRub(tier, p)} ₽
+                  {customPriceRub(config, p).toLocaleString("ru-RU")} ₽
                 </div>
               </button>
             );
           })}
         </div>
+      </div>
 
-        <div className="mt-5 flex items-baseline gap-2">
-          <span className="text-3xl font-extrabold">{total} ₽</span>
+      {/* Итог */}
+      <div className="mt-6 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
+        <div className="flex items-center justify-between text-sm text-slate-500">
+          <span>Стоимость в месяц</span>
+          <span className="font-semibold text-slate-700 dark:text-slate-200">
+            {monthly.toLocaleString("ru-RU")} ₽
+          </span>
+        </div>
+        <div className="mt-3 flex items-baseline gap-2">
+          <span className="text-3xl font-extrabold">{total.toLocaleString("ru-RU")} ₽</span>
           {hasDiscount && (
-            <span className="text-slate-400 line-through">{base} ₽</span>
+            <span className="text-slate-400 line-through">
+              {base.toLocaleString("ru-RU")} ₽
+            </span>
           )}
           <span className="text-slate-500">за {plan.label.toLowerCase()}</span>
         </div>
         {hasDiscount && (
           <div className="mt-1 text-sm text-green-600">
-            Выгода {base - total} ₽ ({plan.discountPercent}%)
+            Выгода {(base - total).toLocaleString("ru-RU")} ₽ ({plan.discountPercent}%)
           </div>
         )}
+      </div>
 
+      {free ? (
+        <div className="mt-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
+          🎁 Текущая конфигурация в пределах бесплатного объёма — оплата не нужна.
+          Подвиньте ползунки, чтобы поднять лимиты.
+        </div>
+      ) : (
         <button
           onClick={pay}
           disabled={loading}
           className="mt-5 w-full rounded-lg bg-brand px-4 py-2.5 font-medium text-white hover:bg-brand-dark disabled:opacity-60"
         >
-          {loading ? "Переходим к оплате…" : "Перейти к оплате"}
+          {loading
+            ? "Переходим к оплате…"
+            : `Оплатить ${total.toLocaleString("ru-RU")} ₽ за ${plan.label.toLowerCase()}`}
         </button>
+      )}
 
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
-        <p className="mt-3 text-xs text-slate-400">
-          Оплата картой через Т-Кассу. Чек по 54-ФЗ придёт на вашу почту.
-          Оплаченный период добавляется к текущему сроку тарифа проекта.
-        </p>
+      <p className="mt-3 text-xs text-slate-400">
+        Оплата картой через Т-Кассу. Чек по 54-ФЗ придёт на вашу почту.
+        Оплаченный период добавляется к текущему сроку тарифа проекта.
+      </p>
+    </div>
+  );
+}
+
+/** Ползунок с подписью значения и денежной подсказкой. */
+function Slider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  format,
+  hint,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+  format: (v: number) => string;
+  hint: string;
+}) {
+  return (
+    <div className="mt-5">
+      <div className="flex items-baseline justify-between">
+        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          {label}
+        </label>
+        <span className="text-lg font-bold text-brand">{format(value)}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="mt-2 w-full accent-brand"
+      />
+      <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
+        <span>{format(min)}</span>
+        <span className="text-slate-500">{hint}</span>
+        <span>{format(max)}</span>
       </div>
     </div>
   );

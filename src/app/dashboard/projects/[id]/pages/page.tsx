@@ -43,7 +43,7 @@ export default async function PagesPage({
   });
 
   // Метрики берём из событий сессий за срок хранения тарифа.
-  const since = new Date(Date.now() - retentionHours(project.tier) * 60 * 60 * 1000);
+  const since = new Date(Date.now() - retentionHours(project) * 60 * 60 * 1000);
   const metricEvents = await prisma.logEvent.findMany({
     where: {
       projectId: project.id,
