@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/session";
-import { describeSubscription, isFreePlan } from "@/lib/subscription";
-import { AdminUserTariff } from "@/components/AdminUserTariff";
+import { describeSubscription } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +51,6 @@ export default async function UsersPage() {
               <th className="px-4 py-2 font-medium">Пользователь</th>
               <th className="px-4 py-2 font-medium">Роль</th>
               <th className="px-4 py-2 font-medium">Подписка</th>
-              <th className="px-4 py-2 font-medium">Тариф</th>
               <th className="px-4 py-2 font-medium">Сайты</th>
               <th className="px-4 py-2 font-medium">Мониторы</th>
               <th className="px-4 py-2 font-medium">Регистрация</th>
@@ -61,7 +59,7 @@ export default async function UsersPage() {
           <tbody>
             {users.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
                   Пользователей пока нет.
                 </td>
               </tr>
@@ -105,21 +103,6 @@ export default async function UsersPage() {
                       <div className="text-xs text-slate-400">
                         до {sub.periodEnd}
                       </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-2">
-                    {isAdminUser ? (
-                      <span className="text-xs text-slate-400">безлимит</span>
-                    ) : (
-                      <AdminUserTariff
-                        userId={u.id}
-                        isPaid={!isFreePlan(u.subscription)}
-                        currentPeriodEnd={
-                          u.subscription?.currentPeriodEnd
-                            ? new Date(u.subscription.currentPeriodEnd).toISOString()
-                            : null
-                        }
-                      />
                     )}
                   </td>
                   <td className="px-4 py-2">{u._count.projects}</td>

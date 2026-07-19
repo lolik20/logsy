@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { ProjectBillingManager } from "@/components/ProjectBillingManager";
+import { AdminProjectTariff } from "@/components/AdminProjectTariff";
 import { describeProjectBilling, isProjectFree } from "@/lib/subscription";
 import { FREE_TIER } from "@/lib/pricing";
 import { getSessionUsage, retentionLabel, dailySessionQuota } from "@/lib/logging";
@@ -24,7 +25,9 @@ export default async function ProjectTariffPage({
   if (!project || (project.userId !== userId && !admin)) notFound();
 
   const isowner = project.userId === userId;
-  const status = describeProjectBilling(project, admin);
+  // Статус считаем по фактическому тарифу проекта (а не по роли зрителя), чтобы
+  // админ видел реальное состояние и дату окончания выданного тарифа.
+  const status = describeProjectBilling(project, false);
   const free = isProjectFree(project);
   // Эффективные лимиты с учётом оплаты (для карточек статуса).
   const effectiveSessions = dailySessionQuota(project);
@@ -82,10 +85,15 @@ export default async function ProjectTariffPage({
       />
 
       {admin ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-          У вас роль администратора — безлимитный доступ ко всем сайтам. Оплата
-          не требуется.
-        </div>
+        <AdminProjectTariff
+          projectId={project.id}
+          isPaid={!free}
+          currentPeriodEnd={
+            project.currentPeriodEnd
+              ? new Date(project.currentPeriodEnd).toISOString()
+              : null
+          }
+        />
       ) : isowner ? (
         <ProjectBillingManager
           projectId={project.id}
