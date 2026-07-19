@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/session";
+import {
+  clampSessions,
+  clampRetention,
+  FREE_SESSIONS_PER_DAY,
+  FREE_RETENTION_HOURS,
+} from "@/lib/pricing";
 
 // Управление тарифом конкретного проекта администратором. Биллинг в сервисе
 // привязан к проекту (Project.billingStatus / currentPeriodEnd гейтят работу
@@ -12,6 +18,10 @@ const grantSchema = z.object({
   // Дата, до которой действует тариф (включительно). ISO-строка (YYYY-MM-DD или
   // полный ISO). Тариф считается активным до конца указанного дня.
   until: z.coerce.date(),
+  // Суточная квота пользовательских сессий и срок хранения логов, часов.
+  // Приводятся к допустимым границам/шагу ползунков (clampSessions/clampRetention).
+  sessionsPerDay: z.coerce.number().int().positive(),
+  retentionHours: z.coerce.number().int().positive(),
 });
 
 /** Приводит дату к концу дня (23:59:59.999) — тариф действует весь указанный день. */
@@ -54,14 +64,16 @@ export async function POST(
     return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
   }
 
-  // Активируем тариф проекта до указанной даты. Кастомную конфигурацию (лимиты
-  // сессий и хранения) не трогаем — продлеваем как есть. Сбрасываем
-  // expiryAlertSentFor, чтобы напоминание сработало для нового срока.
+  // Активируем тариф проекта до указанной даты с заданными лимитами (суточные
+  // сессии и срок хранения логов). Значения приводим к допустимым границам/шагу.
+  // Сбрасываем expiryAlertSentFor, чтобы напоминание сработало для нового срока.
   await prisma.project.update({
     where: { id: project.id },
     data: {
       billingStatus: "ACTIVE",
       currentPeriodEnd: periodEnd,
+      sessionsPerDay: clampSessions(parsed.data.sessionsPerDay),
+      retentionHours: clampRetention(parsed.data.retentionHours),
       expiryAlertSentFor: null,
     },
   });
@@ -91,6 +103,9 @@ export async function DELETE(
     data: {
       billingStatus: "FREE",
       currentPeriodEnd: null,
+      // Возврат на бесплатный тариф — сбрасываем лимиты к бесплатным.
+      sessionsPerDay: FREE_SESSIONS_PER_DAY,
+      retentionHours: FREE_RETENTION_HOURS,
       expiryAlertSentFor: null,
     },
   });
