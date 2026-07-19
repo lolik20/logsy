@@ -93,6 +93,8 @@ export default async function ProjectTariffPage({
               ? new Date(project.currentPeriodEnd).toISOString()
               : null
           }
+          currentSessions={project.sessionsPerDay}
+          currentRetention={project.retentionHours}
         />
       ) : isowner ? (
         <ProjectBillingManager
