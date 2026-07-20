@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
 import { isStaticAssetEvent } from "@/lib/staticAssets";
-import { collectDepartures } from "@/lib/breadcrumbs";
+import { collectDepartures, departureEventId } from "@/lib/breadcrumbs";
 import { formatDurationSec, truncateUrl } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { CopyEventButton } from "@/components/CopyEventButton";
@@ -53,6 +53,11 @@ export default async function SessionPage({
     collectDepartures(session.events).flatMap((d) => d.actions.map((a) => a.id)),
   );
 
+  // Реальный уход — только последнее событие SESSION_END сессии. Промежуточные
+  // SESSION_END (выгрузка при переходе на другую страницу сайта, встречаются в старых
+  // сессиях) отказом не отмечаем, чтобы «Отказ» не мелькал в нескольких местах ленты.
+  const departureId = departureEventId(session.events);
+
   // Активные правила-исключения проекта — чтобы отметить уже подходящие события.
   const exceptions = await prisma.logException.findMany({
     where: { projectId: session.projectId },
@@ -78,7 +83,7 @@ export default async function SessionPage({
       className={`border-t border-slate-100 align-top dark:border-slate-800 ${
         e.type === "USER_REPORT"
           ? "border-l-2 border-l-violet-400 bg-violet-50/50 dark:bg-violet-900/10"
-          : e.type === "SESSION_END"
+          : e.id === departureId
             ? "bg-slate-50 dark:bg-slate-800/40"
             : breadcrumbIds.has(e.id)
               ? "border-l-2 border-l-amber-400 bg-amber-50/40 dark:bg-amber-900/10"
@@ -96,7 +101,7 @@ export default async function SessionPage({
               Сообщение
             </span>
           )}
-          {e.type === "SESSION_END" && (
+          {e.id === departureId && (
             <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-200">
               Отказ
             </span>
