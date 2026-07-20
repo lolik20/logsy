@@ -18,6 +18,12 @@ export function LandingFooter() {
         <Link href="/#pricing" className="hover:text-brand">
           Тарифы
         </Link>
+        <Link href="/offer" className="hover:text-brand">
+          Оферта
+        </Link>
+        <Link href="/privacy" className="hover:text-brand">
+          Политика конфиденциальности
+        </Link>
       </nav>
       <p>© {new Date().getFullYear()} Logsy — мониторинг доступности сайтов.</p>
       <p className="mt-2">ИП Федоткин Максим Сергеевич, ИНН 920358422008</p>
