@@ -137,7 +137,7 @@ function buildPdfHtml(report: ScanReport, domain: string): string {
       ${tile(s.errors, "Ошибок на сайте", s.errors ? "#dc2626" : "#0f172a")}
       ${tile(s.slow, "Медленных мест", s.slow ? "#d97706" : "#0f172a")}
       ${tile(report.pagesCrawled, "Проверено страниц", "#0f172a")}
-      ${tile(formatMs(s.avgPageMs), "Среднее время", s.avgPageMs >= 2000 ? "#d97706" : "#0f172a")}
+      ${tile(formatMs(s.avgPageMs), "Загрузка DOM", s.avgPageMs >= 2000 ? "#d97706" : "#0f172a")}
     </tr></table>
   </div>
 

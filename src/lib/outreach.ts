@@ -151,7 +151,7 @@ function screenshotHtml(report: ScanReport, domain: string): string {
       ${tile(s.errors, "Ошибок на сайте", s.errors ? "#ef4444" : "#e2e8f0")}
       ${tile(s.slow, "Медленных мест", s.slow ? "#f59e0b" : "#e2e8f0")}
       ${tile(report.pagesCrawled, "Страниц", "#e2e8f0")}
-      ${tile(formatMs(s.avgPageMs), "Среднее время", s.avgPageMs >= 2000 ? "#f59e0b" : "#e2e8f0")}
+      ${tile(formatMs(s.avgPageMs), "Загрузка DOM", s.avgPageMs >= 2000 ? "#f59e0b" : "#e2e8f0")}
     </div>
 
     ${
@@ -220,7 +220,7 @@ export function buildOutreachEmail(opts: {
   if (s.errors) findings.push(`${s.errors} ${plural(s.errors, "ошибка", "ошибки", "ошибок")} на сайте`);
   if (s.slow) findings.push(`${s.slow} ${plural(s.slow, "медленная загрузка", "медленные загрузки", "медленных загрузок")}`);
   findings.push(`проверили ${report.pagesCrawled} ${plural(report.pagesCrawled, "страницу", "страницы", "страниц")}`);
-  if (s.avgPageMs) findings.push(`страница грузится в среднем ${formatMs(s.avgPageMs)}`);
+  if (s.avgPageMs) findings.push(`DOM загружается в среднем за ${formatMs(s.avgPageMs)}`);
 
   const statChip = (value: string | number, label: string, color: string) => `
     <td style="padding:6px;" width="25%">
@@ -256,7 +256,7 @@ export function buildOutreachEmail(opts: {
             ${statChip(s.errors, "Ошибок", s.errors ? "#dc2626" : "#0f172a")}
             ${statChip(s.slow, "Медленных", s.slow ? "#d97706" : "#0f172a")}
             ${statChip(report.pagesCrawled, "Страниц", "#0f172a")}
-            ${statChip(formatMs(s.avgPageMs), "Ср. время", s.avgPageMs >= 2000 ? "#d97706" : "#0f172a")}
+            ${statChip(formatMs(s.avgPageMs), "Загрузка DOM", s.avgPageMs >= 2000 ? "#d97706" : "#0f172a")}
           </tr></table>
         </td></tr>
 
