@@ -136,6 +136,41 @@ function isBlockedHost(host: string): boolean {
   );
 }
 
+// Домены аналитики/метрики и рекламы Google и Яндекса. Их запросы игнорируем при обходе —
+// это не бэкенд владельца сайта, они часто медленные/блокируются и только зашумляют отчёт.
+const IGNORED_HOST_SUFFIXES = [
+  // Google (Analytics / Tag Manager / Ads / DoubleClick)
+  "google-analytics.com",
+  "analytics.google.com",
+  "googletagmanager.com",
+  "googletagservices.com",
+  "googlesyndication.com",
+  "googleadservices.com",
+  "doubleclick.net",
+  "google-analytics.l.google.com",
+  // Яндекс (Метрика / Директ / рекламная сеть)
+  "mc.yandex.ru",
+  "mc.yandex.com",
+  "metrika.yandex.ru",
+  "an.yandex.ru",
+  "yabs.yandex.ru",
+  "ads.yandex.ru",
+  "yandexadexchange.net",
+  "adfox.ru",
+  "adfox.yandex.ru",
+];
+
+/** Запрос к аналитике/метрике Google или Яндекса? (такие запросы при обходе игнорируем). */
+function isAnalyticsUrl(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return IGNORED_HOST_SUFFIXES.some((s) => host === s || host.endsWith("." + s));
+}
+
 /** Приводит введённый адрес к URL (добавляет https://). null — некорректный/внутренний. */
 export function normalizeScanUrl(raw: string): URL | null {
   const trimmed = raw.trim();
@@ -370,6 +405,7 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
       if (rows.size >= MAX_REQUESTS) return null;
       const url = req.url();
       if (url.startsWith("data:") || url.startsWith("blob:")) return null;
+      if (isAnalyticsUrl(url)) return null; // метрику Google/Яндекса игнорируем
       const rt = req.resourceType();
       row = {
         url,

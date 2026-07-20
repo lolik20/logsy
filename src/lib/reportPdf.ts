@@ -5,7 +5,7 @@
 
 import type { ScanReport } from "@/lib/siteScanner";
 import { launchBrowser } from "@/lib/siteScanner";
-import { buildVerdict } from "@/lib/outreach";
+import { buildVerdict, buildCta } from "@/lib/outreach";
 
 function baseUrl(): string {
   return (process.env.APP_URL || process.env.NEXTAUTH_URL || "https://logsy.ru").replace(/\/$/, "");
@@ -43,6 +43,7 @@ function buildPdfHtml(report: ScanReport, domain: string): string {
   const v = buildVerdict(report, domain);
   const s = report.summary;
   const cta = `${app}/register?utm_source=report_pdf&utm_medium=pdf&utm_campaign=scan&utm_content=${encodeURIComponent(domain)}`;
+  const ctaText = buildCta(report);
   const date = new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
   const accent = v.tone === "critical" ? "#dc2626" : v.tone === "warning" ? "#d97706" : "#16a34a";
 
@@ -182,9 +183,9 @@ function buildPdfHtml(report: ScanReport, domain: string): string {
 
   <!-- CTA -->
   <div class="section" style="border-radius:16px;padding:22px;text-align:center;background:#eef0ff;border:1px solid #dfe3ff;">
-    <div style="font-size:18px;font-weight:800;">Подключите Logsy и держите сайт под контролем</div>
+    <div style="font-size:18px;font-weight:800;">${escapeHtml(ctaText.lead)}</div>
     <div class="muted" style="margin:6px 0 14px;">Бесплатный тариф навсегда · подключение за минуту · без банковской карты</div>
-    <a href="${cta}" style="display:inline-block;background:#4f46e5;color:#fff;font-weight:700;font-size:15px;padding:13px 30px;border-radius:11px;">Зарегистрироваться на logsy.ru →</a>
+    <a href="${cta}" style="display:inline-block;background:#4f46e5;color:#fff;font-weight:800;font-size:15px;padding:13px 30px;border-radius:11px;">${escapeHtml(ctaText.button)} →</a>
   </div>
 
   <!-- Контакты -->
