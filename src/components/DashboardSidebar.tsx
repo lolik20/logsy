@@ -58,6 +58,17 @@ function GaugeIcon({ className }: IconProps) {
   );
 }
 
+function RadarIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19.07 4.93A10 10 0 1 0 21 9" />
+      <path d="M15.5 8.5A5 5 0 1 0 17 12" />
+      <path d="M12 12 21 3" />
+      <path d="M12 12h.01" />
+    </svg>
+  );
+}
+
 function LogsIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -317,6 +328,21 @@ function SidebarContent({
           >
             <GaugeIcon className="h-5 w-5 shrink-0" />
             <span>Проверки скорости</span>
+          </Link>
+        )}
+
+        {isAdmin && (
+          <Link
+            href="/dashboard/scan"
+            onClick={onNavigate}
+            className={`mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+              pathname.startsWith("/dashboard/scan")
+                ? "bg-brand-50 text-brand dark:bg-brand/15"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            }`}
+          >
+            <RadarIcon className="h-5 w-5 shrink-0" />
+            <span>Обход</span>
           </Link>
         )}
       </nav>
