@@ -22,7 +22,7 @@ const MAX_REQUESTS = 800; // сколько сетевых запросов ма
 const NAV_TIMEOUT_MS = 20_000; // таймаут перехода на страницу
 const IDLE_TIMEOUT_MS = 6_000; // сколько ждать «затишья» сети после загрузки
 const TOTAL_BUDGET_MS = 55_000; // общий бюджет обхода (route maxDuration = 60)
-const SLOW_MS = 1000; // порог «медленного» запроса (как slowMs проекта по умолчанию)
+const SLOW_MS = 2000; // порог «медленного» запроса при обходе — 2 секунды
 
 // Ограничения на размер отчёта — чтобы длинные списки не раздували ответ.
 const MAX_LIST = 100; // максимум записей в списках ошибок/медленных/почт/телефонов
@@ -45,14 +45,16 @@ export interface ScanError {
   url: string; // адрес запроса
   status: number; // HTTP-код (0 — запрос упал/оборвался)
   kind: "server" | "client" | "network"; // 5xx | 4xx | обрыв соединения
-  on: string; // на какой странице встретился
+  on: string; // на какой странице встретился (первое вхождение)
+  count: number; // сколько раз повторился (одинаковые запросы не дублируются)
 }
 
 /** Медленный запрос: страница, ресурс или XHR/fetch, загрузка дольше порога. */
 export interface ScanSlow {
   url: string;
-  ms: number;
+  ms: number; // максимальное время из повторов
   kind: RequestKind;
+  count: number; // сколько раз повторился
 }
 
 /** Статический файл, подключённый на страницах сайта. */
@@ -62,6 +64,30 @@ export interface ScanAsset {
   status: number;
   ms: number;
   bytes: number;
+}
+
+/** Критический момент на странице: ошибка бэкенда или медленный запрос. */
+export interface ScanPageIssue {
+  url: string; // адрес запроса
+  type: "error" | "slow"; // ошибка или медленный запрос
+  status: number; // HTTP-код (для ошибок; 0 — обрыв)
+  ms: number; // время запроса (для медленных)
+  kind: RequestKind; // тип запроса (страница/скрипт/xhr/…)
+  errorKind: "server" | "client" | "network" | null; // класс ошибки (для type=error)
+  count: number; // сколько раз повторился на этой странице
+}
+
+/** Страница сайта в карте: адрес, заголовок и её критические моменты. */
+export interface ScanPage {
+  url: string; // адрес страницы
+  path: string; // путь (pathname)
+  title: string | null; // <title> страницы
+  depth: number; // глубина в дереве каталогов (корень — 0)
+  status: number; // код ответа документа
+  ms: number; // время загрузки страницы
+  errors: number; // число ошибок на странице
+  slow: number; // число медленных запросов на странице
+  issues: ScanPageIssue[]; // критические моменты (ошибки + медленные), без дублей
 }
 
 /** Итоговый отчёт по сайту. */
@@ -75,6 +101,7 @@ export interface ScanReport {
   transferBytes: number; // суммарный трафик (тела ответов)
   durationMs: number; // сколько занял обход
   stopped: "done" | "pages" | "requests" | "budget"; // причина остановки обхода
+  pages: ScanPage[]; // карта сайта: обойдённые страницы с их критическими моментами
   backendErrors: ScanError[];
   slowRequests: ScanSlow[];
   staticAssets: ScanAsset[];
@@ -386,6 +413,12 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
     const emails = new Set<string>();
     const phones = new Set<string>();
 
+    // Метаданные обойдённых страниц (для карты сайта). Ключ — pageUrl (совпадает с `on`).
+    const pageMetas = new Map<
+      string,
+      { url: string; path: string; title: string | null; depth: number; status: number; ms: number }
+    >();
+
     const queue: string[] = [startUrl.pathname.replace(/\/+$/, "") || "/"];
     const seen = new Set<string>(queue);
     let pagesCrawled = 0;
@@ -412,6 +445,7 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
       currentPage = pageUrl;
 
       let status = 0;
+      const t0 = Date.now();
       try {
         const resp = await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
         status = resp?.status() ?? 0;
@@ -430,9 +464,13 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
 
       // Ждём «затишья» сети — чтобы поймать XHR/подгрузку после первичного рендера.
       await page.waitForLoadState("networkidle", { timeout: IDLE_TIMEOUT_MS }).catch(() => {});
+      const loadMs = Date.now() - t0;
       pagesCrawled += 1;
 
-      // Контакты — из отрисованной разметки (после исполнения JS).
+      // Заголовок и контакты — из отрисованной разметки (после исполнения JS).
+      const title = (await page.title().catch(() => "")) || null;
+      pageMetas.set(pageUrl, { url: pageUrl, path, title, depth: pathDepth(path), status, ms: loadMs });
+
       const content = await page.content().catch(() => "");
       if (content) {
         extractEmails(content, emails);
@@ -463,27 +501,80 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
       throw new Error("Стартовая страница не ответила — проверьте адрес сайта");
     }
 
-    // Обрабатываем собранные сетевые запросы: коды, тайминги, размеры, тип.
-    const errors: ScanError[] = [];
-    const slow: ScanSlow[] = [];
+    // Обрабатываем собранные сетевые запросы: коды, тайминги, размеры, тип. Повторяющиеся
+    // запросы (тот же URL) не дублируем — копим в Map с счётчиком повторов. Глобальные
+    // списки ошибок/медленных и, параллельно, критические моменты по каждой странице.
+    const errorMap = new Map<string, ScanError>(); // ключ url|status
+    const slowMap = new Map<string, ScanSlow>(); // ключ url
     const assetMap = new Map<string, ScanAsset>();
+    // Критические моменты по странице: pageUrl → (ключ запроса → ScanPageIssue).
+    const pageIssues = new Map<string, Map<string, ScanPageIssue>>();
     const docTimes: number[] = [];
     let transferBytes = 0;
+
+    const addPageIssue = (on: string, key: string, make: () => ScanPageIssue) => {
+      let m = pageIssues.get(on);
+      if (!m) {
+        m = new Map();
+        pageIssues.set(on, m);
+      }
+      const cur = m.get(key);
+      if (cur) cur.count += 1;
+      else m.set(key, make());
+    };
 
     for (const { url, status, kind, asset, ms, bytes, on, failed } of rows.values()) {
       transferBytes += bytes;
 
-      if (failed) {
-        errors.push({ url, status: 0, kind: "network", on });
-        continue;
+      // --- Ошибки бэкенда (с дедупликацией) ---
+      const isNetworkFail = failed && status < 0;
+      const isHttpError = !failed && status >= 400;
+      if (isNetworkFail || isHttpError) {
+        const eStatus = isNetworkFail ? 0 : status;
+        const eKind: ScanError["kind"] = isNetworkFail
+          ? "network"
+          : status >= 500
+            ? "server"
+            : "client";
+        const key = `${url}|${eStatus}`;
+        const cur = errorMap.get(key);
+        if (cur) cur.count += 1;
+        else errorMap.set(key, { url, status: eStatus, kind: eKind, on, count: 1 });
+        addPageIssue(on, `e:${key}`, () => ({
+          url,
+          type: "error",
+          status: eStatus,
+          ms: ms > 0 ? ms : 0,
+          kind,
+          errorKind: eKind,
+          count: 1,
+        }));
       }
+
+      if (failed) continue;
       if (status < 0) continue; // запрос не завершился (ответа не было) — пропускаем
 
       if (kind === "page" && ms > 0) docTimes.push(ms);
-      if (status >= 400) {
-        errors.push({ url, status, kind: status >= 500 ? "server" : "client", on });
+
+      // --- Медленные запросы (с дедупликацией; храним максимальное время) ---
+      if (ms >= SLOW_MS) {
+        const cur = slowMap.get(url);
+        if (cur) {
+          cur.count += 1;
+          if (ms > cur.ms) cur.ms = ms;
+        } else {
+          slowMap.set(url, { url, ms, kind, count: 1 });
+        }
+        addPageIssue(on, `s:${url}`, () => ({
+          url,
+          type: "slow",
+          status,
+          ms,
+          kind,
+          errorKind: null,
+          count: 1,
+        }));
       }
-      if (ms >= SLOW_MS) slow.push({ url, ms, kind });
 
       if (asset && !assetMap.has(url)) {
         assetMap.set(url, { url, kind: asset, status, ms, bytes });
@@ -491,9 +582,31 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
     }
 
     // Сортировки для читаемого отчёта.
-    errors.sort((a, b) => b.status - a.status);
-    slow.sort((a, b) => b.ms - a.ms);
+    const errors = Array.from(errorMap.values()).sort((a, b) => b.status - a.status);
+    const slow = Array.from(slowMap.values()).sort((a, b) => b.ms - a.ms);
     const assets = Array.from(assetMap.values()).sort((a, b) => b.ms - a.ms);
+
+    // Карта сайта: обойдённые страницы (по пути) с их критическими моментами.
+    const pages: ScanPage[] = Array.from(pageMetas.values())
+      .sort((a, b) => a.path.localeCompare(b.path))
+      .map((meta) => {
+        const issues = Array.from(pageIssues.get(meta.url)?.values() ?? []).sort((a, b) => {
+          // Ошибки выше медленных, затем по коду/времени.
+          if (a.type !== b.type) return a.type === "error" ? -1 : 1;
+          return a.type === "error" ? b.status - a.status : b.ms - a.ms;
+        });
+        return {
+          url: meta.url,
+          path: meta.path,
+          title: meta.title,
+          depth: meta.depth,
+          status: meta.status,
+          ms: meta.ms,
+          errors: issues.filter((i) => i.type === "error").length,
+          slow: issues.filter((i) => i.type === "slow").length,
+          issues,
+        };
+      });
 
     const avgPageMs =
       docTimes.length > 0
@@ -520,6 +633,7 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
       transferBytes,
       durationMs: Date.now() - startedAt,
       stopped,
+      pages: pages.slice(0, MAX_PAGES),
       backendErrors: errors.slice(0, MAX_LIST),
       slowRequests: slow.slice(0, MAX_LIST),
       staticAssets: assets.slice(0, MAX_ASSETS_LIST),

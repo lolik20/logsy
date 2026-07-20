@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/session";
@@ -39,9 +40,11 @@ export default async function ScanPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Обход сайта</h1>
         <p className="text-sm text-slate-500">
-          Укажите адрес сайта и нажмите «Запуск» — бот обойдёт его как браузер и покажет
-          ошибки бэкенда, медленные запросы и статику, а также соберёт почты и телефоны с
-          сайта.
+          Укажите адрес сайта и нажмите «Запуск» — бот обойдёт его настоящим headless-браузером
+          и построит карту сайта с критическими моментами по каждой странице, покажет ошибки
+          бэкенда, медленные запросы (дольше 2 с) и статику, а также соберёт почты и телефоны.
+          Прежний отчёт при новом запуске остаётся на экране; любой прошлый обход можно открыть
+          из истории ниже.
         </p>
       </div>
 
@@ -63,20 +66,26 @@ export default async function ScanPage() {
                 <th className="px-4 py-2 font-medium">Почт</th>
                 <th className="px-4 py-2 font-medium">Телефонов</th>
                 <th className="px-4 py-2 font-medium">Длит.</th>
+                <th className="px-4 py-2 font-medium">Отчёт</th>
               </tr>
             </thead>
             <tbody>
               {scans.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={10} className="px-4 py-6 text-center text-slate-500">
                     Обходов пока не было.
                   </td>
                 </tr>
               )}
               {scans.map((s) => (
-                <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800">
+                <tr
+                  key={s.id}
+                  className="border-t border-slate-100 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900/50"
+                >
                   <td className="px-4 py-2">
-                    <div className="font-medium">{s.domain}</div>
+                    <Link href={`/dashboard/scan/${s.id}`} className="font-medium hover:text-brand">
+                      {s.domain}
+                    </Link>
                     <div className="max-w-xs truncate text-xs text-slate-500">{s.url}</div>
                   </td>
                   <td className="px-4 py-2 text-slate-500">
@@ -97,6 +106,14 @@ export default async function ScanPage() {
                   <td className="px-4 py-2 text-slate-500">{s.emailsCount}</td>
                   <td className="px-4 py-2 text-slate-500">{s.phonesCount}</td>
                   <td className="px-4 py-2 text-slate-500">{formatMs(s.durationMs)}</td>
+                  <td className="px-4 py-2">
+                    <Link
+                      href={`/dashboard/scan/${s.id}`}
+                      className="text-sm font-medium text-brand hover:underline"
+                    >
+                      Открыть →
+                    </Link>
+                  </td>
                 </tr>
               ))}
             </tbody>
