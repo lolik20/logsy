@@ -281,6 +281,23 @@ export function ScanReportView({ report: r, scanId }: { report: ScanReport; scan
   }
   return (
     <div className="space-y-5">
+      {/* Панель действий */}
+      {scanId && (
+        <div className="flex justify-end">
+          <a
+            href={`/api/admin/scan/${scanId}/pdf`}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-card transition-colors hover:border-brand hover:text-brand dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3v12" />
+              <path d="m7 10 5 5 5-5" />
+              <path d="M5 21h14" />
+            </svg>
+            Скачать отчёт (PDF)
+          </a>
+        </div>
+      )}
+
       {/* Шапка отчёта */}
       <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 dark:border-slate-800 dark:bg-slate-900/70">
         <div className="flex flex-wrap items-center justify-between gap-3">
