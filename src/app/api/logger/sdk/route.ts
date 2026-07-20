@@ -470,10 +470,29 @@ const SDK = `(function(){
     var lastUrl = location.href;
     push({ type: "NAVIGATION", message: "Открыта страница: " + location.pathname, url: location.href });
 
+    // Момент, когда пользователь инициировал ПЕРЕХОД на другую страницу ЭТОГО ЖЕ сайта
+    // «жёсткой» навигацией (клик по внутренней ссылке / отправка формы). Такой переход
+    // выгружает текущую страницу (сработает pagehide), но это НЕ уход с сайта — сессия
+    // продолжится на следующей странице (тот же sid). По этой метке в leave() отличаем
+    // внутренний переход от реального ухода и не засоряем ленту «Выходами с сайта» на
+    // каждом клике. Метка живёт недолго (см. NAV_AWAY_MS) — иначе поздний реальный уход
+    // на SPA ошибочно считался бы внутренним переходом.
+    var _navAwayAt = 0;
+    var NAV_AWAY_MS = 5000;
+    function sameOrigin(u) {
+      try { return new URL(u, location.href).origin === location.origin; }
+      catch (e) { return false; }
+    }
+
     function logNav() {
       var u = location.href;
       if (u === lastUrl) return;
       lastUrl = u;
+      // Произошла SPA-навигация (pushState/replaceState/popstate/hashchange) — страница
+      // НЕ выгружалась. Значит недавний клик обработан в пределах страницы, а не «жёстким»
+      // переходом: снимаем метку намерения уйти, чтобы последующий реальный уход (закрытие
+      // вкладки) корректно отметился как отказ.
+      _navAwayAt = 0;
       push({ type: "NAVIGATION", message: "Переход: " + location.pathname + location.search, url: u });
     }
     try {
@@ -594,6 +613,38 @@ const SDK = `(function(){
       } catch (err) {}
     }, true);
 
+    // ---- Отметка намерения перейти на другую страницу того же сайта ----
+    // Ловим «жёсткие» переходы внутри сайта: клик по внутренней ссылке и отправку формы
+    // на свой же домен. Оба выгружают текущую страницу (сработает pagehide), но это не
+    // уход с сайта. Метку ставим в capture-фазе, до обработчиков сайта. Переходы на
+    // ДРУГОЙ домен метку не ставят — это как раз реальный уход (пусть отметится отказом).
+    document.addEventListener("click", function(e) {
+      try {
+        // Модифицированный клик / не левая кнопка открывает ссылку в новой вкладке —
+        // текущая страница не выгружается (pagehide не сработает), намерение не фиксируем.
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        var a = (e.target && e.target.closest) ? e.target.closest("a[href]") : null;
+        if (!a) return;
+        var href = a.getAttribute("href");
+        if (!href || href.charAt(0) === "#") return;                 // якорь на этой же странице
+        if (/^\s*(javascript:|mailto:|tel:|sms:)/i.test(href)) return; // не навигация
+        if (a.target && a.target !== "_self") return;                // новая вкладка/окно
+        if (a.hasAttribute("download")) return;                      // скачивание, не переход
+        if (!sameOrigin(a.href)) return;                             // уход на другой сайт
+        _navAwayAt = Date.now();
+      } catch (err) {}
+    }, true);
+    document.addEventListener("submit", function(e) {
+      try {
+        var f = e.target;
+        if (!f || f.tagName !== "FORM") return;
+        if (f.target && f.target !== "_self") return;                // ответ в новой вкладке
+        var action = f.getAttribute("action");
+        if (!sameOrigin(action ? action : location.href)) return;    // отправка на другой сайт
+        _navAwayAt = Date.now();
+      } catch (err) {}
+    }, true);
+
     // ---- Периодическая отправка и флаш при уходе со страницы ----
     // Перед выходом с сайта фиксируем отказ в сессии (SESSION_END) — один раз, затем
     // отправляем накопленный батч beacon'ом, чтобы событие точно ушло при закрытии.
@@ -601,7 +652,15 @@ const SDK = `(function(){
     function leave() {
       if (_left) return;
       _left = true;
-      push({ type: "SESSION_END", message: "Выход с сайта: " + location.pathname, url: location.href });
+      // Если страница выгружается из-за перехода на ДРУГУЮ страницу того же сайта —
+      // это не отказ: сессия продолжится на следующей странице. SESSION_END для таких
+      // выгрузок раньше засорял ленту «Выходом с сайта» на каждом переходе (в сессии
+      // получалось несколько отметок ухода). Отмечаем отказ только при реальном уходе
+      // (закрытие вкладки / переход на другой сайт).
+      var internalNav = _navAwayAt && (Date.now() - _navAwayAt < NAV_AWAY_MS);
+      if (!internalNav) {
+        push({ type: "SESSION_END", message: "Выход с сайта: " + location.pathname, url: location.href });
+      }
       flush(true);
       try { recFlush(true); } catch (e) {}
     }

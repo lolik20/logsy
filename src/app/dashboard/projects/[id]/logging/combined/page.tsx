@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
 import { isStaticAssetEvent } from "@/lib/staticAssets";
-import { collectDepartures } from "@/lib/breadcrumbs";
+import { collectDepartures, departureEventId } from "@/lib/breadcrumbs";
 import { formatDurationSec, truncateUrl } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { CopyEventButton } from "@/components/CopyEventButton";
@@ -104,10 +104,15 @@ export default async function CombinedIpPage({
     else eventsBySession.set(e.sessionId, [e]);
   }
   const breadcrumbIds = new Set<string>();
+  // Реальный уход каждой сессии — только последнее SESSION_END (см. departureEventId).
+  // Промежуточные SESSION_END (переходы между страницами) отказом не отмечаем.
+  const departureIds = new Set<string>();
   for (const list of eventsBySession.values()) {
     for (const d of collectDepartures(list)) {
       for (const a of d.actions) breadcrumbIds.add(a.id);
     }
+    const dep = departureEventId(list);
+    if (dep) departureIds.add(dep);
   }
 
   // Один User-Agent на IP-группу, если он общий для всех сессий (частый случай —
@@ -137,7 +142,7 @@ export default async function CombinedIpPage({
       className={`border-t border-slate-100 align-top dark:border-slate-800 ${
         e.type === "USER_REPORT"
           ? "border-l-2 border-l-violet-400 bg-violet-50/50 dark:bg-violet-900/10"
-          : e.type === "SESSION_END"
+          : departureIds.has(e.id)
             ? "bg-slate-50 dark:bg-slate-800/40"
             : breadcrumbIds.has(e.id)
               ? "border-l-2 border-l-amber-400 bg-amber-50/40 dark:bg-amber-900/10"
@@ -163,7 +168,7 @@ export default async function CombinedIpPage({
               Сообщение
             </span>
           )}
-          {e.type === "SESSION_END" && (
+          {departureIds.has(e.id) && (
             <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-200">
               Отказ
             </span>

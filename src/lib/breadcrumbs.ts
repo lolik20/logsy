@@ -103,23 +103,38 @@ export type Departure = {
 };
 
 /**
- * Собирает уходы из событий ОДНОЙ сессии (отсортированных по времени). На каждое
- * событие SESSION_END возвращает страницу ухода и до MAX_BREADCRUMBS предшествующих
- * действий. Обычно в сессии один SESSION_END, но код не завязан на это.
+ * Собирает реальный уход из событий ОДНОЙ сессии (отсортированных по времени).
+ *
+ * Реальным уходом считаем только ПОСЛЕДНЕЕ событие SESSION_END сессии. Промежуточные
+ * SESSION_END — это выгрузки страницы при переходе на другую страницу того же сайта
+ * (многостраничные сайты): после них сессия продолжалась, отказом они не являются.
+ * Учёт только последнего убирает дублирование крошек «перед уходом» в нескольких местах
+ * ленты (в т.ч. для старых сессий, записанных до исправления в SDK).
+ *
+ * Возвращает массив (0 или 1 элемент), чтобы вызывающий код не менялся.
  */
 export function collectDepartures<T extends BreadcrumbEvent & { sessionId: string }>(
   events: T[],
 ): Departure[] {
-  const departures: Departure[] = [];
-  for (let i = 0; i < events.length; i++) {
+  for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
     if (!isDeparture(e.type)) continue;
-    departures.push({
-      sessionId: e.sessionId,
-      at: e.createdAt,
-      exitPage: exitPage(e),
-      actions: breadcrumbsBefore(events, i),
-    });
+    return [
+      {
+        sessionId: e.sessionId,
+        at: e.createdAt,
+        exitPage: exitPage(e),
+        actions: breadcrumbsBefore(events, i),
+      },
+    ];
   }
-  return departures;
+  return [];
+}
+
+/** id последнего SESSION_END сессии (реального ухода), либо null. */
+export function departureEventId<T extends BreadcrumbEvent>(events: T[]): string | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (isDeparture(events[i].type)) return events[i].id;
+  }
+  return null;
 }
