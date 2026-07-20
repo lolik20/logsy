@@ -417,6 +417,33 @@ model SpeedCheck {
   @@index([createdAt])
 }
 
+// Прогоны админ-инструмента «Обход» (см. /api/admin/scan и src/lib/siteScanner.ts).
+// Бот обходит сайт по одному URL и формирует отчёт: ошибки бэкенда, медленные запросы,
+// статика, найденные почты и телефоны. Каждый запуск сохраняется — админ видит историю,
+// а полный отчёт лежит в JSON-поле report для повторного просмотра.
+model SiteScan {
+  id            String   @id @default(cuid())
+  // Домен (hostname) обойдённого сайта — для читаемого списка.
+  domain        String
+  // Итоговый стартовый адрес (после переадресаций).
+  url           String
+  statusCode    Int      @default(0) // код ответа стартовой страницы
+  pagesCrawled  Int      @default(0) // сколько HTML-страниц обошли
+  requestsTotal Int      @default(0) // всего сетевых запросов (страницы + ресурсы)
+  // Счётчики для списка без парсинга report.
+  errorsCount   Int      @default(0)
+  slowCount     Int      @default(0)
+  assetsCount   Int      @default(0)
+  emailsCount   Int      @default(0)
+  phonesCount   Int      @default(0)
+  durationMs    Int      @default(0)
+  // Полный отчёт (ScanReport), сериализованный в JSON.
+  report        String
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model Contact {
   id        String   @id @default(cuid())
   userId    String
