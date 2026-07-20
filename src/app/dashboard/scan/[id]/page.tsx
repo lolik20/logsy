@@ -39,7 +39,7 @@ export default async function ScanDetailPage({ params }: { params: { id: string 
       </div>
 
       {report ? (
-        <ScanReportView report={report} />
+        <ScanReportView report={report} scanId={scan.id} />
       ) : (
         <div className="rounded-xl bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
           Не удалось прочитать сохранённый отчёт.

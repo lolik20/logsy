@@ -12,6 +12,7 @@ import { ScanReportView, type ScanReport } from "@/components/ScanReportView";
 export function SiteScanForm() {
   const [url, setUrl] = useState("");
   const [report, setReport] = useState<ScanReport | null>(null);
+  const [scanId, setScanId] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -32,6 +33,7 @@ export function SiteScanForm() {
         return;
       }
       setReport(data as ScanReport);
+      setScanId((data as { scanId?: string }).scanId);
     } catch {
       setError("Не удалось обойти сайт. Попробуйте ещё раз.");
     } finally {
@@ -76,7 +78,7 @@ export function SiteScanForm() {
 
       {report && (
         <div className={`mt-6 ${loading ? "opacity-50" : ""}`}>
-          <ScanReportView report={report} />
+          <ScanReportView report={report} scanId={scanId} />
         </div>
       )}
     </div>

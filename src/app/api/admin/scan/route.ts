@@ -44,8 +44,9 @@ export async function POST(req: Request) {
     const report = await scanSite(url);
 
     // Сохраняем прогон для истории. Ошибка записи не должна ломать ответ.
+    let scanId: string | null = null;
     try {
-      await prisma.siteScan.create({
+      const created = await prisma.siteScan.create({
         data: {
           domain: report.domain,
           url: report.finalUrl,
@@ -60,12 +61,14 @@ export async function POST(req: Request) {
           durationMs: report.durationMs,
           report: JSON.stringify(report),
         },
+        select: { id: true },
       });
+      scanId = created.id;
     } catch (err) {
       console.error("[Logsy] Не удалось сохранить прогон обхода:", err);
     }
 
-    return NextResponse.json(report);
+    return NextResponse.json({ ...report, scanId });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Не удалось обойти сайт — попробуйте ещё раз";

@@ -6,6 +6,7 @@
 // внутри серверной страницы.
 
 import { useState } from "react";
+import { OutreachPanel } from "@/components/OutreachPanel";
 
 type AssetKind = "script" | "style" | "image" | "font" | "other";
 type RequestKind = "page" | "script" | "style" | "image" | "font" | "xhr" | "other";
@@ -97,7 +98,7 @@ const KIND_LABEL: Record<AssetKind, string> = {
 
 function reqKindLabel(kind: RequestKind): string {
   if (kind === "page") return "страница";
-  if (kind === "xhr") return "запрос (XHR)";
+  if (kind === "xhr") return "запрос";
   return KIND_LABEL[kind];
 }
 
@@ -252,7 +253,7 @@ function PageCard({ page }: { page: ScanPage }) {
   );
 }
 
-export function ScanReportView({ report: r }: { report: ScanReport }) {
+export function ScanReportView({ report: r, scanId }: { report: ScanReport; scanId?: string }) {
   const stopNote = STOP_NOTE[r.stopped];
   return (
     <div className="space-y-5">
@@ -314,9 +315,9 @@ export function ScanReportView({ report: r }: { report: ScanReport }) {
         </Section>
       )}
 
-      {/* Ошибки бэкенда */}
+      {/* Ошибки на сайте */}
       {r.backendErrors.length > 0 && (
-        <Section title="Ошибки бэкенда и упавшие запросы" count={r.summary.errors}>
+        <Section title="Ошибки на сайте" count={r.summary.errors}>
           <ul className="space-y-1.5">
             {r.backendErrors.map((e, i) => (
               <li key={i} className="flex items-center gap-2 text-sm">
@@ -343,7 +344,7 @@ export function ScanReportView({ report: r }: { report: ScanReport }) {
 
       {/* Медленные запросы */}
       {r.slowRequests.length > 0 && (
-        <Section title="Медленные запросы (> 2 с)" count={r.summary.slow}>
+        <Section title="Медленные загрузки (дольше 2 секунд)" count={r.summary.slow}>
           <ul className="space-y-1.5">
             {r.slowRequests.map((s, i) => (
               <li key={i} className="flex items-center gap-2 text-sm">
@@ -361,20 +362,24 @@ export function ScanReportView({ report: r }: { report: ScanReport }) {
         </Section>
       )}
 
-      {/* Почты */}
+      {/* Почты + рассылка */}
       {r.emails.length > 0 && (
-        <Section title="Найденные почты" count={r.summary.emails}>
-          <div className="flex flex-wrap gap-2">
-            {r.emails.map((m) => (
-              <a
-                key={m}
-                href={`mailto:${m}`}
-                className="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand hover:underline dark:bg-brand/15"
-              >
-                {m}
-              </a>
-            ))}
-          </div>
+        <Section title="Найденные почты и рассылка" count={r.summary.emails}>
+          {scanId ? (
+            <OutreachPanel scanId={scanId} emails={r.emails} />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {r.emails.map((m) => (
+                <a
+                  key={m}
+                  href={`mailto:${m}`}
+                  className="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand hover:underline dark:bg-brand/15"
+                >
+                  {m}
+                </a>
+              ))}
+            </div>
+          )}
         </Section>
       )}
 
@@ -445,7 +450,7 @@ export function ScanReportView({ report: r }: { report: ScanReport }) {
 
       {r.summary.errors === 0 && r.summary.slow === 0 && (
         <div className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-          Ошибок бэкенда и медленных запросов при обходе не найдено.
+          Ошибок на сайте и медленных загрузок не найдено.
         </div>
       )}
     </div>

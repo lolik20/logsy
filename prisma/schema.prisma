@@ -441,7 +441,40 @@ model SiteScan {
   report        String
   createdAt     DateTime @default(now())
 
+  outreach      ScanOutreach[]
+
   @@index([createdAt])
+}
+
+// Рассылка холодных писем по найденным при обходе почтам (см. /api/admin/scan/[id]/outreach).
+// По кнопке админ шлёт владельцу сайта письмо с кратким «скриншотом» отчёта и призывом
+// подключить Logsy. Каждое письмо получает уникальный token: по нему считается открытие
+// (пиксель /api/track/open/[token]) и работает отписка (/api/outreach/unsubscribe/[token]).
+model ScanOutreach {
+  id             String    @id @default(cuid())
+  scanId         String
+  domain         String
+  toEmail        String
+  subject        String
+  // SENT — отправлено; FAILED — ошибка отправки; UNSUBSCRIBED — получатель отписался.
+  status         String    @default("SENT")
+  error          String?   // текст ошибки при FAILED
+  // Уникальный токен для пикселя открытия и ссылки отписки.
+  token          String    @unique
+  // Учёт открытий (по загрузке трекинг-пикселя).
+  openCount      Int       @default(0)
+  firstOpenedAt  DateTime?
+  lastOpenedAt   DateTime?
+  // Момент отписки (если получатель нажал «отписаться»).
+  unsubscribedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  scan SiteScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  // Одному адресу в рамках одного обхода — одно письмо.
+  @@unique([scanId, toEmail])
+  @@index([scanId])
+  @@index([toEmail])
 }
 
 model Contact {
