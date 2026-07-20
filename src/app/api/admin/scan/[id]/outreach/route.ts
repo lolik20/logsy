@@ -10,6 +10,7 @@ import { isAdmin } from "@/lib/session";
 import { sendMail } from "@/lib/mailer";
 import type { ScanReport } from "@/lib/siteScanner";
 import { buildOutreachEmail, renderReportScreenshot } from "@/lib/outreach";
+import { renderReportPdf } from "@/lib/reportPdf";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -85,8 +86,13 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     });
   }
 
-  // Скриншот отчёта рендерим один раз на всю рассылку (общий CID-вложение).
+  // Скриншот (CID-картинка в теле) и PDF (вложение) рендерим один раз на всю рассылку.
   const shot = await renderReportScreenshot(report, scan.domain);
+  const pdf = await renderReportPdf(report, scan.domain).catch((err) => {
+    console.error("[Logsy] Не удалось приложить PDF к письму:", err);
+    return null;
+  });
+  const pdfName = `logsy-report-${scan.domain.replace(/[^a-z0-9.-]+/gi, "_").slice(0, 60) || "site"}.pdf`;
 
   let sent = 0;
   let failed = 0;
@@ -98,6 +104,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       domain: scan.domain,
       token,
       hasShot: !!shot,
+      hasPdf: !!pdf,
     });
     try {
       await sendMail({
@@ -110,9 +117,12 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
           "List-Unsubscribe": mail.listUnsubscribe,
           "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         },
-        attachments: shot
-          ? [{ filename: "report.png", content: shot, contentType: "image/png", cid: "reportshot" }]
-          : undefined,
+        attachments: [
+          ...(shot
+            ? [{ filename: "report.png", content: shot, contentType: "image/png", cid: "reportshot" }]
+            : []),
+          ...(pdf ? [{ filename: pdfName, content: pdf, contentType: "application/pdf" }] : []),
+        ],
       });
       await prisma.scanOutreach.create({
         data: {

@@ -175,8 +175,9 @@ export function buildOutreachEmail(opts: {
   domain: string;
   token: string;
   hasShot: boolean; // встроен ли CID-скриншот
+  hasPdf?: boolean; // приложен ли полный PDF-отчёт
 }): OutreachEmail {
-  const { report, domain, token, hasShot } = opts;
+  const { report, domain, token, hasShot, hasPdf } = opts;
   const app = baseUrl();
   const v = buildVerdict(report, domain);
   const s = report.summary;
@@ -238,6 +239,7 @@ export function buildOutreachEmail(opts: {
             Найти все ошибки и ускорить сайт →
           </a>
           <div style="font-size:12px;color:#94a3b8;margin-top:10px;">Бесплатный тариф навсегда · подключение за минуту · без карты</div>
+          ${hasPdf ? `<div style="font-size:13px;color:#475569;margin-top:14px;">📎 Полный отчёт по сайту со всеми находками — в приложенном PDF.</div>` : ""}
         </td></tr>
 
         <tr><td style="padding:18px 30px 0;">
@@ -271,7 +273,9 @@ export function buildOutreachEmail(opts: {
     `Подключите Logsy — российский сервис контроля за сайтом — чтобы видеть ошибки на сайте,\n` +
     `медленные страницы, падения и проблемы с сертификатом раньше своих клиентов.\n\n` +
     `Найти все ошибки и ускорить сайт: ${cta}\n` +
-    `Бесплатный тариф навсегда, подключение за минуту.\n\n` +
+    `Бесплатный тариф навсегда, подключение за минуту.\n` +
+    (hasPdf ? `Полный отчёт по сайту — в приложенном PDF.\n` : "") +
+    `\n` +
     `— Команда Logsy · ${app}\n` +
     `Отписаться: ${unsub}\n`;
 
