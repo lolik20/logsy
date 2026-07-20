@@ -30,7 +30,7 @@ const MAX_ASSETS_LIST = 200; // максимум записей в списке 
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 LogsyBot/1.0";
+  "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 LogsyBot/1.0";
 
 // Расширения файлов, которые не являются HTML-страницами (не ставим их в очередь обхода).
 const ASSET_EXT_ANY =

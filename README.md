@@ -140,7 +140,7 @@ curl -X POST "http://localhost:3000/api/cron/run?token=$CRON_SECRET"
 | `AUTH_SECRET` | Секрет Auth.js (`openssl rand -base64 32`) |
 | `AUTH_YANDEX_ID` / `AUTH_YANDEX_SECRET` | Yandex ID OAuth (иначе кнопка скрыта) |
 | `ADMIN_EMAILS` | Email-адреса администраторов через запятую (см. ниже) |
-| `PLAYWRIGHT_CHROMIUM_PATH` | Необязательно: путь к бинарнику Chromium для инструмента «Обход». Если не задан, Playwright ищет браузер сам (`npx playwright install chromium`) |
+| `PLAYWRIGHT_CHROMIUM_PATH` | Необязательно: путь к бинарнику Chromium для инструмента «Обход». Если не задан, Playwright ищет браузер сам (поставьте его командой `npx playwright-core install chromium`) |
 
 ### Yandex ID OAuth
 
@@ -236,12 +236,16 @@ ADMIN_EMAILS="admin@example.com, ops@example.com"
   отдельной странице лендинга.
 
   > Для работы обхода на сервере нужен **Chromium**. Пакет `playwright-core`
-  > браузер не тянет — установите его один раз командой `npx playwright install
-  > chromium` (при необходимости системные зависимости — `npx playwright
-  > install-deps chromium`) либо укажите путь к готовому бинарнику Chromium в
-  > переменной окружения `PLAYWRIGHT_CHROMIUM_PATH`. Обход требует долгоживущего
-  > Node-процесса (`next start` на своём сервере/VPS) — на serverless-хостинге без
-  > Chromium инструмент не работает;
+  > браузер не тянет — установите его один раз командой **`npx playwright-core
+  > install chromium`** (с системными зависимостями — `npx playwright-core install
+  > --with-deps chromium`). Важно ставить браузер именно через `playwright-core`
+  > (а не `npx playwright …`): так ревизия Chromium совпадёт с версией
+  > `playwright-core` из `package.json`. Если поставить браузер другой версией
+  > Playwright, launch упадёт с «Executable doesn't exist at …chromium…-<rev>» —
+  > тогда переустановите браузер командой выше или укажите путь к готовому
+  > бинарнику Chromium в переменной окружения `PLAYWRIGHT_CHROMIUM_PATH`. Обход
+  > требует долгоживущего Node-процесса (`next start` на своём сервере/VPS) — на
+  > serverless-хостинге без Chromium инструмент не работает;
 - на вкладке **«Мониторинг»** — проекты всех пользователей (сгруппированы по
   владельцу) с возможностью открыть любой проект и посмотреть каждый монитор.
   Управление (добавление/редактирование/удаление) остаётся только у владельца.
