@@ -25,14 +25,14 @@ export default async function ScanDetailPage({ params }: { params: { id: string 
       <div className="mb-6">
         <Link
           href="/dashboard/scan"
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-card transition-colors hover:border-brand hover:text-brand dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
         >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6" />
           </svg>
-          К истории обходов
+          Назад к обходам
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">{scan.domain}</h1>
+        <h1 className="mt-4 text-2xl font-bold">{scan.domain}</h1>
         <p className="text-sm text-slate-500">
           Обход от {new Date(scan.createdAt).toLocaleString("ru-RU")}
         </p>
