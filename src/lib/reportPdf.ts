@@ -62,7 +62,20 @@ function buildPdfHtml(report: ScanReport, domain: string): string {
       url: sl.url,
       count: sl.count,
     })),
+    ...(report.jsErrors ?? []).slice(0, 5).map((e) => ({
+      badge: "JS",
+      color: "#dc2626",
+      label: "JS-ошибка",
+      url: e.message,
+      count: e.count,
+    })),
   ];
+
+  // Проблемы форм (заполнение/отправка тестовыми данными при обходе).
+  const formIssues = (report.forms ?? []).flatMap((f) =>
+    f.issues.map((iss) => ({ severity: iss.severity, message: iss.message, form: `${f.method} ${f.action}` })),
+  );
+  const formsSubmitted = (report.forms ?? []).filter((f) => f.submitted).length;
 
   const tile = (value: string | number, label: string, color: string) => `
     <td width="25%" style="padding:6px;">
@@ -147,6 +160,23 @@ function buildPdfHtml(report: ScanReport, domain: string): string {
            <div class="card"><table width="100%" cellpadding="0" cellspacing="0">${issues.map(issueRow).join("")}</table></div>
          </div>`
       : `<div class="section"><div class="card muted">Серьёзных ошибок при быстрой проверке не видно — но это лишь один момент из жизни сайта.</div></div>`
+  }
+
+  ${
+    (report.forms ?? []).length > 0
+      ? `<div class="section"><h2>Проверка форм</h2>
+           <div class="card">
+             <div class="muted" style="margin-bottom:${formIssues.length ? "10px" : "0"};">Проверили ${(report.forms ?? []).length} ${(report.forms ?? []).length === 1 ? "форму" : "форм"}, отправили ${formsSubmitted} с тестовыми данными (формы оплаты пропускали).</div>
+             ${formIssues
+               .slice(0, 8)
+               .map(
+                 (fi) =>
+                   `<div style="display:flex;gap:9px;margin:0 0 7px;"><span style="flex:none;font-size:11px;font-weight:700;color:#fff;background:${fi.severity === "error" ? "#dc2626" : "#d97706"};border-radius:5px;padding:2px 7px;">${fi.severity === "error" ? "ошибка" : "внимание"}</span><span>${escapeHtml(fi.message)}</span></div>`,
+               )
+               .join("")}
+           </div>
+         </div>`
+      : ""
   }
 
   <!-- Полезно-продающий блок -->

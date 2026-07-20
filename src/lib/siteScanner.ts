@@ -23,6 +23,9 @@ const NAV_TIMEOUT_MS = 20_000; // таймаут перехода на стра�
 const IDLE_TIMEOUT_MS = 6_000; // сколько ждать «затишья» сети после загрузки
 const TOTAL_BUDGET_MS = 55_000; // общий бюджет обхода (route maxDuration = 60)
 const SLOW_MS = 2000; // порог «медленного» запроса при обходе — 2 секунды
+const MAX_FORMS = 25; // сколько форм максимум учесть в отчёте
+const MAX_FORM_SUBMITS = 10; // сколько форм максимум реально отправить за обход
+const FORM_SUBMIT_WAIT_MS = 4500; // сколько ждать реакцию после отправки формы
 
 // Ограничения на размер отчёта — чтобы длинные списки не раздували ответ.
 const MAX_LIST = 100; // максимум записей в списках ошибок/медленных/почт/телефонов
@@ -90,6 +93,31 @@ export interface ScanPage {
   issues: ScanPageIssue[]; // критические моменты (ошибки + медленные), без дублей
 }
 
+/** JavaScript-ошибка на странице (uncaught exception или console.error). */
+export interface ScanJsError {
+  message: string;
+  on: string; // страница, где впервые встретилась
+  count: number;
+}
+
+/** Проблема формы, найденная при проверке. */
+export interface ScanFormBug {
+  severity: "error" | "warning";
+  message: string;
+}
+
+/** Проверенная форма: где, куда шлёт, заполнили ли, отправили ли и найденные проблемы. */
+export interface ScanForm {
+  page: string; // страница, где форма
+  action: string; // куда отправляется (абсолютный URL)
+  method: string; // GET | POST
+  fields: number; // число заполняемых полей
+  filled: boolean; // заполнили тестовыми данными
+  submitted: boolean; // отправили
+  skippedPayment: boolean; // пропущена как форма оплаты
+  issues: ScanFormBug[]; // найденные проблемы
+}
+
 /** Итоговый отчёт по сайту. */
 export interface ScanReport {
   startUrl: string;
@@ -105,6 +133,8 @@ export interface ScanReport {
   backendErrors: ScanError[];
   slowRequests: ScanSlow[];
   staticAssets: ScanAsset[];
+  jsErrors: ScanJsError[]; // JS-ошибки на страницах
+  forms: ScanForm[]; // проверенные формы и их проблемы
   emails: string[];
   phones: string[];
   summary: {
@@ -113,6 +143,9 @@ export interface ScanReport {
     assets: number;
     emails: number;
     phones: number;
+    jsErrors: number;
+    formsChecked: number;
+    formBugs: number;
     avgPageMs: number; // средняя скорость загрузки DOM (DOMContentLoaded) по страницам
   };
 }
@@ -324,6 +357,212 @@ function extractPhones(html: string, into: Set<string>) {
   }
 }
 
+// -------------------- Проверка форм --------------------
+
+// Тестовые данные для заполнения форм. Явно «проверочные», чтобы владелец сайта понимал,
+// что это автоматический тест, а не реальная заявка. Почта — куда придут возможные ответы.
+const FORM_TEST_DATA = {
+  email: process.env.SCAN_FORM_EMAIL || "check@logsy.ru",
+  phone: "+70000000000",
+  name: "Проверка Logsy",
+  message:
+    "Это автоматическая проверка сайта сервисом Logsy (logsy.ru). Извините за беспокойство, реагировать не нужно.",
+  password: "Logsy-Check-12345",
+  url: "https://logsy.ru",
+  text: "Проверка Logsy",
+};
+
+// Признаки платёжной формы — такие формы не заполняем и не отправляем (реальные списания).
+const PAYMENT_FIELD_RE = /(card.?number|cardnum|cc-?number|creditcard|\bpan\b|cvv|cvc|cvv2|securitycode|expir|\bcc-)/i;
+
+// Описатель одной формы, снятый со страницы в браузере.
+interface FormDescriptor {
+  idx: number;
+  action: string;
+  method: string;
+  hasSubmit: boolean;
+  fields: {
+    tag: string;
+    type: string;
+    name: string;
+    id: string;
+    placeholder: string;
+    autocomplete: string;
+    required: boolean;
+  }[];
+}
+
+/** Снимает описатели всех форм со страницы (без заполнения). */
+async function readForms(page: import("playwright-core").Page): Promise<FormDescriptor[]> {
+  // Внутри evaluate НЕ объявляем именованные функции/const-стрелки: бандлер (esbuild/tsx)
+  // оборачивает их в helper __name, которого нет в браузере → ReferenceError. Только инлайн.
+  return page
+    .evaluate(() => {
+      const skip = ["submit", "button", "image", "reset", "hidden", "file"];
+      return Array.from(document.forms)
+        .slice(0, 25)
+        .map((f, idx) => ({
+          idx,
+          action: (f as HTMLFormElement).action || location.href,
+          method: ((f as HTMLFormElement).method || "get").toLowerCase(),
+          hasSubmit: !!f.querySelector(
+            "button, input[type=submit], input[type=image], button[type=submit]",
+          ),
+          fields: Array.from(f.elements)
+            .filter(
+              (el) =>
+                (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") &&
+                !skip.includes(((el as HTMLInputElement).type || "").toLowerCase()),
+            )
+            .map((el) => {
+              const e = el as HTMLInputElement;
+              return {
+                tag: el.tagName,
+                type: (e.type || "").toLowerCase(),
+                name: e.name || "",
+                id: e.id || "",
+                placeholder: e.placeholder || "",
+                autocomplete: (e.autocomplete || "").toLowerCase(),
+                required: !!e.required,
+              };
+            }),
+        }));
+    })
+    .catch(() => [] as FormDescriptor[]);
+}
+
+/** Статический анализ формы (безопасно, без отправки): небезопасность, кривая разметка. */
+function analyzeForm(f: FormDescriptor, pageUrl: string): ScanFormBug[] {
+  const bugs: ScanFormBug[] = [];
+  const pageHttps = pageUrl.startsWith("https:");
+  const hasPassword = f.fields.some((x) => x.type === "password");
+  let actionUrl: URL | null = null;
+  try {
+    actionUrl = new URL(f.action, pageUrl);
+  } catch {
+    /* некорректный action */
+  }
+
+  if (hasPassword && (!pageHttps || (actionUrl && actionUrl.protocol === "http:"))) {
+    bugs.push({ severity: "error", message: "Пароль отправляется по незащищённому соединению (HTTP)" });
+  }
+  if (pageHttps && actionUrl && actionUrl.protocol === "http:") {
+    bugs.push({ severity: "error", message: "Форма отправляет данные на незащищённый адрес (http://)" });
+  }
+  if (f.fields.length > 0 && f.fields.every((x) => !x.name && !x.id)) {
+    bugs.push({ severity: "warning", message: "У полей формы нет name/id — данные могут не дойти до сервера" });
+  }
+  if (!f.hasSubmit && f.fields.length > 0) {
+    bugs.push({ severity: "warning", message: "В форме нет кнопки отправки" });
+  }
+  const emailField = f.fields.find(
+    (x) => x.type === "email" || /e-?mail|почт/i.test(`${x.name} ${x.id} ${x.placeholder}`),
+  );
+  if (emailField && emailField.type !== "email") {
+    bugs.push({ severity: "warning", message: "Поле почты не имеет type=email — нет проверки формата" });
+  }
+  return bugs;
+}
+
+/** Заполняет форму тестовыми данными в браузере. Возвращает число заполненных полей и невалидные поля. */
+async function fillForm(
+  page: import("playwright-core").Page,
+  idx: number,
+): Promise<{ filled: number; invalid: string[] }> {
+  // Без именованных функций внутри evaluate (см. комментарий в readForms) — только инлайн.
+  return page
+    .evaluate(
+      ({ idx, data }) => {
+        const f = document.forms[idx];
+        if (!f) return { filled: 0, invalid: [] as string[] };
+        let filled = 0;
+        for (const el0 of Array.from(f.elements)) {
+          const el = el0 as HTMLInputElement;
+          const tag = el.tagName;
+          const type = (el.type || "").toLowerCase();
+          if (["submit", "button", "image", "reset", "hidden", "file"].includes(type)) continue;
+          const hint = `${el.name || ""} ${el.id || ""} ${el.placeholder || ""} ${el.autocomplete || ""}`.toLowerCase();
+          if (tag === "SELECT") {
+            const sel = el as unknown as HTMLSelectElement;
+            const opt = Array.from(sel.options).find((o) => o.value);
+            if (opt) {
+              sel.value = opt.value;
+              sel.dispatchEvent(new Event("change", { bubbles: true }));
+              filled++;
+            }
+            continue;
+          }
+          if (type === "checkbox") {
+            if (el.required && !el.checked) {
+              el.checked = true;
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+              filled++;
+            }
+            continue;
+          }
+          if (type === "radio") {
+            if (!el.checked) {
+              el.checked = true;
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+              filled++;
+            }
+            continue;
+          }
+          let val: string | null = null;
+          if (type === "email" || /e-?mail|почт/.test(hint)) val = data.email;
+          else if (type === "tel" || /phone|tel|телефон/.test(hint)) val = data.phone;
+          else if (type === "password") val = data.password;
+          else if (type === "number" || type === "range") val = "1";
+          else if (type === "url" || /url|сайт|website/.test(hint)) val = data.url;
+          else if (type === "date") val = "2000-01-01";
+          else if (tag === "TEXTAREA" || /message|comment|сообщен|коммент|вопрос|отзыв/.test(hint))
+            val = data.message;
+          else if (/name|имя|fio|фио|фамил/.test(hint)) val = data.name;
+          else if (tag === "INPUT") val = data.text;
+          if (val === null) continue;
+          el.value = val;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          filled++;
+        }
+        const invalid = Array.from(f.elements)
+          .filter((el) => {
+            const e = el as HTMLInputElement;
+            return e.willValidate && !e.checkValidity();
+          })
+          .map((el) => (el as HTMLInputElement).name || (el as HTMLInputElement).type || "поле");
+        return { filled, invalid };
+      },
+      { idx, data: FORM_TEST_DATA },
+    )
+    .catch(() => ({ filled: 0, invalid: [] as string[] }));
+}
+
+/**
+ * Реально отправляет форму (клик по кнопке отправки или requestSubmit). Дожидается завершения
+ * навигации от сабмита (для обычных форм) или затишья сети (для AJAX-форм) — иначе следующий
+ * переход обхода прервал бы запрос и создал бы ложную «сетевую ошибку».
+ */
+async function submitForm(page: import("playwright-core").Page, idx: number): Promise<void> {
+  // Готовим ожидание навигации ДО клика, чтобы не пропустить её.
+  const navPromise = page
+    .waitForNavigation({ timeout: FORM_SUBMIT_WAIT_MS, waitUntil: "domcontentloaded" })
+    .catch(() => null);
+  await page
+    .evaluate((idx) => {
+      const f = document.forms[idx];
+      if (!f) return;
+      const btn = f.querySelector<HTMLElement>(
+        "button[type=submit], input[type=submit], input[type=image], button:not([type])",
+      );
+      if (btn) btn.click();
+      else (f as HTMLFormElement).requestSubmit?.();
+    }, idx)
+    .catch(() => {});
+  await navPromise; // дождаться перехода (или таймаута для AJAX-форм)
+  await page.waitForLoadState("networkidle", { timeout: 2500 }).catch(() => {});
+}
+
 /**
  * Запускает headless-Chromium. Путь к бинарнику — из env или автоопределение Playwright.
  * Частые ошибки окружения (браузер не установлен / не хватает системных библиотек)
@@ -446,8 +685,38 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
       if (row && row.status < 0) row.failed = true;
     });
 
+    // Захват JS-ошибок страницы: необработанные исключения и console.error. Шум (провалы
+    // загрузки ресурсов, favicon, cookie-предупреждения) отсекаем — это не баги кода.
+    const jsErrorMap = new Map<string, ScanJsError>();
+    const noteJsError = (raw: string) => {
+      const m = raw.replace(/\s+/g, " ").trim().slice(0, 300);
+      if (!m) return;
+      if (/Failed to load resource|net::ERR|favicon|ERR_BLOCKED|A cookie associated|was preloaded/i.test(m)) return;
+      const cur = jsErrorMap.get(m);
+      if (cur) cur.count += 1;
+      else if (jsErrorMap.size < 100) jsErrorMap.set(m, { message: m, on: currentPage, count: 1 });
+    };
+    page.on("pageerror", (err) => noteJsError(err.message || String(err)));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") noteJsError(msg.text());
+    });
+
     const emails = new Set<string>();
     const phones = new Set<string>();
+
+    // Проверка форм: собираем уникальные формы (по подписи) и план на отправку.
+    const forms: ScanForm[] = [];
+    const testedFormSigs = new Set<string>();
+    const submitPlan: { formRef: ScanForm; pageUrl: string; sig: string }[] = [];
+    const formSig = (d: FormDescriptor, pageUrl: string): string => {
+      let action = d.action;
+      try {
+        action = new URL(d.action, pageUrl).toString();
+      } catch {
+        /* оставляем как есть */
+      }
+      return `${d.method}|${action}|${d.fields.map((x) => x.name || x.type).join(",")}`;
+    };
 
     // Метаданные обойдённых страниц (для карты сайта). Ключ — pageUrl (совпадает с `on`).
     const pageMetas = new Map<
@@ -545,6 +814,74 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
         seen.add(norm);
         queue.push(norm);
       }
+
+      // Формы: статический анализ каждой уникальной формы; заполнение/отправку планируем
+      // отдельным проходом после обхода (чтобы навигация от сабмита не мешала обходу).
+      if (forms.length < MAX_FORMS) {
+        const descriptors = await readForms(page);
+        for (const d of descriptors) {
+          if (forms.length >= MAX_FORMS) break;
+          const sig = formSig(d, pageUrl);
+          if (testedFormSigs.has(sig)) continue;
+          testedFormSigs.add(sig);
+          let action = d.action;
+          try {
+            action = new URL(d.action, pageUrl).toString();
+          } catch {
+            /* оставляем как есть */
+          }
+          const isPayment = d.fields.some((x) =>
+            PAYMENT_FIELD_RE.test(`${x.name} ${x.id} ${x.autocomplete} ${x.placeholder} ${x.type}`),
+          );
+          const rec: ScanForm = {
+            page: pageUrl,
+            action,
+            method: d.method.toUpperCase(),
+            fields: d.fields.length,
+            filled: false,
+            submitted: false,
+            skippedPayment: isPayment,
+            issues: analyzeForm(d, pageUrl),
+          };
+          if (isPayment) {
+            rec.issues.push({ severity: "warning", message: "Форма оплаты — не заполнялась и не отправлялась" });
+          }
+          forms.push(rec);
+          if (!isPayment && d.fields.length > 0) {
+            submitPlan.push({ formRef: rec, pageUrl, sig });
+          }
+        }
+      }
+    }
+
+    // Проход отправки форм: заполняем тестовыми данными и реально отправляем (кроме форм
+    // оплаты). Последствия (ошибки бэкенда, JS-ошибки) попадают в общий захват по currentPage.
+    let formSubmits = 0;
+    for (const plan of submitPlan) {
+      if (formSubmits >= MAX_FORM_SUBMITS) break;
+      if (Date.now() - startedAt > TOTAL_BUDGET_MS) break;
+      currentPage = plan.pageUrl;
+      try {
+        await page.goto(plan.pageUrl, { waitUntil: "domcontentloaded" });
+        await page.waitForLoadState("networkidle", { timeout: IDLE_TIMEOUT_MS }).catch(() => {});
+      } catch {
+        continue;
+      }
+      // Находим ту же форму по подписи на свежей странице.
+      const descriptors = await readForms(page);
+      const target = descriptors.find((d) => formSig(d, plan.pageUrl) === plan.sig);
+      if (!target) continue;
+      const { filled, invalid } = await fillForm(page, target.idx);
+      plan.formRef.filled = filled > 0;
+      if (filled > 0 && invalid.length > 0) {
+        plan.formRef.issues.push({
+          severity: "warning",
+          message: `Поля не проходят проверку даже с корректными данными: ${invalid.slice(0, 5).join(", ")}`,
+        });
+      }
+      await submitForm(page, target.idx);
+      plan.formRef.submitted = true;
+      formSubmits += 1;
     }
 
     // Дожидаемся, пока доснимутся размеры последних сетевых событий.
@@ -669,6 +1006,9 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
     const emailList = Array.from(emails).sort();
     const phoneList = Array.from(phones).sort();
 
+    const jsErrors = Array.from(jsErrorMap.values()).sort((a, b) => b.count - a.count);
+    const formBugs = forms.reduce((n, f) => n + f.issues.length, 0);
+
     let domain = host;
     try {
       domain = new URL(finalStartUrl).hostname;
@@ -690,6 +1030,8 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
       backendErrors: errors.slice(0, MAX_LIST),
       slowRequests: slow.slice(0, MAX_LIST),
       staticAssets: assets.slice(0, MAX_ASSETS_LIST),
+      jsErrors: jsErrors.slice(0, MAX_LIST),
+      forms: forms.slice(0, MAX_FORMS),
       emails: emailList.slice(0, MAX_LIST),
       phones: phoneList.slice(0, MAX_LIST),
       summary: {
@@ -698,6 +1040,9 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
         assets: assets.length,
         emails: emailList.length,
         phones: phoneList.length,
+        jsErrors: jsErrors.length,
+        formsChecked: forms.length,
+        formBugs,
         avgPageMs,
       },
     };
