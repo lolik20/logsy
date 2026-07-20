@@ -255,6 +255,30 @@ function PageCard({ page }: { page: ScanPage }) {
 
 export function ScanReportView({ report: r, scanId }: { report: ScanReport; scanId?: string }) {
   const stopNote = STOP_NOTE[r.stopped];
+
+  // Почты и телефоны держим в состоянии — их можно удалить из отчёта (если известен scanId).
+  const [emails, setEmails] = useState<string[]>(r.emails);
+  const [phones, setPhones] = useState<string[]>(r.phones);
+
+  async function deleteContact(type: "email" | "phone", value: string) {
+    // Оптимистично убираем из списка; при ошибке возвращаем.
+    const prevEmails = emails;
+    const prevPhones = phones;
+    if (type === "email") setEmails((l) => l.filter((v) => v !== value));
+    else setPhones((l) => l.filter((v) => v !== value));
+    if (!scanId) return;
+    try {
+      const res = await fetch(`/api/admin/scan/${scanId}/contacts`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type, value }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setEmails(prevEmails);
+      setPhones(prevPhones);
+    }
+  }
   return (
     <div className="space-y-5">
       {/* Шапка отчёта */}
@@ -300,8 +324,8 @@ export function ScanReportView({ report: r, scanId }: { report: ScanReport; scan
           tone={r.summary.slow ? "text-amber-600 dark:text-amber-400" : "text-slate-400"}
         />
         <Tile value={r.summary.assets} label="Статики" tone="text-slate-700 dark:text-slate-200" />
-        <Tile value={r.summary.emails} label="Почт" tone="text-brand" />
-        <Tile value={r.summary.phones} label="Телефонов" tone="text-brand" />
+        <Tile value={emails.length} label="Почт" tone="text-brand" />
+        <Tile value={phones.length} label="Телефонов" tone="text-brand" />
       </div>
 
       {/* Карта сайта с критическими моментами на каждой странице */}
@@ -363,13 +387,17 @@ export function ScanReportView({ report: r, scanId }: { report: ScanReport; scan
       )}
 
       {/* Почты + рассылка */}
-      {r.emails.length > 0 && (
-        <Section title="Найденные почты и рассылка" count={r.summary.emails}>
+      {emails.length > 0 && (
+        <Section title="Найденные почты и рассылка" count={emails.length}>
           {scanId ? (
-            <OutreachPanel scanId={scanId} emails={r.emails} />
+            <OutreachPanel
+              scanId={scanId}
+              emails={emails}
+              onDelete={(m) => deleteContact("email", m)}
+            />
           ) : (
             <div className="flex flex-wrap gap-2">
-              {r.emails.map((m) => (
+              {emails.map((m) => (
                 <a
                   key={m}
                   href={`mailto:${m}`}
@@ -384,17 +412,29 @@ export function ScanReportView({ report: r, scanId }: { report: ScanReport; scan
       )}
 
       {/* Телефоны */}
-      {r.phones.length > 0 && (
-        <Section title="Найденные телефоны" count={r.summary.phones}>
+      {phones.length > 0 && (
+        <Section title="Найденные телефоны" count={phones.length}>
           <div className="flex flex-wrap gap-2">
-            {r.phones.map((p) => (
-              <a
+            {phones.map((p) => (
+              <span
                 key={p}
-                href={`tel:${p}`}
-                className="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand hover:underline dark:bg-brand/15"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium dark:bg-brand/15"
               >
-                {p}
-              </a>
+                <a href={`tel:${p}`} className="text-brand hover:underline">
+                  {p}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => deleteContact("phone", p)}
+                  aria-label={`Удалить ${p}`}
+                  title="Удалить контакт"
+                  className="text-slate-400 transition-colors hover:text-red-600"
+                >
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </span>
             ))}
           </div>
         </Section>
