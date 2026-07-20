@@ -294,7 +294,7 @@ function extractPhones(html: string, into: Set<string>) {
  * Частые ошибки окружения (браузер не установлен / не хватает системных библиотек)
  * превращаем в короткое понятное сообщение с командой-подсказкой вместо сырого лога.
  */
-async function launchBrowser(): Promise<Browser> {
+export async function launchBrowser(): Promise<Browser> {
   const executablePath =
     process.env.PLAYWRIGHT_CHROMIUM_PATH || process.env.CHROMIUM_PATH || undefined;
   try {
