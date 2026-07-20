@@ -262,15 +262,38 @@ function extractPhones(html: string, into: Set<string>) {
   }
 }
 
-/** Запускает headless-Chromium. Путь к бинарнику — из env или автоопределение Playwright. */
+/**
+ * Запускает headless-Chromium. Путь к бинарнику — из env или автоопределение Playwright.
+ * Частые ошибки окружения (браузер не установлен / не хватает системных библиотек)
+ * превращаем в короткое понятное сообщение с командой-подсказкой вместо сырого лога.
+ */
 async function launchBrowser(): Promise<Browser> {
   const executablePath =
     process.env.PLAYWRIGHT_CHROMIUM_PATH || process.env.CHROMIUM_PATH || undefined;
-  return chromium.launch({
-    headless: true,
-    executablePath,
-    args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-  });
+  try {
+    return await chromium.launch({
+      headless: true,
+      executablePath,
+      args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Не хватает системных библиотек (libatk, libnss3 и т.п.) — нужен --with-deps.
+    if (/shared librar|cannot open shared object|error while loading/i.test(msg)) {
+      throw new Error(
+        "Не хватает системных библиотек для Chromium. Установите их: " +
+          "npx playwright-core install --with-deps chromium",
+      );
+    }
+    // Браузер не скачан или не той ревизии.
+    if (/Executable doesn't exist|playwright install|Please run/i.test(msg)) {
+      throw new Error(
+        "Chromium для обхода не установлен на сервере. Установите его: " +
+          "npx playwright-core install chromium",
+      );
+    }
+    throw new Error("Не удалось запустить браузер для обхода: " + msg.split("\n")[0]);
+  }
 }
 
 // Учтённый сетевой запрос. Код/тайминг/размер снимаются сразу в момент события
