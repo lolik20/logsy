@@ -71,6 +71,33 @@ function plural(n: number, one: string, few: string, many: string): string {
   return many;
 }
 
+/** Завлекающий призыв к действию по результатам обхода (для письма и PDF). */
+export interface Cta {
+  button: string; // текст кнопки
+  lead: string; // подводящая строка над кнопкой
+}
+
+export function buildCta(report: ScanReport): Cta {
+  const { errors, slow, avgPageMs } = report.summary;
+  if (errors > 0) {
+    const e = `${errors} ${plural(errors, "ошибку", "ошибки", "ошибок")}`;
+    return {
+      button: `Поправим ${e} на сайте — бесплатно`,
+      lead: `Подключите Logsy — и мы поможем убрать ${e} с вашего сайта. Абсолютно бесплатно.`,
+    };
+  }
+  if (slow > 0 || avgPageMs >= 2000) {
+    return {
+      button: "Ускорим ваш сайт — бесплатно",
+      lead: "Подключите Logsy — покажем, что именно тормозит, и поможем ускорить сайт. Бесплатно.",
+    };
+  }
+  return {
+    button: "Возьмём сайт под контроль — бесплатно",
+    lead: "Подключите Logsy — и узнавайте о проблемах раньше клиентов. Бесплатно.",
+  };
+}
+
 // -------------------- Скриншот отчёта (карточка-дашборд) --------------------
 
 /** HTML компактной карточки-дашборда для скриншота (тёмная, «дорогая», вызывающая тревогу). */
@@ -182,7 +209,8 @@ export function buildOutreachEmail(opts: {
   const v = buildVerdict(report, domain);
   const s = report.summary;
 
-  const cta = `${app}/register?utm_source=outreach&utm_medium=email&utm_campaign=scan&utm_content=${encodeURIComponent(domain)}`;
+  const ctaUrl = `${app}/register?utm_source=outreach&utm_medium=email&utm_campaign=scan&utm_content=${encodeURIComponent(domain)}`;
+  const cta = buildCta(report);
   const pixel = `${app}/api/track/open/${token}.png`;
   const unsub = `${app}/api/outreach/unsubscribe/${token}`;
   const listUnsubscribe = `<${unsub}>, <mailto:${supportEmail()}?subject=unsubscribe>`;
@@ -234,9 +262,10 @@ export function buildOutreachEmail(opts: {
 
         ${hasShot ? `<tr><td style="padding:22px 30px 0;"><img src="cid:reportshot" width="540" alt="Отчёт по сайту ${escapeHtml(domain)}" style="display:block;width:100%;border-radius:16px;border:1px solid #e2e8f0;" /></td></tr>` : ""}
 
-        <tr><td align="center" style="padding:26px 30px 8px;">
-          <a href="${cta}" style="display:inline-block;background:#4f46e5;background:linear-gradient(90deg,#4f46e5,#6366f1);color:#ffffff;text-decoration:none;font-size:17px;font-weight:700;padding:15px 34px;border-radius:12px;">
-            Найти все ошибки и ускорить сайт →
+        <tr><td align="center" style="padding:22px 30px 8px;">
+          <div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:14px;">${escapeHtml(cta.lead)}</div>
+          <a href="${ctaUrl}" style="display:inline-block;background:#4f46e5;background:linear-gradient(90deg,#4f46e5,#6366f1);color:#ffffff;text-decoration:none;font-size:17px;font-weight:800;padding:16px 34px;border-radius:12px;">
+            ${escapeHtml(cta.button)} →
           </a>
           <div style="font-size:12px;color:#94a3b8;margin-top:10px;">Бесплатный тариф навсегда · подключение за минуту · без карты</div>
           ${hasPdf ? `<div style="font-size:13px;color:#475569;margin-top:14px;">📎 Полный отчёт по сайту со всеми находками — в приложенном PDF.</div>` : ""}
@@ -270,9 +299,8 @@ export function buildOutreachEmail(opts: {
     `${v.headline}\n` +
     `Мы открыли ${domain} как обычный посетитель и заметили: ${findings.join(", ")}.\n` +
     `${v.sub}\n\n` +
-    `Подключите Logsy — российский сервис контроля за сайтом — чтобы видеть ошибки на сайте,\n` +
-    `медленные страницы, падения и проблемы с сертификатом раньше своих клиентов.\n\n` +
-    `Найти все ошибки и ускорить сайт: ${cta}\n` +
+    `${cta.lead}\n` +
+    `${cta.button}: ${ctaUrl}\n` +
     `Бесплатный тариф навсегда, подключение за минуту.\n` +
     (hasPdf ? `Полный отчёт по сайту — в приложенном PDF.\n` : "") +
     `\n` +
