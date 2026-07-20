@@ -5,8 +5,16 @@ const nextConfig = {
   // планировщик мониторинга. В Next.js 15 стабилен и флаг не нужен.
   experimental: {
     instrumentationHook: true,
-    // Держим node-only пакеты внешними в серверном бандле.
-    serverComponentsExternalPackages: ["node-cron", "nodemailer", "@prisma/client", "undici"],
+    // Держим node-only пакеты внешними в серверном бандле. playwright-core
+    // (headless-браузер для инструмента «Обход») не должен бандлиться вебпаком —
+    // он подгружает бинарник Chromium и свои внутренние модули в рантайме.
+    serverComponentsExternalPackages: [
+      "node-cron",
+      "nodemailer",
+      "@prisma/client",
+      "undici",
+      "playwright-core",
+    ],
   },
   webpack: (config, { nextRuntime }) => {
     // instrumentation.ts компилируется и для edge-рантайма, куда по графу

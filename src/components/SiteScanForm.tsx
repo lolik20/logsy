@@ -9,6 +9,7 @@
 import { useState } from "react";
 
 type AssetKind = "script" | "style" | "image" | "font" | "other";
+type RequestKind = "page" | "script" | "style" | "image" | "font" | "xhr" | "other";
 
 interface ScanError {
   url: string;
@@ -19,7 +20,7 @@ interface ScanError {
 interface ScanSlow {
   url: string;
   ms: number;
-  kind: "page" | AssetKind;
+  kind: RequestKind;
 }
 interface ScanAsset {
   url: string;
@@ -71,6 +72,13 @@ const KIND_LABEL: Record<AssetKind, string> = {
   font: "Шрифт",
   other: "Файл",
 };
+
+/** Человеко-читаемый тип запроса для списка медленных. */
+function reqKindLabel(kind: RequestKind): string {
+  if (kind === "page") return "страница";
+  if (kind === "xhr") return "запрос (XHR)";
+  return KIND_LABEL[kind];
+}
 
 const STOP_NOTE: Record<ScanReport["stopped"], string | null> = {
   done: null,
@@ -269,7 +277,7 @@ export function SiteScanForm() {
                       {formatMs(s.ms)}
                     </span>
                     <span className="shrink-0 text-[11px] text-slate-400">
-                      {s.kind === "page" ? "страница" : KIND_LABEL[s.kind]}
+                      {reqKindLabel(s.kind)}
                     </span>
                     <span className="min-w-0 truncate font-mono text-xs text-slate-600 dark:text-slate-300">
                       {shortUrl(s.url)}

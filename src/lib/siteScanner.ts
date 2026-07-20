@@ -1,29 +1,28 @@
-// Сканер сайта для админ-инструмента «Обход». По одному URL бот «как браузер» обходит
-// сайт: грузит стартовую страницу, идёт по внутренним ссылкам (BFS в пределах хоста),
-// на каждой странице находит подключённые ресурсы (скрипты, стили, картинки, шрифты) и
-// параллельно скачивает их — ровно так браузер строит страницу. По ходу обхода собирает:
-//   • ошибки бэкенда — ответы с кодом >= 400 и сетевые сбои (страниц и ресурсов);
-//   • медленные запросы — всё, что грузилось дольше порога;
-//   • статику — подключённые файлы (js/css/img/шрифты) с размером и временем;
-//   • почты и телефоны, найденные в разметке (mailto:/tel: и в тексте).
+// Сканер сайта для админ-инструмента «Обход». По одному URL настоящий headless-браузер
+// (Chromium через Playwright) обходит сайт: открывает стартовую страницу, исполняет её JS,
+// идёт по внутренним ссылкам (BFS в пределах хоста) и на каждой странице слушает реальные
+// сетевые события браузера. По ходу обхода собирает:
+//   • ошибки бэкенда — ответы с кодом >= 400 и упавшие запросы (страниц, API и ресурсов);
+//   • медленные запросы — всё, что грузилось дольше порога (документы, XHR/fetch, файлы);
+//   • статику — подключённые файлы (js/css/img/шрифты) с реальным размером и временем;
+//   • почты и телефоны — из отрисованной разметки (mailto:/tel: и текст, уже после JS).
 // Итог — единый JSON-отчёт по сайту.
 //
-// Реального headless-браузера в рантайме нет (как и в /api/speed-test) — он тянет за собой
-// Chromium и ломает serverless/лёгкий деплой. Поэтому «обход как браузер» реализован на
-// fetch: тот же UA, те же под-ресурсы и параллельная загрузка. HTML разбираем регэкспами —
-// DOM-парсера в рантайме нет, а нам нужны только ссылки, ресурсы, mailto/tel и текст.
+// В отличие от проверки скорости, здесь именно headless-браузер: он исполняет JavaScript
+// (важно для SPA и динамически подставляемых контактов) и даёт точные коды/тайминги сетевых
+// запросов так, как их видит настоящий посетитель. Браузер — Chromium, находится Playwright'ом
+// автоматически (переменная PLAYWRIGHT_BROWSERS_PATH) либо по пути из PLAYWRIGHT_CHROMIUM_PATH.
+
+import { chromium, type Browser, type Request as PwRequest } from "playwright-core";
 
 // --- Пределы обхода (чтобы не подвесить запрос на крупном сайте) ---
-const MAX_PAGES = 25; // сколько HTML-страниц максимум обойти
+const MAX_PAGES = 20; // сколько HTML-страниц максимум обойти
 const MAX_DEPTH = 4; // максимальная глубина вложенности пути от корня
-const MAX_RESOURCES = 200; // сколько уникальных под-ресурсов максимум проверить
-const PAGE_TIMEOUT_MS = 12_000; // таймаут загрузки одной страницы
-const RES_TIMEOUT_MS = 12_000; // таймаут загрузки одного ресурса
-const TOTAL_BUDGET_MS = 50_000; // общий бюджет обхода (route maxDuration = 60)
-const CONCURRENCY = 10; // параллельных загрузок, как пул соединений браузера
+const MAX_REQUESTS = 800; // сколько сетевых запросов максимум учесть
+const NAV_TIMEOUT_MS = 20_000; // таймаут перехода на страницу
+const IDLE_TIMEOUT_MS = 6_000; // сколько ждать «затишья» сети после загрузки
+const TOTAL_BUDGET_MS = 55_000; // общий бюджет обхода (route maxDuration = 60)
 const SLOW_MS = 1000; // порог «медленного» запроса (как slowMs проекта по умолчанию)
-const MAX_RES_BYTES = 10 * 1024 * 1024; // лимит на один ресурс
-const MAX_TOTAL_BYTES = 80 * 1024 * 1024; // общий лимит трафика
 
 // Ограничения на размер отчёта — чтобы длинные списки не раздували ответ.
 const MAX_LIST = 100; // максимум записей в списках ошибок/медленных/почт/телефонов
@@ -31,31 +30,29 @@ const MAX_ASSETS_LIST = 200; // максимум записей в списке 
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/120.0 Safari/537.36 LogsyBot/1.0";
+  "(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 LogsyBot/1.0";
 
-// Расширения статических файлов (совпадает по смыслу с STATIC_ASSET_EXT в staticAssets.ts).
-const IMG_EXT = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|bmp)$/i;
-const FONT_EXT = /\.(?:woff2?|ttf|otf|eot)$/i;
-const SCRIPT_EXT = /\.(?:js|mjs|cjs)$/i;
-const STYLE_EXT = /\.css$/i;
+// Расширения файлов, которые не являются HTML-страницами (не ставим их в очередь обхода).
 const ASSET_EXT_ANY =
-  /\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|avif|ico|bmp|woff2?|ttf|otf|eot|map|wasm)$/i;
+  /\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|avif|ico|bmp|woff2?|ttf|otf|eot|map|wasm|pdf|zip|mp4|webm|mp3|xml|json)$/i;
 
 export type AssetKind = "script" | "style" | "image" | "font" | "other";
+// Тип сетевого запроса для медленных: страница, статика или динамический запрос (XHR/fetch).
+export type RequestKind = "page" | "script" | "style" | "image" | "font" | "xhr" | "other";
 
-/** Ошибка запроса: ответ >= 400 или сетевой сбой (для страницы или ресурса). */
+/** Ошибка запроса: ответ >= 400 или упавший запрос (для страницы, API или ресурса). */
 export interface ScanError {
   url: string; // адрес запроса
-  status: number; // HTTP-код (0 — сетевой сбой/таймаут)
-  kind: "server" | "client" | "network"; // 5xx | 4xx | сбой соединения
-  on: string; // на какой странице встретился (или сам URL — для стартовой)
+  status: number; // HTTP-код (0 — запрос упал/оборвался)
+  kind: "server" | "client" | "network"; // 5xx | 4xx | обрыв соединения
+  on: string; // на какой странице встретился
 }
 
-/** Медленный запрос: страница или ресурс, загрузка дольше порога. */
+/** Медленный запрос: страница, ресурс или XHR/fetch, загрузка дольше порога. */
 export interface ScanSlow {
   url: string;
   ms: number;
-  kind: "page" | AssetKind;
+  kind: RequestKind;
 }
 
 /** Статический файл, подключённый на страницах сайта. */
@@ -74,10 +71,10 @@ export interface ScanReport {
   domain: string;
   statusCode: number; // код ответа стартовой страницы
   pagesCrawled: number; // сколько HTML-страниц обошли
-  requestsTotal: number; // всего сетевых запросов (страницы + ресурсы)
-  transferBytes: number; // суммарный трафик ресурсов
+  requestsTotal: number; // всего учтённых сетевых запросов
+  transferBytes: number; // суммарный трафик (тела ответов)
   durationMs: number; // сколько занял обход
-  stopped: "done" | "pages" | "resources" | "budget"; // причина остановки обхода
+  stopped: "done" | "pages" | "requests" | "budget"; // причина остановки обхода
   backendErrors: ScanError[];
   slowRequests: ScanSlow[];
   staticAssets: ScanAsset[];
@@ -89,7 +86,7 @@ export interface ScanReport {
     assets: number;
     emails: number;
     phones: number;
-    avgPageMs: number; // среднее время загрузки HTML-страниц
+    avgPageMs: number; // среднее время загрузки HTML-страниц (по документным запросам)
   };
 }
 
@@ -129,75 +126,41 @@ export function normalizeScanUrl(raw: string): URL | null {
   return url;
 }
 
-/** Тип статического файла по расширению пути. */
-function assetKind(pathname: string): AssetKind {
-  if (SCRIPT_EXT.test(pathname)) return "script";
-  if (STYLE_EXT.test(pathname)) return "style";
-  if (IMG_EXT.test(pathname)) return "image";
-  if (FONT_EXT.test(pathname)) return "font";
-  return "other";
+/** Тип сетевого запроса Playwright → наш RequestKind. */
+function requestKind(resourceType: string): RequestKind {
+  switch (resourceType) {
+    case "document":
+      return "page";
+    case "script":
+      return "script";
+    case "stylesheet":
+      return "style";
+    case "image":
+      return "image";
+    case "font":
+      return "font";
+    case "xhr":
+    case "fetch":
+      return "xhr";
+    default:
+      return "other";
+  }
 }
 
-/** Достаёт значения href всех <a> из HTML. */
-function extractHrefs(html: string): string[] {
-  const out: string[] = [];
-  const re = /<a\b[^>]*?\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s">]+))/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    const href = m[2] ?? m[3] ?? m[4] ?? "";
-    if (href) out.push(href);
+/** Тип статического файла (для списка статики) или null, если это не статика. */
+function assetKind(resourceType: string): AssetKind | null {
+  switch (resourceType) {
+    case "script":
+      return "script";
+    case "stylesheet":
+      return "style";
+    case "image":
+      return "image";
+    case "font":
+      return "font";
+    default:
+      return null;
   }
-  return out;
-}
-
-/** Извлекает из HTML подключённые ресурсы (скрипты, стили, картинки), делая их абсолютными. */
-function extractResources(html: string, baseUrl: URL): { url: string; kind: AssetKind }[] {
-  let base = baseUrl;
-  const baseTag = /<base\b[^>]*\bhref\s*=\s*["']([^"']+)["']/i.exec(html);
-  if (baseTag) {
-    try {
-      base = new URL(baseTag[1], baseUrl);
-    } catch {
-      /* игнорируем некорректный base */
-    }
-  }
-
-  const found = new Map<string, AssetKind>();
-  const add = (raw: string, kind: AssetKind) => {
-    const href = raw.trim();
-    if (!href || href.startsWith("data:") || href.startsWith("javascript:")) return;
-    try {
-      const abs = new URL(href, base);
-      if (abs.protocol !== "http:" && abs.protocol !== "https:") return;
-      if (isBlockedHost(abs.hostname)) return;
-      abs.hash = "";
-      // Уточняем тип по расширению, если тег дал общий («other»/«style»-подобный).
-      const byExt = assetKind(abs.pathname);
-      const finalKind = kind === "other" && byExt !== "other" ? byExt : kind;
-      const prev = found.get(abs.href);
-      // Скрипт важнее — не понижаем его до стиля/картинки.
-      if (!prev || (prev !== "script" && finalKind === "script")) found.set(abs.href, finalKind);
-    } catch {
-      /* некорректная ссылка — пропускаем */
-    }
-  };
-
-  for (const m of html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
-    add(m[1], "script");
-  }
-  for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
-    const tag = m[0];
-    const href = /\bhref\s*=\s*["']([^"']+)["']/i.exec(tag);
-    if (!href) continue;
-    if (/\brel\s*=\s*["']?[^"'>]*stylesheet/i.test(tag)) add(href[1], "style");
-    else if (/\bas\s*=\s*["']?font/i.test(tag) || FONT_EXT.test(href[1])) add(href[1], "font");
-    else if (/\brel\s*=\s*["']?(?:icon|apple-touch-icon)/i.test(tag)) add(href[1], "image");
-  }
-  for (const m of html.matchAll(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
-    add(m[1], "image");
-  }
-
-  return Array.from(found, ([url, kind]) => ({ url, kind }));
 }
 
 /** Нормализует внутреннюю ссылку в путь того же хоста или null (внешняя/ресурс/некорректная). */
@@ -223,7 +186,6 @@ function internalPath(href: string, pageUrl: string, host: string): string | nul
   if (u.protocol !== "http:" && u.protocol !== "https:") return null;
   if (u.hostname.toLowerCase() !== host) return null;
   if (ASSET_EXT_ANY.test(u.pathname)) return null; // это файл, не страница
-  // Путь без завершающего слэша (кроме корня); query отбрасываем.
   let path = u.pathname.replace(/\/+$/, "");
   if (path === "") path = "/";
   return path;
@@ -233,9 +195,10 @@ function pathDepth(path: string): number {
   return path.split("/").filter(Boolean).length;
 }
 
-// --- Извлечение почт и телефонов ---
+// --- Извлечение почт и телефонов из отрисованной разметки ---
 
-const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?)+/g;
+const EMAIL_RE =
+  /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]*[a-zA-Z0-9])?)+/g;
 
 /** Похоже на почту, а не на кусок имени файла/версии (foo@2x.png, sprite@2x)? */
 function looksLikeEmail(addr: string): boolean {
@@ -267,15 +230,12 @@ function normalizePhone(raw: string): string | null {
   let digits = raw.replace(/[^\d+]/g, "");
   const plus = digits.startsWith("+");
   digits = digits.replace(/\D/g, "");
-  // Российский формат: 11 цифр, начинается с 7 или 8 → +7XXXXXXXXXX.
   if (digits.length === 11 && (digits[0] === "7" || digits[0] === "8")) {
     return "+7" + digits.slice(1);
   }
-  // 10 цифр без кода страны — считаем российским мобильным/городским.
   if (digits.length === 10 && !plus) {
     return "+7" + digits;
   }
-  // Международный с «+» и разумной длиной — оставляем как есть.
   if (plus && digits.length >= 8 && digits.length <= 15) {
     return "+" + digits;
   }
@@ -302,243 +262,256 @@ function extractPhones(html: string, into: Set<string>) {
   }
 }
 
-interface FetchOutcome {
-  status: number; // 0 — сетевой сбой/таймаут
+/** Запускает headless-Chromium. Путь к бинарнику — из env или автоопределение Playwright. */
+async function launchBrowser(): Promise<Browser> {
+  const executablePath =
+    process.env.PLAYWRIGHT_CHROMIUM_PATH || process.env.CHROMIUM_PATH || undefined;
+  return chromium.launch({
+    headless: true,
+    executablePath,
+    args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+  });
+}
+
+// Учтённый сетевой запрос. Код/тайминг/размер снимаются сразу в момент события
+// (requestfinished/requestfailed): после перехода на следующую страницу Playwright уже не
+// отдаёт response() для запросов прошлых страниц, поэтому ленивое чтение в конце теряло бы
+// коды ответов ранее обойдённых страниц.
+interface CapturedRequest {
+  url: string;
+  status: number; // HTTP-код (0 — упавший/оборванный запрос)
+  kind: RequestKind;
+  asset: AssetKind | null;
   ms: number;
   bytes: number;
-  contentType: string;
-  finalUrl: string;
-  body?: string; // текст — только для HTML-страниц
-}
-
-/** Загружает URL, засекая время и размер. wantHtml=true — читаем и возвращаем текст HTML. */
-async function fetchUrl(
-  url: string,
-  wantHtml: boolean,
-  budget: { total: number },
-  timeoutMs: number,
-): Promise<FetchOutcome> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  const start = Date.now();
-  try {
-    const res = await fetch(url, {
-      redirect: "follow",
-      signal: ctrl.signal,
-      headers: {
-        "user-agent": UA,
-        accept: wantHtml
-          ? "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-          : "*/*",
-      },
-    });
-    const contentType = res.headers.get("content-type") ?? "";
-    let bytes = 0;
-    let body: string | undefined;
-
-    if (wantHtml && contentType.includes("text/html")) {
-      const text = await res.text();
-      bytes = Buffer.byteLength(text);
-      budget.total += bytes;
-      body = text;
-    } else {
-      // Считаем размер потоково, не держа тело в памяти целиком.
-      const reader = res.body?.getReader();
-      if (reader) {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            bytes += value.byteLength;
-            budget.total += value.byteLength;
-            if (bytes > MAX_RES_BYTES || budget.total > MAX_TOTAL_BYTES) {
-              await reader.cancel().catch(() => {});
-              break;
-            }
-          }
-        }
-      }
-    }
-    return {
-      status: res.status,
-      ms: Date.now() - start,
-      bytes,
-      contentType,
-      finalUrl: res.url || url,
-      body,
-    };
-  } catch {
-    return { status: 0, ms: Date.now() - start, bytes: 0, contentType: "", finalUrl: url };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/** Выполняет задачи с ограничением параллельности (как пул соединений браузера). */
-async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promise<void>) {
-  let i = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (i < items.length) {
-      const idx = i++;
-      await worker(items[idx]);
-    }
-  });
-  await Promise.all(runners);
+  on: string; // страница, при обходе которой пошёл запрос
+  failed: boolean;
 }
 
 /**
- * Обходит сайт по стартовому URL и формирует отчёт: ошибки бэкенда, медленные запросы,
- * статика, найденные почты и телефоны. Кидает ошибку, если стартовая страница недоступна.
+ * Обходит сайт по стартовому URL настоящим headless-браузером и формирует отчёт: ошибки
+ * бэкенда, медленные запросы, статика, найденные почты и телефоны. Кидает ошибку, если
+ * стартовая страница не открылась.
  */
 export async function scanSite(startUrl: URL): Promise<ScanReport> {
   const host = startUrl.hostname.toLowerCase();
-  const startedAt = Date.now();
-  const budget = { total: 0 };
-
-  const errors: ScanError[] = [];
-  const slow: ScanSlow[] = [];
-  const emails = new Set<string>();
-  const phones = new Set<string>();
-  const pageTimes: number[] = [];
-
-  // Очередь страниц (BFS) и множество увиденных путей/ресурсов.
-  const queue: string[] = [startUrl.pathname.replace(/\/+$/, "") || "/"];
-  const seenPaths = new Set<string>(queue);
-  const resourceSet = new Map<string, AssetKind>(); // абс. URL → тип
-  let pagesCrawled = 0;
-  let startStatus = 0;
-  let finalStartUrl = startUrl.toString();
-  let stopped: ScanReport["stopped"] = "done";
-
   const origin = `${startUrl.protocol}//${startUrl.host}`;
+  const startedAt = Date.now();
 
-  while (queue.length > 0) {
-    if (pagesCrawled >= MAX_PAGES) {
-      stopped = "pages";
-      break;
-    }
-    if (Date.now() - startedAt > TOTAL_BUDGET_MS) {
-      stopped = "budget";
-      break;
-    }
-    const path = queue.shift()!;
-    const pageUrl = origin + (path === "/" ? "" : path);
-
-    const out = await fetchUrl(pageUrl, true, budget, PAGE_TIMEOUT_MS);
-    if (pagesCrawled === 0) {
-      startStatus = out.status;
-      finalStartUrl = out.finalUrl;
-    }
-    pagesCrawled += 1;
-
-    // Ошибки/медленность самой страницы.
-    if (out.status === 0) {
-      errors.push({ url: pageUrl, status: 0, kind: "network", on: pageUrl });
-    } else if (out.status >= 400) {
-      errors.push({
-        url: pageUrl,
-        status: out.status,
-        kind: out.status >= 500 ? "server" : "client",
-        on: pageUrl,
-      });
-    }
-    if (out.ms >= SLOW_MS && out.status !== 0) slow.push({ url: pageUrl, ms: out.ms, kind: "page" });
-    if (out.status !== 0) pageTimes.push(out.ms);
-
-    const html = out.body;
-    if (!html) continue;
-
-    extractEmails(html, emails);
-    extractPhones(html, phones);
-
-    // Ресурсы страницы — копим в общий уникальный набор.
-    const absPageUrl = new URL(out.finalUrl);
-    for (const r of extractResources(html, absPageUrl)) {
-      if (resourceSet.size >= MAX_RESOURCES) break;
-      if (!resourceSet.has(r.url)) resourceSet.set(r.url, r.kind);
-    }
-
-    // Внутренние ссылки — в очередь на обход.
-    for (const href of extractHrefs(html)) {
-      const norm = internalPath(href, out.finalUrl, host);
-      if (!norm || seenPaths.has(norm)) continue;
-      if (pathDepth(norm) > MAX_DEPTH) continue;
-      seenPaths.add(norm);
-      queue.push(norm);
-    }
-  }
-
-  // Стартовая страница вообще не открылась — это не отчёт, а ошибка инструмента.
-  if (startStatus === 0 && pagesCrawled <= 1) {
-    throw new Error("Стартовая страница не ответила — проверьте адрес сайта");
-  }
-
-  // Проверяем собранные под-ресурсы (в рамках оставшегося бюджета времени).
-  const assets: ScanAsset[] = [];
-  const resources = Array.from(resourceSet, ([url, kind]) => ({ url, kind }));
-  if (Date.now() - startedAt > TOTAL_BUDGET_MS) {
-    stopped = "budget";
-  } else {
-    if (resourceSet.size >= MAX_RESOURCES && stopped === "done") stopped = "resources";
-    await runPool(resources, CONCURRENCY, async (r) => {
-      if (Date.now() - startedAt > TOTAL_BUDGET_MS) return;
-      const out = await fetchUrl(r.url, false, budget, RES_TIMEOUT_MS);
-      assets.push({ url: r.url, kind: r.kind, status: out.status, ms: out.ms, bytes: out.bytes });
-      if (out.status === 0) {
-        errors.push({ url: r.url, status: 0, kind: "network", on: r.url });
-      } else if (out.status >= 400) {
-        errors.push({
-          url: r.url,
-          status: out.status,
-          kind: out.status >= 500 ? "server" : "client",
-          on: r.url,
-        });
-      }
-      if (out.ms >= SLOW_MS && out.status !== 0) slow.push({ url: r.url, ms: out.ms, kind: r.kind });
-    });
-  }
-
-  // Сортировки для читаемого отчёта: ошибки по коду убыв., медленные и статика по времени убыв.
-  errors.sort((a, b) => b.status - a.status);
-  slow.sort((a, b) => b.ms - a.ms);
-  assets.sort((a, b) => b.ms - a.ms);
-
-  const requestsTotal = pagesCrawled + assets.length;
-  const avgPageMs =
-    pageTimes.length > 0 ? Math.round(pageTimes.reduce((s, t) => s + t, 0) / pageTimes.length) : 0;
-
-  const emailList = Array.from(emails).sort();
-  const phoneList = Array.from(phones).sort();
-
-  let domain = host;
+  const browser = await launchBrowser();
   try {
-    domain = new URL(finalStartUrl).hostname;
-  } catch {
-    /* оставляем исходный host */
-  }
+    const context = await browser.newContext({ ignoreHTTPSErrors: true, userAgent: UA });
+    context.setDefaultNavigationTimeout(NAV_TIMEOUT_MS);
+    const page = await context.newPage();
 
-  return {
-    startUrl: startUrl.toString(),
-    finalUrl: finalStartUrl,
-    domain,
-    statusCode: startStatus,
-    pagesCrawled,
-    requestsTotal,
-    transferBytes: budget.total,
-    durationMs: Date.now() - startedAt,
-    stopped,
-    backendErrors: errors.slice(0, MAX_LIST),
-    slowRequests: slow.slice(0, MAX_LIST),
-    staticAssets: assets.slice(0, MAX_ASSETS_LIST),
-    emails: emailList.slice(0, MAX_LIST),
-    phones: phoneList.slice(0, MAX_LIST),
-    summary: {
-      errors: errors.length,
-      slow: slow.length,
-      assets: assets.length,
-      emails: emailList.length,
-      phones: phoneList.length,
-      avgPageMs,
-    },
-  };
+    // Захват сетевых событий браузера. currentPage — страница, к которой относятся запросы
+    // (обход последовательный, поэтому атрибуция однозначна). Одна строка на запрос (ключ —
+    // объект Request). Код ответа берём из события `response` (приходит с заголовками ещё до
+    // того, как Chromium прервёт тело — например, у скрипта с ответом 500), тайминг и размер —
+    // из `requestfinished`, а `requestfailed` считаем настоящим сетевым сбоем только если
+    // заголовков ответа так и не было (DNS/обрыв соединения, а не HTTP-код ошибки).
+    const rows = new Map<PwRequest, CapturedRequest>();
+    const pending: Promise<void>[] = [];
+    let currentPage = startUrl.toString();
+
+    const rowFor = (req: PwRequest): CapturedRequest | null => {
+      let row = rows.get(req);
+      if (row) return row;
+      if (rows.size >= MAX_REQUESTS) return null;
+      const url = req.url();
+      if (url.startsWith("data:") || url.startsWith("blob:")) return null;
+      const rt = req.resourceType();
+      row = {
+        url,
+        status: -1, // ответа ещё не было
+        kind: requestKind(rt),
+        asset: assetKind(rt),
+        ms: 0,
+        bytes: 0,
+        on: currentPage,
+        failed: false,
+      };
+      rows.set(req, row);
+      return row;
+    };
+
+    page.on("response", (resp) => {
+      const row = rowFor(resp.request());
+      if (row) row.status = resp.status();
+    });
+    page.on("requestfinished", (req) => {
+      const row = rowFor(req);
+      if (!row) return;
+      const t = req.timing();
+      row.ms = t.responseEnd > 0 ? Math.round(t.responseEnd) : 0;
+      pending.push(
+        req
+          .sizes()
+          .then((s) => {
+            row.bytes = s.responseBodySize || 0;
+          })
+          .catch(() => {}),
+      );
+    });
+    page.on("requestfailed", (req) => {
+      const row = rowFor(req);
+      // Настоящий сетевой сбой — только когда заголовков ответа не было. Прерывание тела
+      // после кода ошибки (aborted у 5xx-скрипта) не считаем «нет ответа»: код уже известен.
+      if (row && row.status < 0) row.failed = true;
+    });
+
+    const emails = new Set<string>();
+    const phones = new Set<string>();
+
+    const queue: string[] = [startUrl.pathname.replace(/\/+$/, "") || "/"];
+    const seen = new Set<string>(queue);
+    let pagesCrawled = 0;
+    let startStatus = 0;
+    let finalStartUrl = startUrl.toString();
+    let stopped: ScanReport["stopped"] = "done";
+
+    while (queue.length > 0) {
+      if (pagesCrawled >= MAX_PAGES) {
+        stopped = "pages";
+        break;
+      }
+      if (Date.now() - startedAt > TOTAL_BUDGET_MS) {
+        stopped = "budget";
+        break;
+      }
+      if (rows.size >= MAX_REQUESTS) {
+        stopped = "requests";
+        break;
+      }
+
+      const path = queue.shift()!;
+      const pageUrl = origin + (path === "/" ? "" : path);
+      currentPage = pageUrl;
+
+      let status = 0;
+      try {
+        const resp = await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+        status = resp?.status() ?? 0;
+        if (pagesCrawled === 0) {
+          startStatus = status;
+          finalStartUrl = resp?.url() || pageUrl;
+        }
+      } catch (err) {
+        // Первая же страница не открылась — это не отчёт, а ошибка инструмента.
+        if (pagesCrawled === 0) {
+          throw new Error("Стартовая страница не открылась — проверьте адрес сайта");
+        }
+        pagesCrawled += 1;
+        continue; // упавший переход учтётся как requestfailed
+      }
+
+      // Ждём «затишья» сети — чтобы поймать XHR/подгрузку после первичного рендера.
+      await page.waitForLoadState("networkidle", { timeout: IDLE_TIMEOUT_MS }).catch(() => {});
+      pagesCrawled += 1;
+
+      // Контакты — из отрисованной разметки (после исполнения JS).
+      const content = await page.content().catch(() => "");
+      if (content) {
+        extractEmails(content, emails);
+        extractPhones(content, phones);
+      }
+
+      // Внутренние ссылки — в очередь на обход.
+      const hrefs: string[] = await page
+        .$$eval("a[href]", (els) =>
+          els.map((e) => (e as HTMLAnchorElement).getAttribute("href") || ""),
+        )
+        .catch(() => []);
+      const here = page.url();
+      for (const href of hrefs) {
+        const norm = internalPath(href, here, host);
+        if (!norm || seen.has(norm)) continue;
+        if (pathDepth(norm) > MAX_DEPTH) continue;
+        seen.add(norm);
+        queue.push(norm);
+      }
+    }
+
+    // Дожидаемся, пока доснимутся размеры последних сетевых событий.
+    await Promise.all(pending);
+
+    // Стартовая страница вообще не отдала документ и запросов не было — некорректный сайт.
+    if (startStatus === 0 && rows.size === 0) {
+      throw new Error("Стартовая страница не ответила — проверьте адрес сайта");
+    }
+
+    // Обрабатываем собранные сетевые запросы: коды, тайминги, размеры, тип.
+    const errors: ScanError[] = [];
+    const slow: ScanSlow[] = [];
+    const assetMap = new Map<string, ScanAsset>();
+    const docTimes: number[] = [];
+    let transferBytes = 0;
+
+    for (const { url, status, kind, asset, ms, bytes, on, failed } of rows.values()) {
+      transferBytes += bytes;
+
+      if (failed) {
+        errors.push({ url, status: 0, kind: "network", on });
+        continue;
+      }
+      if (status < 0) continue; // запрос не завершился (ответа не было) — пропускаем
+
+      if (kind === "page" && ms > 0) docTimes.push(ms);
+      if (status >= 400) {
+        errors.push({ url, status, kind: status >= 500 ? "server" : "client", on });
+      }
+      if (ms >= SLOW_MS) slow.push({ url, ms, kind });
+
+      if (asset && !assetMap.has(url)) {
+        assetMap.set(url, { url, kind: asset, status, ms, bytes });
+      }
+    }
+
+    // Сортировки для читаемого отчёта.
+    errors.sort((a, b) => b.status - a.status);
+    slow.sort((a, b) => b.ms - a.ms);
+    const assets = Array.from(assetMap.values()).sort((a, b) => b.ms - a.ms);
+
+    const avgPageMs =
+      docTimes.length > 0
+        ? Math.round(docTimes.reduce((s, t) => s + t, 0) / docTimes.length)
+        : 0;
+
+    const emailList = Array.from(emails).sort();
+    const phoneList = Array.from(phones).sort();
+
+    let domain = host;
+    try {
+      domain = new URL(finalStartUrl).hostname;
+    } catch {
+      /* оставляем исходный host */
+    }
+
+    return {
+      startUrl: startUrl.toString(),
+      finalUrl: finalStartUrl,
+      domain,
+      statusCode: startStatus,
+      pagesCrawled,
+      requestsTotal: rows.size,
+      transferBytes,
+      durationMs: Date.now() - startedAt,
+      stopped,
+      backendErrors: errors.slice(0, MAX_LIST),
+      slowRequests: slow.slice(0, MAX_LIST),
+      staticAssets: assets.slice(0, MAX_ASSETS_LIST),
+      emails: emailList.slice(0, MAX_LIST),
+      phones: phoneList.slice(0, MAX_LIST),
+      summary: {
+        errors: errors.length,
+        slow: slow.length,
+        assets: assets.length,
+        emails: emailList.length,
+        phones: phoneList.length,
+        avgPageMs,
+      },
+    };
+  } finally {
+    await browser.close().catch(() => {});
+  }
 }
