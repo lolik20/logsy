@@ -113,7 +113,7 @@ export interface ScanReport {
     assets: number;
     emails: number;
     phones: number;
-    avgPageMs: number; // среднее время загрузки HTML-страниц (по документным запросам)
+    avgPageMs: number; // средняя скорость загрузки DOM (DOMContentLoaded) по страницам
   };
 }
 
@@ -500,8 +500,26 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
 
       // Ждём «затишья» сети — чтобы поймать XHR/подгрузку после первичного рендера.
       await page.waitForLoadState("networkidle", { timeout: IDLE_TIMEOUT_MS }).catch(() => {});
-      const loadMs = Date.now() - t0;
+      const wallMs = Date.now() - t0;
       pagesCrawled += 1;
+
+      // Реальная скорость загрузки DOM (DOMContentLoaded) из Navigation Timing API —
+      // время, за которое браузер разобрал HTML и построил DOM. Если API недоступен,
+      // берём настенное время перехода как запасной вариант.
+      const domMs = await page
+        .evaluate(() => {
+          const nav = performance.getEntriesByType("navigation")[0] as
+            | PerformanceNavigationTiming
+            | undefined;
+          if (nav && nav.domContentLoadedEventEnd > 0) return Math.round(nav.domContentLoadedEventEnd);
+          const t = performance.timing;
+          if (t && t.domContentLoadedEventEnd && t.navigationStart) {
+            return t.domContentLoadedEventEnd - t.navigationStart;
+          }
+          return 0;
+        })
+        .catch(() => 0);
+      const loadMs = domMs > 0 ? domMs : wallMs;
 
       // Заголовок и контакты — из отрисованной разметки (после исполнения JS).
       const title = (await page.title().catch(() => "")) || null;
@@ -545,7 +563,6 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
     const assetMap = new Map<string, ScanAsset>();
     // Критические моменты по странице: pageUrl → (ключ запроса → ScanPageIssue).
     const pageIssues = new Map<string, Map<string, ScanPageIssue>>();
-    const docTimes: number[] = [];
     let transferBytes = 0;
 
     const addPageIssue = (on: string, key: string, make: () => ScanPageIssue) => {
@@ -589,8 +606,6 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
 
       if (failed) continue;
       if (status < 0) continue; // запрос не завершился (ответа не было) — пропускаем
-
-      if (kind === "page" && ms > 0) docTimes.push(ms);
 
       // --- Медленные запросы (с дедупликацией; храним максимальное время) ---
       if (ms >= SLOW_MS) {
@@ -644,9 +659,11 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
         };
       });
 
+    // Средняя скорость загрузки DOM по обойдённым страницам (DOMContentLoaded).
+    const domTimes = pages.map((p) => p.ms).filter((m) => m > 0);
     const avgPageMs =
-      docTimes.length > 0
-        ? Math.round(docTimes.reduce((s, t) => s + t, 0) / docTimes.length)
+      domTimes.length > 0
+        ? Math.round(domTimes.reduce((s, t) => s + t, 0) / domTimes.length)
         : 0;
 
     const emailList = Array.from(emails).sort();

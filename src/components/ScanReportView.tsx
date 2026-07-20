@@ -221,7 +221,9 @@ function PageCard({ page }: { page: ScanPage }) {
             <span className="block truncate text-[11px] text-slate-400">{page.title}</span>
           )}
         </span>
-        <span className="shrink-0 text-[11px] text-slate-400">{formatMs(page.ms)}</span>
+        <span className="shrink-0 text-[11px] text-slate-400" title="Скорость загрузки DOM">
+          DOM {formatMs(page.ms)}
+        </span>
         {page.errors > 0 && (
           <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-950/50 dark:text-red-300">
             {page.errors} ош.
@@ -307,8 +309,8 @@ export function ScanReportView({ report: r, scanId }: { report: ScanReport; scan
             </div>
             <div className="mt-0.5 text-xs text-slate-400">
               Обошли {r.pagesCrawled} стр. · {r.requestsTotal} запросов ·{" "}
-              {formatBytes(r.transferBytes)} · за {formatMs(r.durationMs)} · среднее время
-              страницы {formatMs(r.summary.avgPageMs)}
+              {formatBytes(r.transferBytes)} · за {formatMs(r.durationMs)} · загрузка DOM в
+              среднем {formatMs(r.summary.avgPageMs)}
             </div>
           </div>
           <span
