@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { auth, yandexEnabled } from "@/lib/auth";
 import { RegisterForm } from "@/components/RegisterForm";
 
 export default async function RegisterPage() {
@@ -18,7 +18,7 @@ export default async function RegisterPage() {
           <p className="mt-1 text-sm text-slate-500">
             Укажите email — пароль сгенерируем и отправим вам на почту.
           </p>
-          <RegisterForm />
+          <RegisterForm yandexEnabled={yandexEnabled} />
           <p className="mt-6 text-center text-sm text-slate-500">
             Уже есть аккаунт?{" "}
             <Link href="/login" className="font-medium text-brand hover:underline">
