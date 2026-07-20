@@ -52,13 +52,27 @@ export async function checkSdkInstalled(domain: string): Promise<SdkCheckResult>
     .replace(/\/.*$/, "");
   const url = `https://${host}`;
 
+  // Cache-busting: cache: "no-store" отключает только кеш Next.js/undici на нашей стороне,
+  // но не заставляет CDN/reverse-proxy/плагин кеширования на стороне клиента (Cloudflare
+  // «Cache Everything», WP Rocket и т.п.) отдать свежую страницу. Из-за этого после того,
+  // как клиент убрал или обновил скрипт, нам мог приходить старый HTML и проверка врала.
+  // Уникальный query-параметр меняет ключ кеша и обходит его; заголовки no-cache просят
+  // не отдавать закешированное там, где их учитывают.
+  const cacheBuster = `logsy_cb=${Date.now()}`;
+  const fetchUrl = url + (url.includes("?") ? "&" : "?") + cacheBuster;
+
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
+    const res = await fetch(fetchUrl, {
       signal: ctrl.signal,
       redirect: "follow",
-      headers: { "user-agent": "LogsyBot/1.0 (+https://logsy.ru)", accept: "text/html" },
+      headers: {
+        "user-agent": "LogsyBot/1.0 (+https://logsy.ru)",
+        accept: "text/html",
+        "cache-control": "no-cache",
+        pragma: "no-cache",
+      },
       cache: "no-store",
     });
     if (!res.ok) {
