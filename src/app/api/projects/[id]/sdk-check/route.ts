@@ -29,5 +29,9 @@ export async function GET(
   }
 
   const result = await checkSdkInstalled(project.domain);
-  return NextResponse.json(result);
+  // Явно запрещаем кешировать ответ: если перед панелью стоит CDN/прокси, без этого он мог
+  // отдавать старый результат проверки после того, как клиент обновил сайт.
+  return NextResponse.json(result, {
+    headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+  });
 }
