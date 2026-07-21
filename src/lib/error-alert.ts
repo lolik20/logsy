@@ -22,15 +22,28 @@ const ERROR_TYPES = new Set(["ERROR", "UNHANDLED_REJECTION", "HTTP_ERROR"]);
 // Не чаще одного уведомления об ошибках в час на проект.
 const THROTTLE_MS = 60 * 60 * 1000;
 
-// Сколько ошибок перечислить в теле уведомления (остальные — общим счётчиком).
-const MAX_LISTED = 5;
+// Сколько ошибок расписать подробно в теле уведомления (остальные — общим счётчиком).
+// Подробные блоки объёмны, а у Telegram лимит 4096 символов на сообщение, поэтому
+// перечисляем немного и обрезаем длинные поля (см. clip и *_MAX ниже).
+const MAX_LISTED = 3;
+// Максимальная длина отдельных полей в подробностях (тело запроса/ответа могут быть
+// большими — усекаем, чтобы уведомление не раздувалось и влезало в лимит Telegram).
+const BODY_MAX = 300;
+const TEXT_MAX = 300;
+const STACK_MAX = 300;
 
 export type SessionError = {
   type: string;
   message: string | null;
   url: string | null;
   route: string | null;
+  query: string | null;
+  method: string | null;
   statusCode: number | null;
+  durationMs: number | null;
+  reqBody: string | null;
+  resBody: string | null;
+  stack: string | null;
 };
 
 /** Человекочитаемое название типа ошибки для тела уведомления. */
@@ -45,13 +58,71 @@ function errorTypeLabel(type: string): string {
   }
 }
 
-/** Короткое описание одной ошибки: «[Тип] сообщение (страница)». */
-function describeError(e: SessionError): string {
+/** Обрезает строку до n символов (с многоточием) и триммит; пустую строку → null. */
+function clip(s: string | null | undefined, n: number): string | null {
+  if (!s) return null;
+  const t = s.trim();
+  if (!t) return null;
+  return t.length > n ? `${t.slice(0, n)}…` : t;
+}
+
+/** Первые несколько строк стека (для краткого следа JS-ошибки). */
+function stackHead(stack: string | null, lines = 3): string | null {
+  return clip(stack ? stack.split("\n").slice(0, lines).join("\n") : null, STACK_MAX);
+}
+
+/** Заголовок блока ошибки: «[Тип код] сообщение/маршрут». */
+function errorHeader(e: SessionError): string {
   const label = errorTypeLabel(e.type);
   const status = e.type === "HTTP_ERROR" && e.statusCode ? ` ${e.statusCode}` : "";
-  const what = (e.route || e.message || "").trim();
-  const page = e.url ? ` — ${e.url}` : "";
-  return `[${label}${status}] ${what}${page}`.trim();
+  const what = clip(e.message || e.route, TEXT_MAX) || "";
+  return `[${label}${status}] ${what}`.trim();
+}
+
+/**
+ * Подробности одной ошибки как пары «Поле: значение»: страница, запрос (метод +
+ * маршрут), код ответа, параметры запроса, тело запроса пользователя, ответ сервера,
+ * длительность и след стека. Пустые поля опускаются.
+ */
+function errorDetails(e: SessionError): [string, string][] {
+  const details: [string, string][] = [];
+  if (e.url) details.push(["Страница", e.url]);
+  const request = `${e.method ? `${e.method} ` : ""}${e.route ?? ""}`.trim();
+  if (request) details.push(["Запрос", request]);
+  if (e.statusCode) details.push(["Код ответа", String(e.statusCode)]);
+  const query = clip(e.query, TEXT_MAX);
+  if (query) details.push(["Параметры запроса", query]);
+  const reqBody = clip(e.reqBody, BODY_MAX);
+  if (reqBody) details.push(["Тело запроса", reqBody]);
+  const resBody = clip(e.resBody, BODY_MAX);
+  if (resBody) details.push(["Ответ сервера", resBody]);
+  if (typeof e.durationMs === "number") details.push(["Длительность", `${e.durationMs} мс`]);
+  // След стека — только для клиентских исключений (у HTTP-ошибок его нет).
+  if (e.type !== "HTTP_ERROR") {
+    const stack = stackHead(e.stack);
+    if (stack) details.push(["Стек", stack]);
+  }
+  return details;
+}
+
+/** Подробный блок ошибки в виде простого текста (для email). */
+function errorBlockText(e: SessionError): string {
+  const lines = [`• ${errorHeader(e)}`];
+  for (const [label, value] of errorDetails(e)) {
+    // Многострочные значения (стек, тело) выводим с отступом на каждой строке.
+    const indented = value.split("\n").join("\n      ");
+    lines.push(`    ${label}: ${indented}`);
+  }
+  return lines.join("\n");
+}
+
+/** Подробный блок ошибки в HTML (для Telegram); значения экранируются. */
+function errorBlockHtml(e: SessionError): string {
+  const lines = [`• <b>${escapeHtml(errorHeader(e))}</b>`];
+  for (const [label, value] of errorDetails(e)) {
+    lines.push(`    ${escapeHtml(label)}: <code>${escapeHtml(value)}</code>`);
+  }
+  return lines.join("\n");
 }
 
 /** Базовый адрес панели Logsy (для ссылок на сессию в уведомлениях). */
@@ -128,8 +199,8 @@ export async function notifySessionErrors(
     `Проект: ${project.name} (${project.domain})\n` +
     `Время: ${when}\n\n` +
     `${countLine}\n\n` +
-    listed.map((e) => `• ${describeError(e)}`).join("\n") +
-    (more > 0 ? `\n• …и ещё ${more}` : "") +
+    listed.map(errorBlockText).join("\n\n") +
+    (more > 0 ? `\n\n…и ещё ${more}` : "") +
     (link ? `\n\nСессия пользователя: ${link}\n` : "") +
     `\nСледующее уведомление об ошибках — не раньше чем через час.`;
 
@@ -137,8 +208,8 @@ export async function notifySessionErrors(
     `<b>⚠️ Ошибки на сайте · ${escapeHtml(project.name)}</b>\n` +
     `Проект: ${escapeHtml(project.name)} (${escapeHtml(project.domain)})\n\n` +
     `${escapeHtml(countLine)}\n\n` +
-    listed.map((e) => `• ${escapeHtml(describeError(e))}`).join("\n") +
-    (more > 0 ? `\n• …и ещё ${more}` : "") +
+    listed.map(errorBlockHtml).join("\n\n") +
+    (more > 0 ? `\n\n…и ещё ${more}` : "") +
     (link ? `\n\n<a href="${escapeHtml(link)}">Открыть сессию пользователя</a>` : "");
 
   for (const contact of sendable) {
