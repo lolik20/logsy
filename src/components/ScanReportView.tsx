@@ -51,6 +51,25 @@ interface ScanPage {
   slow: number;
   issues: ScanPageIssue[];
 }
+interface ScanJsError {
+  message: string;
+  on: string;
+  count: number;
+}
+interface ScanFormBug {
+  severity: "error" | "warning";
+  message: string;
+}
+interface ScanForm {
+  page: string;
+  action: string;
+  method: string;
+  fields: number;
+  filled: boolean;
+  submitted: boolean;
+  skippedPayment: boolean;
+  issues: ScanFormBug[];
+}
 export interface ScanReport {
   startUrl: string;
   finalUrl: string;
@@ -65,6 +84,8 @@ export interface ScanReport {
   backendErrors: ScanError[];
   slowRequests: ScanSlow[];
   staticAssets: ScanAsset[];
+  jsErrors?: ScanJsError[];
+  forms?: ScanForm[];
   emails: string[];
   phones: string[];
   summary: {
@@ -73,6 +94,9 @@ export interface ScanReport {
     assets: number;
     emails: number;
     phones: number;
+    jsErrors?: number;
+    formsChecked?: number;
+    formBugs?: number;
     avgPageMs: number;
   };
 }
@@ -402,6 +426,88 @@ export function ScanReportView({ report: r, scanId }: { report: ScanReport; scan
               </li>
             ))}
           </ul>
+        </Section>
+      )}
+
+      {/* JS-ошибки на сайте */}
+      {r.jsErrors && r.jsErrors.length > 0 && (
+        <Section title="JS-ошибки на сайте" count={r.summary.jsErrors ?? r.jsErrors.length}>
+          <ul className="space-y-1.5">
+            {r.jsErrors.map((e, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm">
+                <span className="mt-0.5 shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950/50 dark:text-red-300">
+                  JS
+                </span>
+                <span className="min-w-0 flex-1 break-words font-mono text-xs text-slate-600 dark:text-slate-300">
+                  {e.message}
+                </span>
+                <RepeatBadge count={e.count} />
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* Проверка форм */}
+      {r.forms && r.forms.length > 0 && (
+        <Section title="Проверка форм" count={r.summary.formsChecked ?? r.forms.length}>
+          <div className="space-y-2.5">
+            {r.forms.map((f, i) => (
+              <div
+                key={i}
+                className="rounded-xl border border-slate-200 p-3 dark:border-slate-800"
+              >
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    {f.method}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-slate-600 dark:text-slate-300">
+                    {shortUrl(f.action)}
+                  </span>
+                  <span className="text-slate-400">{f.fields} пол.</span>
+                  {f.skippedPayment ? (
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-500 dark:bg-slate-800">
+                      оплата — пропущена
+                    </span>
+                  ) : f.submitted ? (
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                      отправлена
+                    </span>
+                  ) : f.filled ? (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                      заполнена
+                    </span>
+                  ) : (
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-500 dark:bg-slate-800">
+                      только анализ
+                    </span>
+                  )}
+                </div>
+                {f.issues.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {f.issues.map((iss, j) => (
+                      <li key={j} className="flex items-start gap-2 text-xs">
+                        <span
+                          className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                            iss.severity === "error"
+                              ? "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300"
+                              : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                          }`}
+                        >
+                          {iss.severity === "error" ? "ошибка" : "внимание"}
+                        </span>
+                        <span className="text-slate-600 dark:text-slate-300">{iss.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] text-slate-400">
+            Формы заполнялись тестовыми данными с пометкой «проверка Logsy»; формы оплаты
+            пропускались. Ошибки от отправки (если были) — в разделах выше.
+          </p>
         </Section>
       )}
 
