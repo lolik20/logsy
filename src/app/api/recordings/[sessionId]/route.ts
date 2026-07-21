@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
+import { DEMO_SESSION_ID, buildDemoRecording } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,15 @@ export async function GET(
   const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
   const admin = await isAdmin();
+
+  // Тестовая (demo) сессия — синтетическая запись «страницы оплаты» demo-магазина. В БД её нет,
+  // поэтому отдаём сгенерированный поток событий rrweb с метками ошибки и медленного запроса.
+  // Доступно любому залогиненному пользователю (demo-сайт показывается тем, кто ещё не подключил
+  // свой сайт). База отсчёта — «недавно», чтобы запись выглядела свежей.
+  if (params.sessionId === DEMO_SESSION_ID) {
+    const { events, markers } = buildDemoRecording(Date.now() - 12_000);
+    return NextResponse.json({ events, markers }, { headers: { "Cache-Control": "no-store" } });
+  }
 
   const session = await prisma.logSession.findUnique({
     where: { id: params.sessionId },
