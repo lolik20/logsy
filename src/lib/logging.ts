@@ -276,5 +276,11 @@ export async function purgeExpiredLogs(now: Date = new Date()): Promise<{ delete
   const usageCutoff = startOfDayUtc(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
   await prisma.logUsage.deleteMany({ where: { day: { lt: usageCutoff } } });
 
+  // Троттлинг-строки уведомлений об ошибках нужны только на час (окно лимита). Удаляем
+  // те, что старше суток: если такая ошибка повторится, слот заведётся заново (см.
+  // claimError в src/lib/error-alert.ts) — так таблица не растёт бесконечно.
+  const errorAlertCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  await prisma.errorAlert.deleteMany({ where: { lastSentAt: { lt: errorAlertCutoff } } });
+
   return { deletedEvents };
 }

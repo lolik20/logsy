@@ -143,12 +143,6 @@ model Project {
   // (чтобы напоминание ушло один раз за период). Аналог поля в Subscription.
   expiryAlertSentFor DateTime?
 
-  // Момент последнего отправленного уведомления об ошибках в пользовательских сессиях
-  // (события ERROR / UNHANDLED_REJECTION / HTTP_ERROR). Уведомление о новых ошибках
-  // шлётся владельцу проекта не чаще одного раза в час — по этому полю считается
-  // «прошёл ли час» с прошлой отправки (см. notifySessionErrors в src/lib/error-alert.ts).
-  errorAlertSentAt DateTime?
-
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   monitors      Monitor[]
   logSessions   LogSession[]
@@ -157,8 +151,31 @@ model Project {
   pages         ProjectPage[]
   payments      Payment[]
   tasks         Task[]
+  errorAlerts   ErrorAlert[]
 
   @@index([userId])
+}
+
+// Троттлинг уведомлений об ошибках в пользовательских сессиях (события ERROR /
+// UNHANDLED_REJECTION / HTTP_ERROR). Лимит «не чаще раза в час» действует НА КАЖДУЮ
+// ОТДЕЛЬНУЮ (одинаковую) ошибку, а не на проект целиком: одна и та же ошибка
+// уведомляет не чаще раза в час, а другая (непохожая) ошибка уведомляет сразу, без
+// общего лимита. Одинаковость определяется подписью signature (тип + сообщение/маршрут
+// + код ответа, см. errorSignature в src/lib/error-alert.ts). lastSentAt — момент
+// последнего уведомления по этой подписи; по нему считается, прошёл ли час.
+// Устаревшие строки чистятся вместе с логами (см. purgeExpiredLogs в src/lib/logging.ts).
+model ErrorAlert {
+  id         String   @id @default(cuid())
+  projectId  String
+  // Подпись ошибки: одинаковые ошибки → одинаковая подпись (SHA-1 hex от нормализованного
+  // описания). Уникальна в рамках проекта — по ней атомарно занимается часовой слот.
+  signature  String
+  lastSentAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, signature])
+  @@index([projectId, lastSentAt])
 }
 
 // Задачи проекта — простая доска со статусами (канбан). Задачу можно создать вручную
