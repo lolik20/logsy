@@ -143,6 +143,12 @@ model Project {
   // (чтобы напоминание ушло один раз за период). Аналог поля в Subscription.
   expiryAlertSentFor DateTime?
 
+  // Момент последнего отправленного уведомления об ошибках в пользовательских сессиях
+  // (события ERROR / UNHANDLED_REJECTION / HTTP_ERROR). Уведомление о новых ошибках
+  // шлётся владельцу проекта не чаще одного раза в час — по этому полю считается
+  // «прошёл ли час» с прошлой отправки (см. notifySessionErrors в src/lib/error-alert.ts).
+  errorAlertSentAt DateTime?
+
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   monitors      Monitor[]
   logSessions   LogSession[]

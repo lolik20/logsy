@@ -17,6 +17,7 @@ import { accountNewSession, truncate, isBotUserAgent, normalizeUtm, MAX_BODY_CHA
 import { matchesException } from "@/lib/exceptions";
 import { resolveCountry } from "@/lib/geo";
 import { notifyUserReports } from "@/lib/user-report";
+import { notifySessionErrors } from "@/lib/error-alert";
 import { createTasksFromReports } from "@/lib/tasks";
 
 export const dynamic = "force-dynamic";
@@ -263,6 +264,24 @@ export async function POST(req: Request) {
     // долгоживущем процессе промис доедет до конца.
     void notifyUserReports(project.id, session.id, reports).catch((err) =>
       console.error("[Logsy] Ошибка уведомления о сообщении пользователя:", err),
+    );
+  }
+
+  // Уведомление об ошибках в сессиях (только ERROR / UNHANDLED_REJECTION / HTTP_ERROR),
+  // не чаще раза в час на проект — троттлинг внутри notifySessionErrors. Шлём в фоне
+  // (best-effort), как и уведомления о сообщениях пользователей.
+  const errorEvents = rows
+    .filter((r) => r.type === "ERROR" || r.type === "UNHANDLED_REJECTION" || r.type === "HTTP_ERROR")
+    .map((r) => ({
+      type: r.type,
+      message: r.message,
+      url: r.url,
+      route: r.route,
+      statusCode: r.statusCode,
+    }));
+  if (errorEvents.length) {
+    void notifySessionErrors(project.id, session.id, errorEvents).catch((err) =>
+      console.error("[Logsy] Ошибка уведомления об ошибках в сессии:", err),
     );
   }
 
