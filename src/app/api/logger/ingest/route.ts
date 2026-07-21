@@ -277,7 +277,13 @@ export async function POST(req: Request) {
       message: r.message,
       url: r.url,
       route: r.route,
+      query: r.query,
+      method: r.method,
       statusCode: r.statusCode,
+      durationMs: r.durationMs,
+      reqBody: r.reqBody,
+      resBody: r.resBody,
+      stack: r.stack,
     }));
   if (errorEvents.length) {
     void notifySessionErrors(project.id, session.id, errorEvents).catch((err) =>
