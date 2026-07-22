@@ -152,6 +152,7 @@ model Project {
   payments      Payment[]
   tasks         Task[]
   errorAlerts   ErrorAlert[]
+  tgIgnoreTokens TgIgnoreToken[]
 
   @@index([userId])
 }
@@ -176,6 +177,28 @@ model ErrorAlert {
 
   @@unique([projectId, signature])
   @@index([projectId, lastSentAt])
+}
+
+// Одноразовый токен для кнопки «Игнорировать ошибку» в Telegram-оповещении. В
+// callback_data инлайн-кнопки нельзя уместить URL правила (лимит 64 байта), поэтому
+// при отправке алерта сохраняем описание будущего правила-исключения (категория +
+// условие по URL) и кладём в кнопку только короткий id этой строки. Когда владелец
+// нажимает кнопку, бот по id находит токен и заводит правило в игнор-листе проекта
+// (LogException), после чего токен удаляется. Просроченные токены чистятся вместе с
+// логами (purgeExpiredLogs) — кнопка в старом сообщении просто перестаёт срабатывать.
+model TgIgnoreToken {
+  id        String   @id @default(cuid())
+  projectId String
+  // Параметры будущего правила игнор-листа (см. LogException / ExceptionKind / UrlMode).
+  kind      String // ERROR | SLOW_REQUEST
+  urlMode   String // CONTAINS | EQUALS
+  url       String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([createdAt])
 }
 
 // Задачи проекта — простая доска со статусами (канбан). Задачу можно создать вручную
