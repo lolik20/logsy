@@ -11,6 +11,7 @@ export const EVENT_TYPE_LABEL: Record<string, string> = {
   SESSION_END: "Выход с сайта",
   NAVIGATION: "Переход",
   CLICK: "Клик",
+  RAGE_CLICK: "Rage-клик",
   INPUT: "Ввод",
   USER_REPORT: "Сообщение пользователя",
   PAGE_LOAD: "Загрузка страницы",
@@ -27,6 +28,7 @@ const TYPE_TONE: Record<string, string> = {
   SESSION_END: "text-slate-500",
   NAVIGATION: "text-blue-600",
   CLICK: "text-slate-500 dark:text-slate-300",
+  RAGE_CLICK: "text-rose-600",
   INPUT: "text-slate-500 dark:text-slate-300",
   USER_REPORT: "text-violet-600",
   PAGE_LOAD: "text-sky-600",
@@ -108,6 +110,15 @@ const ICONS: Record<string, ReactNode> = {
   CLICK: (
     <Svg>
       <path d="M4 4l7 16 2.5-6.5L20 11z" />
+    </Svg>
+  ),
+  // Указатель мыши с «лучами удара» — серия яростных кликов (rage-клик).
+  RAGE_CLICK: (
+    <Svg>
+      <path d="M6 6l6 14 2.2-5.7L20 12z" />
+      <path d="M4 3l1 2" />
+      <path d="M9 2l0 2.2" />
+      <path d="M14.5 3.2l-1 1.8" />
     </Svg>
   ),
   // Поле ввода — ввод.
