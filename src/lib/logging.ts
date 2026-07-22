@@ -282,5 +282,11 @@ export async function purgeExpiredLogs(now: Date = new Date()): Promise<{ delete
   const errorAlertCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   await prisma.errorAlert.deleteMany({ where: { lastSentAt: { lt: errorAlertCutoff } } });
 
+  // Токены кнопки «Игнорировать ошибку» в Telegram живут, пока актуально само
+  // сообщение с кнопкой. Через неделю считаем их протухшими и удаляем — старая кнопка
+  // просто перестаёт срабатывать (см. TgIgnoreToken в prisma/schema.prisma).
+  const tgTokenCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  await prisma.tgIgnoreToken.deleteMany({ where: { createdAt: { lt: tgTokenCutoff } } });
+
   return { deletedEvents };
 }

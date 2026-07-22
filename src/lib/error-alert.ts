@@ -19,7 +19,13 @@ import { createHash } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
-import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
+import {
+  sendTelegramMessage,
+  escapeHtml,
+  ignoreCallbackData,
+  type InlineKeyboard,
+} from "@/lib/telegram";
+import { eventKind, defaultExceptionUrl, type ExceptionKind } from "@/lib/exceptions";
 
 // Типы событий, которые считаются ошибками (только ошибки — медленные запросы и
 // прочие события SDK сюда не попадают). Совпадает с категорией ERROR в игнор-листе.
@@ -189,6 +195,48 @@ async function claimError(projectId: string, signature: string, now: Date): Prom
 }
 
 /**
+ * Инлайн-клавиатура «Игнорировать ошибку» для Telegram-оповещения. По каждой из
+ * перечисленных ошибок готовит правило игнор-листа (как в модалке «В исключения»:
+ * категория события + endpoint, режим «равно») и сохраняет его как одноразовый токен
+ * TgIgnoreToken; в кнопку кладём только короткий id токена (URL в callback_data не
+ * помещается). Нажатие обрабатывает бот (handleCallbackQuery в src/lib/telegram.ts):
+ * находит токен и заводит правило. Одинаковые правила из разных ошибок схлопываем.
+ * Клавиатура общая для всех Telegram-контактов, поэтому строим её один раз на отправку.
+ */
+async function buildIgnoreKeyboard(
+  projectId: string,
+  listed: SessionError[],
+): Promise<InlineKeyboard | undefined> {
+  const seen = new Set<string>();
+  const rules: { kind: ExceptionKind; url: string; error: SessionError }[] = [];
+  for (const e of listed) {
+    const kind = eventKind(e.type);
+    const url = defaultExceptionUrl({ route: e.route, url: e.url });
+    if (!kind || !url) continue; // событие без категории/URL исключить нельзя
+    const key = `${kind}|${url}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rules.push({ kind, url, error: e });
+  }
+  if (rules.length === 0) return undefined;
+
+  const keyboard: InlineKeyboard = [];
+  for (const r of rules) {
+    const token = await prisma.tgIgnoreToken.create({
+      data: { projectId, kind: r.kind, urlMode: "EQUALS", url: r.url },
+      select: { id: true },
+    });
+    // Одна ошибка — короткая подпись; несколько — уточняем, что именно игнорируем.
+    const label =
+      rules.length === 1
+        ? "🙈 Игнорировать эту ошибку"
+        : `🙈 Не сообщать: ${clip(errorHeader(r.error), 40) ?? r.url}`;
+    keyboard.push([{ text: label, callback_data: ignoreCallbackData(token.id) }]);
+  }
+  return keyboard;
+}
+
+/**
  * Уведомляет владельца проекта об ошибках в пользовательских сессиях.
  *
  * Только ошибки (ERROR / UNHANDLED_REJECTION / HTTP_ERROR). HTTP-ошибки уведомляют
@@ -277,10 +325,20 @@ export async function notifySessionErrors(
     (more > 0 ? `\n\n…и ещё ${more}` : "") +
     (link ? `\n\n<a href="${escapeHtml(link)}">Открыть сессию пользователя</a>` : "");
 
+  // Кнопки «Игнорировать ошибку» нужны только Telegram-контактам. Клавиатура (и её
+  // токены) общая для всех таких контактов — строим один раз и только если они есть.
+  const hasTelegram = sendable.some((c) => c.type === "TELEGRAM");
+  const ignoreKeyboard = hasTelegram
+    ? await buildIgnoreKeyboard(projectId, listed).catch((err) => {
+        console.error("[Logsy] Не удалось подготовить кнопки игнора для Telegram:", err);
+        return undefined;
+      })
+    : undefined;
+
   for (const contact of sendable) {
     try {
       if (contact.type === "TELEGRAM") {
-        await sendTelegramMessage(contact.value, html, { html: true });
+        await sendTelegramMessage(contact.value, html, { html: true, replyMarkup: ignoreKeyboard });
       } else {
         await sendMail({ to: contact.value, subject, text });
       }

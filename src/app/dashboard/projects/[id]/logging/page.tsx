@@ -56,9 +56,12 @@ export default async function LoggingPage({
   // Автообновление имеет смысл только для сегодняшней (живой) даты.
   const isToday = dateStr === toDateInput(new Date());
 
+  // Сортируем по последней активности (lastSeenAt), а не по времени старта сессии —
+  // сверху оказываются самые «живые» пользователи, у которых недавно были события.
+  // Фильтр по дню оставляем по startedAt: показываем сессии, начавшиеся в выбранный день.
   const sessions = await prisma.logSession.findMany({
     where: { projectId: project.id, startedAt: { gte: dayStart, lt: dayEnd } },
-    orderBy: { startedAt: "desc" },
+    orderBy: { lastSeenAt: "desc" },
     take: 200,
     include: { _count: { select: { events: true } } },
   });
@@ -114,8 +117,8 @@ export default async function LoggingPage({
   const errorsTop = topErrors(issueEvents);
   const slowTop = topSlowRequests(issueEvents);
 
-  // Группируем сессии по IP пользователя. Сессии уже отсортированы по времени убыв.,
-  // поэтому группы идут в порядке появления самой свежей сессии.
+  // Группируем сессии по IP пользователя. Сессии уже отсортированы по последней
+  // активности убыв., поэтому группы идут в порядке появления самой активной сессии.
   type Sess = (typeof sessions)[number];
   const ipGroupsMap = new Map<string, Sess[]>();
   for (const s of sessions) {
@@ -127,8 +130,9 @@ export default async function LoggingPage({
   const allIpGroups = Array.from(ipGroupsMap.entries()).map(([ip, list]) => ({
     ip,
     list,
-    // Сессии отсортированы по времени убыв. — берём начало самой свежей сессии IP.
-    startedAt: list[0].startedAt,
+    // Сессии отсортированы по последней активности убыв. — берём время последней
+    // активности самой свежей сессии IP (она же первая в списке группы).
+    lastSeenAt: list[0].lastSeenAt,
     // Страна пользователя по IP: берём первый определённый код среди сессий группы.
     country: list.find((s) => s.country)?.country ?? null,
     errors: list.reduce((n, s) => n + (errorCount.get(s.id) ?? 0), 0),
@@ -231,7 +235,7 @@ export default async function LoggingPage({
             >
               <div className="flex items-center gap-3">
                 <span className="text-sm text-slate-500">
-                  {new Date(g.startedAt).toLocaleTimeString("ru-RU")}
+                  {new Date(g.lastSeenAt).toLocaleTimeString("ru-RU")}
                 </span>
                 {g.country && (
                   <span
