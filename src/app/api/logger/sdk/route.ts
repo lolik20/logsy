@@ -583,6 +583,44 @@ const SDK = `(function(){
       }
     } catch (e) {}
 
+    // ---- Rage-клики (частые повторные клики по одному месту) ----
+    // Признак фрустрации: пользователь быстро много раз тыкает в одну точку — обычно
+    // потому, что элемент «не реагирует» (завис, не кликабелен, долго отвечает). Копим
+    // недавние клики (координаты + время); как только за короткое окно набирается порог
+    // кликов в пределах небольшого радиуса — фиксируем ОДНО событие RAGE_CLICK. После
+    // срабатывания очищаем буфер, чтобы длинная серия не порождала событие на каждый
+    // следующий клик.
+    var RAGE_WINDOW_MS = 1000; // окно, в пределах которого клики считаем одной серией
+    var RAGE_MIN = 3;          // сколько кликов подряд считаем «яростной» серией
+    var RAGE_RADIUS = 30;      // максимум смещения между кликами серии (px)
+    var rageClicks = [];       // недавние клики: { x, y, t }
+
+    function detectRage(e, el) {
+      try {
+        var x = e.clientX, y = e.clientY;
+        // Клики без координат (клавиатурой/программно) в серию не считаем.
+        if (typeof x !== "number" || typeof y !== "number") return;
+        var now = Date.now();
+        // Оставляем только клики из текущего окна и в пределах радиуса от нового —
+        // так «улетевшие» по времени или месту клики серию не продлевают.
+        rageClicks = rageClicks.filter(function (c) {
+          return (now - c.t) <= RAGE_WINDOW_MS &&
+                 Math.abs(c.x - x) <= RAGE_RADIUS &&
+                 Math.abs(c.y - y) <= RAGE_RADIUS;
+        });
+        rageClicks.push({ x: x, y: y, t: now });
+        if (rageClicks.length >= RAGE_MIN) {
+          var count = rageClicks.length;
+          rageClicks = []; // серия зафиксирована — считаем следующую с нуля
+          push({
+            type: "RAGE_CLICK",
+            message: "Rage-клик: " + count + " быстрых кликов по " + (elDesc(el) || "элементу"),
+            url: location.href
+          });
+        }
+      } catch (err) {}
+    }
+
     // Клики (в т.ч. по кнопкам/ссылкам). Ищем ближайший осмысленный элемент —
     // кнопку/ссылку/роль button, иначе сам таргет.
     document.addEventListener("click", function(e) {
@@ -592,6 +630,8 @@ const SDK = `(function(){
           ? (t.closest("button, a, [role=button], input[type=submit], input[type=button], label, [onclick]") || t)
           : t;
         push({ type: "CLICK", message: "Клик: " + (elDesc(el) || "элемент"), url: location.href });
+        // После обычного клика проверяем, не сложилась ли «яростная» серия.
+        detectRage(e, el);
       } catch (err) {}
     }, true);
 

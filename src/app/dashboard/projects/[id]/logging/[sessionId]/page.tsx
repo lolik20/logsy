@@ -83,11 +83,13 @@ export default async function SessionPage({
       className={`border-t border-slate-100 align-top dark:border-slate-800 ${
         e.type === "USER_REPORT"
           ? "border-l-2 border-l-violet-400 bg-violet-50/50 dark:bg-violet-900/10"
-          : e.id === departureId
-            ? "bg-slate-50 dark:bg-slate-800/40"
-            : breadcrumbIds.has(e.id)
-              ? "border-l-2 border-l-amber-400 bg-amber-50/40 dark:bg-amber-900/10"
-              : ""
+          : e.type === "RAGE_CLICK"
+            ? "border-l-2 border-l-rose-400 bg-rose-50/50 dark:bg-rose-900/10"
+            : e.id === departureId
+              ? "bg-slate-50 dark:bg-slate-800/40"
+              : breadcrumbIds.has(e.id)
+                ? "border-l-2 border-l-amber-400 bg-amber-50/40 dark:bg-amber-900/10"
+                : ""
       }`}
     >
       <td className="px-4 py-2 whitespace-nowrap text-slate-500">
@@ -99,6 +101,11 @@ export default async function SessionPage({
           {e.type === "USER_REPORT" && (
             <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
               Сообщение
+            </span>
+          )}
+          {e.type === "RAGE_CLICK" && (
+            <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+              Rage
             </span>
           )}
           {e.id === departureId && (
