@@ -13,6 +13,7 @@ import { EventTypeIcon } from "@/components/EventTypeIcon";
 import { TopIssues } from "@/components/TopIssues";
 import { isProjectServiceActive } from "@/lib/subscription";
 import { getSessionUsage } from "@/lib/logging";
+import { pageUrlToPath } from "@/lib/pages";
 import { flagEmoji } from "@/lib/geo";
 import { ERROR_TYPES as ISSUE_ERROR_TYPES, topErrors, topSlowRequests, type IssueEvent } from "@/lib/topIssues";
 
@@ -117,6 +118,21 @@ export default async function LoggingPage({
   const errorsTop = topErrors(issueEvents);
   const slowTop = topSlowRequests(issueEvents);
 
+  // Путь входа (лендинг) каждой сессии: самое раннее событие с адресом страницы.
+  // distinct по sessionId при сортировке по времени возр. отдаёт первую запись сессии —
+  // это страница, на которую пользователь зашёл в начале визита.
+  const firstEvents = ids.length
+    ? await prisma.logEvent.findMany({
+        where: { sessionId: { in: ids }, url: { not: null } },
+        orderBy: { createdAt: "asc" },
+        distinct: ["sessionId"],
+        select: { sessionId: true, url: true, createdAt: true },
+      })
+    : [];
+  const firstEventBySession = new Map(
+    firstEvents.map((e) => [e.sessionId, { url: e.url, createdAt: e.createdAt }]),
+  );
+
   // Группируем сессии по IP пользователя. Сессии уже отсортированы по последней
   // активности убыв., поэтому группы идут в порядке появления самой активной сессии.
   type Sess = (typeof sessions)[number];
@@ -127,9 +143,22 @@ export default async function LoggingPage({
     if (arr) arr.push(s);
     else ipGroupsMap.set(key, [s]);
   }
-  const allIpGroups = Array.from(ipGroupsMap.entries()).map(([ip, list]) => ({
+  const allIpGroups = Array.from(ipGroupsMap.entries()).map(([ip, list]) => {
+    // Путь входа группы — страница самого раннего события среди сессий этого IP
+    // (первый визит пользователя). Берём событие с минимальным временем создания.
+    let entryUrl: string | null = null;
+    let entryAt = Infinity;
+    for (const s of list) {
+      const fe = firstEventBySession.get(s.id);
+      if (fe && fe.createdAt.getTime() < entryAt) {
+        entryAt = fe.createdAt.getTime();
+        entryUrl = fe.url;
+      }
+    }
+    return {
     ip,
     list,
+    entryPath: pageUrlToPath(entryUrl),
     // Сессии отсортированы по последней активности убыв. — берём время последней
     // активности самой свежей сессии IP (она же первая в списке группы).
     lastSeenAt: list[0].lastSeenAt,
@@ -138,7 +167,8 @@ export default async function LoggingPage({
     errors: list.reduce((n, s) => n + (errorCount.get(s.id) ?? 0), 0),
     slow: list.reduce((n, s) => n + (slowCount.get(s.id) ?? 0), 0),
     reports: list.reduce((n, s) => n + (reportCount.get(s.id) ?? 0), 0),
-  }));
+    };
+  });
 
   // Фильтр «с ошибками»: при ?errors=1 показываем только группы, где были ошибки.
   const onlyErrors = searchParams?.errors === "1";
@@ -248,6 +278,14 @@ export default async function LoggingPage({
                 )}
                 <span className="text-xs uppercase tracking-wide text-slate-400">IP</span>
                 <span className="font-mono text-sm font-semibold">{g.ip}</span>
+                {g.entryPath && (
+                  <span
+                    className="max-w-[220px] truncate font-mono text-xs text-slate-500"
+                    title={`Страница входа: ${g.entryPath}`}
+                  >
+                    {g.entryPath}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3 text-sm font-semibold">
                 {g.reports > 0 && (
