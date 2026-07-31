@@ -48,6 +48,18 @@ function UsersIcon({ className }: IconProps) {
   );
 }
 
+// Посетители сайта (вкладка «Пользователи» проекта) — один человек в круге,
+// чтобы отличаться от UsersIcon у контактов проекта.
+function VisitorIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M6.2 18.4a6.5 6.5 0 0 1 11.6 0" />
+    </svg>
+  );
+}
+
 function GaugeIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -182,6 +194,7 @@ export type SidebarProject = { id: string; name: string };
 const SERVICES = [
   { key: "monitoring", label: "Мониторинг", suffix: "", Icon: GridIcon },
   { key: "logging", label: "Сессии", suffix: "/logging", Icon: LogsIcon },
+  { key: "users", label: "Пользователи", suffix: "/users", Icon: VisitorIcon },
   { key: "tasks", label: "Задачи", suffix: "/tasks", Icon: BoardIcon },
   { key: "pages", label: "Страницы", suffix: "/pages", Icon: SitemapIcon },
   { key: "connection", label: "Подключение", suffix: "/connection", Icon: PlugIcon },
