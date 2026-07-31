@@ -10,6 +10,7 @@ export const EVENT_TYPE_LABEL: Record<string, string> = {
   SESSION_START: "Начало сессии",
   SESSION_END: "Выход с сайта",
   NAVIGATION: "Переход",
+  OUTBOUND: "Переход на другой сайт",
   CLICK: "Клик",
   RAGE_CLICK: "Rage-клик",
   INPUT: "Ввод",
@@ -27,6 +28,7 @@ const TYPE_TONE: Record<string, string> = {
   SESSION_START: "text-emerald-600",
   SESSION_END: "text-slate-500",
   NAVIGATION: "text-blue-600",
+  OUTBOUND: "text-teal-600",
   CLICK: "text-slate-500 dark:text-slate-300",
   RAGE_CLICK: "text-rose-600",
   INPUT: "text-slate-500 dark:text-slate-300",
@@ -104,6 +106,14 @@ const ICONS: Record<string, ReactNode> = {
     <Svg>
       <circle cx="12" cy="12" r="9" />
       <path d="M16.2 7.8l-2.9 6.5-6.5 2.9 2.9-6.5z" />
+    </Svg>
+  ),
+  // Стрелка из рамки наружу — переход на другой сайт.
+  OUTBOUND: (
+    <Svg>
+      <path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5" />
+      <path d="M14 4h6v6" />
+      <path d="M10 14L20 4" />
     </Svg>
   ),
   // Указатель мыши — клик.

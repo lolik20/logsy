@@ -1,11 +1,12 @@
 // Чистые функции «хлебных крошек» (breadcrumbs) сервиса логирования: последние действия
 // пользователя перед отказом. «Отказ» = уход с сайта (событие SESSION_END, которое SDK
-// пушит на pagehide). «Действие пользователя» — клик, ввод или переход. Функции не ходят
+// пушит на pagehide). «Действие пользователя» — клик, ввод, переход по сайту или уход на
+// другой сайт (OUTBOUND — последняя крошка показывает, куда именно ушли). Функции не ходят
 // в БД и используются и на странице аналитики, и в просмотре сессии (подсветка крошек).
 
 // Типы событий, считающиеся осмысленным действием пользователя (в порядке появления в
 // логе они и образуют цепочку перед уходом).
-export const ACTION_TYPES = ["CLICK", "INPUT", "NAVIGATION"] as const;
+export const ACTION_TYPES = ["CLICK", "INPUT", "NAVIGATION", "OUTBOUND"] as const;
 
 // Сколько последних действий фиксируем перед отказом.
 export const MAX_BREADCRUMBS = 3;
@@ -59,6 +60,13 @@ export function normalizeActionLabel(e: Pick<BreadcrumbEvent, "type" | "message"
     // «Переход: <pathname>» — путь без query. Берём из url, иначе из текста сообщения.
     const path = pathOf(e.url) ?? (e.message ? e.message.replace(/^[^:]*:\s*/, "").split(/[?#]/)[0] : null);
     return "Переход: " + (path ?? "—");
+  }
+  if (e.type === "OUTBOUND") {
+    // «Переход на другой сайт: host/path» → оставляем только домен: пути с реферальными
+    // идентификаторами уникальны и в одну группу иначе не схлопнутся.
+    const msg = e.message ?? "Переход на другой сайт";
+    const cut = msg.indexOf(": ");
+    return cut < 0 ? msg : msg.slice(0, cut + 2) + msg.slice(cut + 2).split("/")[0];
   }
   // CLICK и прочее — сообщение как есть (в нём уже <тег>#id «подпись»).
   return e.message ?? e.type;

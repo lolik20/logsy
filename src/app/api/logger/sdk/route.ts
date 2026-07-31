@@ -476,7 +476,8 @@ const SDK = `(function(){
     push({ type: "NAVIGATION", message: "Открыта страница: " + location.pathname, url: location.href });
 
     // Момент, когда пользователь инициировал ПЕРЕХОД на другую страницу ЭТОГО ЖЕ сайта
-    // «жёсткой» навигацией (клик по внутренней ссылке / отправка формы). Такой переход
+    // (включая его поддомены — см. sameSite ниже) «жёсткой» навигацией: клик по внутренней
+    // ссылке или отправка формы на свой домен. Такой переход
     // выгружает текущую страницу (сработает pagehide), но это НЕ уход с сайта — сессия
     // продолжится на следующей странице (тот же sid). По этой метке в leave() отличаем
     // внутренний переход от реального ухода и не засоряем ленту «Выходами с сайта» на
@@ -484,10 +485,92 @@ const SDK = `(function(){
     // на SPA ошибочно считался бы внутренним переходом.
     var _navAwayAt = 0;
     var NAV_AWAY_MS = 5000;
-    function sameOrigin(u) {
-      try { return new URL(u, location.href).origin === location.origin; }
-      catch (e) { return false; }
+
+    // Базовый домен хоста: site.ru и для www.site.ru, и для shop.site.ru. Нужен, чтобы
+    // переход между ПОДДОМЕНАМИ одного сайта считался внутренним, а не уходом. Полный
+    // список публичных суффиксов в SDK тянуть незачем — берём последние две метки, а для
+    // распространённых двухуровневых зон три: иначе базовым доменом стал бы сам суффикс
+    // (com.ru) и любой чужой сайт в этой зоне выглядел бы «своим». Хосты без поддоменов
+    // (localhost, site.ru) и IP-адреса сравниваем целиком.
+    var MULTI_TLD = { "com.ru": 1, "net.ru": 1, "org.ru": 1, "pp.ru": 1, "msk.ru": 1,
+                      "spb.ru": 1, "com.ua": 1, "co.uk": 1, "org.uk": 1, "com.tr": 1,
+                      "com.br": 1, "com.cn": 1, "co.jp": 1, "co.il": 1 };
+    function baseDomain(host) {
+      try {
+        host = String(host || "").toLowerCase();
+        while (host.length && host.charAt(host.length - 1) === ".") host = host.slice(0, -1);
+        var p = host.split(".");
+        if (p.length < 3) return host;
+        // IPv4: последняя метка числовая — поддоменов у адреса нет, сравниваем как есть.
+        if (!isNaN(parseInt(p[p.length - 1], 10))) return host;
+        var two = p.slice(-2).join(".");
+        return MULTI_TLD[two] ? p.slice(-3).join(".") : two;
+      } catch (e) { return String(host || ""); }
     }
+    // Ведёт ли адрес на этот же сайт — с учётом поддоменов (www, shop, lk и т.п.).
+    function sameSite(u) {
+      try {
+        return baseDomain(new URL(u, location.href).hostname) === baseDomain(location.hostname);
+      } catch (e) { return false; }
+    }
+
+    // ---- Переходы на другие сайты (OUTBOUND) ----
+    // Фиксируем адрес, НА КОТОРЫЙ посетитель ушёл. Событие кладётся в общий буфер и уедет
+    // тем же beacon'ом, что и SESSION_END при выгрузке страницы.
+    //
+    // Источники перекрываются, поэтому одинаковые адреса схлопываем окном OUT_DEDUP_MS:
+    //   • Navigation API (Chromium 102+) — ловит ЛЮБУЮ навигацию, включая программный
+    //     редирект location.href = ... из скрипта сайта;
+    //   • клик по <a href> — работает везде, в т.ч. при открытии в новой вкладке;
+    //   • обёртка window.open;
+    //   • отправка формы на чужой домен.
+    // В Firefox/Safari программный редирект без клика по ссылке перехватить нечем:
+    // location.href (как и assign/replace) помечен в спецификации [LegacyUnforgeable] —
+    // переопределить его браузер не даёт. Там такой уход останется без OUTBOUND.
+    var OUT_DEDUP_MS = 3000;
+    var _lastOutUrl = null, _lastOutAt = 0;
+    function outbound(u, via) {
+      try {
+        var abs = new URL(u, location.href).href;
+        var now = Date.now();
+        if (abs === _lastOutUrl && (now - _lastOutAt) < OUT_DEDUP_MS) return;
+        _lastOutUrl = abs; _lastOutAt = now;
+        var d = new URL(abs);
+        push({
+          type: "OUTBOUND",
+          message: "Переход на другой сайт: " + d.hostname + (d.pathname === "/" ? "" : d.pathname),
+          route: abs.slice(0, 2000),
+          query: d.search ? d.search.slice(1) : null,
+          url: location.href
+        });
+        dbg("OUTBOUND (" + via + "): " + abs);
+      } catch (e) {}
+    }
+
+    // Navigation API — единственный способ увидеть программный редирект. Для навигации на
+    // чужой origin событие приходит с canIntercept=false, но адрес назначения в
+    // destination.url доступен, а больше нам ничего и не нужно.
+    try {
+      if (window.navigation && window.navigation.addEventListener) {
+        window.navigation.addEventListener("navigate", function (e) {
+          try {
+            var to = e && e.destination && e.destination.url;
+            if (to && !sameSite(to)) outbound(to, "navigation-api");
+          } catch (err) {}
+        });
+      }
+    } catch (e) {}
+
+    // window.open — открытие чужого сайта в новой вкладке из кода сайта.
+    try {
+      var _winOpen = window.open;
+      if (_winOpen) {
+        window.open = function (u) {
+          try { if (u && !sameSite(u)) outbound(u, "window.open"); } catch (err) {}
+          return _winOpen.apply(this, arguments);
+        };
+      }
+    } catch (e) {}
 
     function logNav() {
       var u = location.href;
@@ -658,24 +741,31 @@ const SDK = `(function(){
       } catch (err) {}
     }, true);
 
-    // ---- Отметка намерения перейти на другую страницу того же сайта ----
-    // Ловим «жёсткие» переходы внутри сайта: клик по внутренней ссылке и отправку формы
-    // на свой же домен. Оба выгружают текущую страницу (сработает pagehide), но это не
-    // уход с сайта. Метку ставим в capture-фазе, до обработчиков сайта. Переходы на
-    // ДРУГОЙ домен метку не ставят — это как раз реальный уход (пусть отметится отказом).
+    // ---- Клик по ссылке: уход на чужой сайт либо намерение перейти внутри своего ----
+    // Один обработчик решает обе задачи. Уход на ДРУГОЙ сайт фиксируем событием OUTBOUND.
+    // Переход внутри сайта (в т.ч. на его поддомен) только помечает _navAwayAt: он выгрузит
+    // текущую страницу (сработает pagehide), но уходом не является. Слушаем в capture-фазе,
+    // до обработчиков сайта — иначе они могут остановить всплытие и клик до нас не дойдёт.
     document.addEventListener("click", function(e) {
       try {
-        // Модифицированный клик / не левая кнопка открывает ссылку в новой вкладке —
-        // текущая страница не выгружается (pagehide не сработает), намерение не фиксируем.
-        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         var a = (e.target && e.target.closest) ? e.target.closest("a[href]") : null;
         if (!a) return;
         var href = a.getAttribute("href");
-        if (!href || href.charAt(0) === "#") return;                 // якорь на этой же странице
-        if (/^\s*(javascript:|mailto:|tel:|sms:)/i.test(href)) return; // не навигация
-        if (a.target && a.target !== "_self") return;                // новая вкладка/окно
-        if (a.hasAttribute("download")) return;                      // скачивание, не переход
-        if (!sameOrigin(a.href)) return;                             // уход на другой сайт
+        if (!href || href.charAt(0) === "#") return;                   // якорь на этой же странице
+        if (/^\\s*(javascript:|mailto:|tel:|sms:)/i.test(href)) return; // не навигация
+
+        // Чужой сайт. Фиксируем ВСЕГДА, даже если страница не выгрузится: клик с Ctrl/⌘ и
+        // ссылка с target="_blank" открывают чужой сайт в новой вкладке — переход состоялся.
+        if (!sameSite(a.href)) {
+          if (!a.hasAttribute("download")) outbound(a.href, "click");
+          return;                                                      // метку не ставим: это реальный уход
+        }
+
+        // Дальше — только свой сайт. Метку ставим лишь для «жёсткого» перехода, который
+        // действительно выгрузит текущую страницу.
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (a.target && a.target !== "_self") return;                  // новая вкладка/окно
+        if (a.hasAttribute("download")) return;                        // скачивание, не переход
         _navAwayAt = Date.now();
       } catch (err) {}
     }, true);
@@ -683,9 +773,11 @@ const SDK = `(function(){
       try {
         var f = e.target;
         if (!f || f.tagName !== "FORM") return;
-        if (f.target && f.target !== "_self") return;                // ответ в новой вкладке
         var action = f.getAttribute("action");
-        if (!sameOrigin(action ? action : location.href)) return;    // отправка на другой сайт
+        var dest = action ? action : location.href;
+        // Отправка на чужой домен уводит посетителя с сайта — фиксируем адрес назначения.
+        if (!sameSite(dest)) { outbound(dest, "submit"); return; }
+        if (f.target && f.target !== "_self") return;                  // ответ в новой вкладке
         _navAwayAt = Date.now();
       } catch (err) {}
     }, true);
@@ -697,8 +789,8 @@ const SDK = `(function(){
     function leave() {
       if (_left) return;
       _left = true;
-      // Если страница выгружается из-за перехода на ДРУГУЮ страницу того же сайта —
-      // это не отказ: сессия продолжится на следующей странице. SESSION_END для таких
+      // Если страница выгружается из-за перехода на ДРУГУЮ страницу того же сайта
+      // (в том числе на его поддомен) — это не отказ: сессия продолжится дальше. SESSION_END для таких
       // выгрузок раньше засорял ленту «Выходом с сайта» на каждом переходе (в сессии
       // получалось несколько отметок ухода). Отмечаем отказ только при реальном уходе
       // (закрытие вкладки / переход на другой сайт).
