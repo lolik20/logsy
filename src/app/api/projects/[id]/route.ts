@@ -9,6 +9,10 @@ const patchSchema = z.object({
   feedbackEnabled: z.boolean().optional(),
   // Запись экрана сессий (rrweb): включает подгрузку рекордера на сайте проекта.
   recordSession: z.boolean().optional(),
+  // Автоблок уведомления о cookie на сайте проекта.
+  cookieBanner: z.boolean().optional(),
+  // Автоблок с просьбой отключить VPN (показывается посетителям не из РФ).
+  vpnNotice: z.boolean().optional(),
   // Порог «медленного» запроса в мс (0…60000). 0 — считать медленным любой запрос.
   slowMs: z.number().int().min(0).max(60000).optional(),
 });
@@ -46,6 +50,8 @@ export async function PATCH(
     domainAlertDays?: null;
     feedbackEnabled?: boolean;
     recordSession?: boolean;
+    cookieBanner?: boolean;
+    vpnNotice?: boolean;
     slowMs?: number;
   } = {};
   if (parsed.data.checkSsl !== undefined) {
@@ -69,6 +75,12 @@ export async function PATCH(
   }
   if (parsed.data.recordSession !== undefined) {
     data.recordSession = parsed.data.recordSession;
+  }
+  if (parsed.data.cookieBanner !== undefined) {
+    data.cookieBanner = parsed.data.cookieBanner;
+  }
+  if (parsed.data.vpnNotice !== undefined) {
+    data.vpnNotice = parsed.data.vpnNotice;
   }
   if (parsed.data.slowMs !== undefined) {
     data.slowMs = parsed.data.slowMs;

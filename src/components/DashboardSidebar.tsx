@@ -121,6 +121,16 @@ function PlugIcon({ className }: IconProps) {
   );
 }
 
+function CodeIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m8 16-4-4 4-4" />
+      <path d="m16 8 4 4-4 4" />
+      <path d="M14 4l-4 16" />
+    </svg>
+  );
+}
+
 function ChevronIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -177,6 +187,7 @@ const SERVICES = [
   { key: "connection", label: "Подключение", suffix: "/connection", Icon: PlugIcon },
   { key: "contacts", label: "Контакты", suffix: "/contacts", Icon: UsersIcon },
   { key: "alerts", label: "Алерты", suffix: "/alerts", Icon: BellIcon },
+  { key: "api", label: "API", suffix: "/api", Icon: CodeIcon },
   { key: "tariff", label: "Тариф", suffix: "/tariff", Icon: CardIcon },
 ];
 

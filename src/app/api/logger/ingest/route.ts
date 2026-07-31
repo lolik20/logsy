@@ -259,13 +259,15 @@ export async function POST(req: Request) {
     .filter((r) => r.type === "USER_REPORT")
     .map((r) => ({ message: r.message, url: r.url, email: emailFromMeta(r.meta) }));
   if (reports.length) {
-    // Задачи создаём надёжно (await): это основной результат репорта.
-    await createTasksFromReports(project.id, session.id, reports).catch((err) =>
-      console.error("[Logsy] Ошибка создания задачи из сообщения пользователя:", err),
-    );
+    // Задачи создаём надёжно (await): это основной результат репорта. Уведомлению передаём
+    // результат с id задач: ответ владельца из Telegram попадёт в переписку своей задачи.
+    const handled = await createTasksFromReports(project.id, session.id, reports).catch((err) => {
+      console.error("[Logsy] Ошибка создания задачи из сообщения пользователя:", err);
+      return reports.map((r) => ({ ...r, taskId: null }));
+    });
     // Уведомления шлём в фоне (best-effort), чтобы не задерживать ответ SDK; в
     // долгоживущем процессе промис доедет до конца.
-    void notifyUserReports(project.id, session.id, reports).catch((err) =>
+    void notifyUserReports(project.id, session.id, handled).catch((err) =>
       console.error("[Logsy] Ошибка уведомления о сообщении пользователя:", err),
     );
   }

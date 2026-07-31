@@ -7,14 +7,45 @@
 
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
-import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
+import {
+  sendTelegramMessageWithId,
+  setTelegramReplyMarkup,
+  registerReplyTarget,
+  replyCallbackData,
+  escapeHtml,
+} from "@/lib/telegram";
 
 export type UserReport = {
   message: string | null;
   url: string | null;
   // Почта отправителя из обратной формы (если указана), null — не указана.
   email?: string | null;
+  // Задача, заведённая по этому сообщению (см. createTasksFromReports). Нужна для
+  // ответа из Telegram: он дописывается в переписку этой задачи.
+  taskId?: string | null;
 };
+
+/**
+ * Разрешает ответить посетителю письмом прямо из Telegram: привязывает отправленное
+ * оповещение к обращению (ответ reply на него уйдёт письмом, см. handleReplyToReport) и
+ * дорисовывает на сообщение кнопку «Ответить на почту» — она присылает приглашение с уже
+ * открытым полем ответа. Клавиатуру ставим отдельным вызовом, потому что в callback_data
+ * кнопки нужен id токена, а он заводится по message_id уже отправленного сообщения.
+ * Best-effort: если что-то не вышло, оповещение всё равно доставлено.
+ */
+async function enableEmailReply(params: {
+  projectId: string;
+  taskId: string | null;
+  email: string;
+  chatId: string;
+  messageId: number;
+}): Promise<void> {
+  const tokenId = await registerReplyTarget(params);
+  if (!tokenId) return;
+  await setTelegramReplyMarkup(params.chatId, params.messageId, [
+    [{ text: "✉️ Ответить на почту", callback_data: replyCallbackData(tokenId) }],
+  ]);
+}
 
 /** Базовый адрес панели Logsy (для ссылок на сессию в уведомлениях). */
 function appUrl(): string {
@@ -81,8 +112,19 @@ export async function notifyUserReports(
             (page ? `Страница: ${escapeHtml(page)}\n` : "") +
             (email ? `Почта отправителя: ${escapeHtml(email)}\n` : "") +
             `\n${escapeHtml(message)}` +
-            (link ? `\n\n<a href="${escapeHtml(link)}">Открыть сессию пользователя</a>` : "");
-          await sendTelegramMessage(contact.value, html, { html: true });
+            (link ? `\n\n<a href="${escapeHtml(link)}">Открыть сессию пользователя</a>` : "") +
+            // Подсказка про ответ имеет смысл только когда есть куда отвечать.
+            (email ? `\n\n↩️ Ответьте на это сообщение — текст уйдёт письмом отправителю.` : "");
+          const messageId = await sendTelegramMessageWithId(contact.value, html, { html: true });
+          if (email && messageId != null) {
+            await enableEmailReply({
+              projectId,
+              taskId: report.taskId ?? null,
+              email,
+              chatId: contact.value,
+              messageId,
+            });
+          }
         } else {
           await sendMail({ to: contact.value, subject, text });
         }

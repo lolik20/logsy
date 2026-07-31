@@ -118,6 +118,11 @@ const SDK = `(function(){
             // Порог «медленного» из панели проекта — если на теге нет явного data-slow-ms.
             if (!slowFromAttr && typeof d.slowMs === "number" && d.slowMs >= 0) SLOW_MS = d.slowMs;
             if (d.feedback) { try { initFeedback(); } catch (e) { dbg("initFeedback бросил исключение", e); } }
+            // Автоблок уведомления о cookie — включается флагом cookie в конфиге проекта.
+            if (d.cookie) { try { initCookieBanner(); } catch (e) { dbg("initCookieBanner бросил исключение", e); } }
+            // Автоблок «отключите VPN». Страну по IP считает сервер: флаг vpn приходит
+            // true только если опция включена И посетитель определился как не из РФ.
+            if (d.vpn) { try { initVpnNotice(); } catch (e) { dbg("initVpnNotice бросил исключение", e); } }
             // Запись экрана сессии (rrweb) — включается флагом record из конфига проекта.
             if (d.record) {
               dbg("запись экрана включена в конфиге (record=true) — инициализация рекордера");
@@ -857,6 +862,110 @@ const SDK = `(function(){
         panel.innerHTML = '<div class="ok">Спасибо! Сообщение отправлено.</div>'
           + '<div class="foot"><a href="' + origin + '" target="_blank" rel="noopener noreferrer">Работает на Logsy</a></div>';
         setTimeout(closePanel, 1500);
+      });
+    }
+
+    // ---- Автоблоки: уведомление о cookie и просьба отключить VPN ----
+    // Оба блока рисуются в Shadow DOM (стили сайта их не задевают и наоборот) и живут
+    // целиком на клиенте: нажатие любой кнопки просто закрывает блок, никаких запросов
+    // на сервер не уходит. Отметка о закрытии хранится в браузере посетителя, чтобы
+    // блок не появлялся снова на каждой странице.
+
+    // Создаёт хост с Shadow DOM и общими стилями автоблока. Возвращает { root, host }.
+    function autoBlockHost(attr, css) {
+      var host = document.createElement("div");
+      host.setAttribute(attr, "");
+      var root = host.attachShadow ? host.attachShadow({ mode: "open" }) : host;
+      var style = document.createElement("style");
+      style.textContent = ""
+        + ":host,*{box-sizing:border-box;}"
+        + ".card{position:fixed;z-index:2147483000;background:#fff;color:#0f172a;"
+        + "border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.28);padding:14px 16px;"
+        + "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}"
+        + ".txt{font-size:13px;line-height:1.45;margin:0;}"
+        + ".row{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;}"
+        + "button.act{border:0;cursor:pointer;border-radius:9999px;padding:8px 16px;font-size:13px;"
+        + "font-weight:600;font-family:inherit;}"
+        + ".primary{background:#4f46e5;color:#fff;}"
+        + ".primary:hover{background:#4338ca;}"
+        + ".secondary{background:#f1f5f9;color:#334155;}"
+        + ".secondary:hover{background:#e2e8f0;}"
+        + css;
+      root.appendChild(style);
+      return { host: host, root: root };
+    }
+
+    // Показ блока откладываем, пока не готов document.body (скрипт стоит в <head>).
+    function whenBody(fn) {
+      if (document.body) { fn(); return; }
+      window.addEventListener("DOMContentLoaded", function () { try { fn(); } catch (e) {} });
+    }
+
+    // Уведомление о cookie: плашка внизу слева с кнопками «Хорошо» и «Не согласен».
+    // Обе кнопки только закрывают плашку — согласие нигде не сохраняется, но факт
+    // закрытия помним в localStorage, чтобы не показывать её на каждой странице.
+    var cookieReady = false;
+    function initCookieBanner() {
+      if (cookieReady) return;
+      cookieReady = true;
+      try { if (localStorage.getItem("logsy_cookie_closed") === "1") { dbg("cookie-блок уже закрывали — не показываем"); return; } } catch (e) {}
+
+      whenBody(function () {
+        var built = autoBlockHost("data-logsy-cookie", ""
+          + ".card{left:20px;bottom:20px;width:380px;max-width:calc(100vw - 40px);}"
+          + "@media (max-width:640px){.card{left:12px;right:12px;bottom:12px;width:auto;}}");
+        var card = document.createElement("div");
+        card.className = "card";
+        card.setAttribute("role", "dialog");
+        card.setAttribute("aria-label", "Уведомление об использовании cookie");
+        card.innerHTML =
+          '<p class="txt">Мы используем файлы cookie, чтобы сайт работал корректно и удобно для вас. '
+          + 'Продолжая пользоваться сайтом, вы соглашаетесь с их использованием.</p>'
+          + '<div class="row">'
+          + '<button type="button" class="act secondary decline">Не согласен</button>'
+          + '<button type="button" class="act primary accept">Хорошо</button>'
+          + '</div>';
+        built.root.appendChild(card);
+        document.body.appendChild(built.host);
+
+        function close() {
+          try { localStorage.setItem("logsy_cookie_closed", "1"); } catch (e) {}
+          try { built.host.remove(); } catch (e) {}
+        }
+        card.querySelector(".accept").addEventListener("click", close);
+        card.querySelector(".decline").addEventListener("click", close);
+        dbg("cookie-блок показан");
+      });
+    }
+
+    // Просьба отключить VPN: плашка сверху по центру с одной кнопкой «ОК». Показываем
+    // один раз за визит (отметка в sessionStorage) — навязчивость тут вредит больше,
+    // чем польза. Сам факт «не из РФ» определил сервер (флаг vpn в конфиге).
+    var vpnReady = false;
+    function initVpnNotice() {
+      if (vpnReady) return;
+      vpnReady = true;
+      try { if (sessionStorage.getItem("logsy_vpn_closed") === "1") { dbg("VPN-блок уже закрывали в этом визите — не показываем"); return; } } catch (e) {}
+
+      whenBody(function () {
+        var built = autoBlockHost("data-logsy-vpn", ""
+          + ".card{left:50%;top:20px;transform:translateX(-50%);width:420px;max-width:calc(100vw - 24px);}"
+          + "@media (max-width:640px){.card{left:12px;right:12px;top:12px;transform:none;width:auto;}}");
+        var card = document.createElement("div");
+        card.className = "card";
+        card.setAttribute("role", "dialog");
+        card.setAttribute("aria-label", "Просьба отключить VPN");
+        card.innerHTML =
+          '<p class="txt">Пожалуйста, отключите VPN для более быстрой загрузки сайта.</p>'
+          + '<div class="row"><button type="button" class="act primary okbtn">ОК</button></div>';
+        built.root.appendChild(card);
+        document.body.appendChild(built.host);
+
+        card.querySelector(".okbtn").addEventListener("click", function () {
+          try { sessionStorage.setItem("logsy_vpn_closed", "1"); } catch (e) {}
+          try { built.host.remove(); } catch (e) {}
+        });
+        dbg("VPN-блок показан");
       });
     }
 

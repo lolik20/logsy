@@ -6,12 +6,15 @@
 // заголовку Origin (домен проекта уникален) — та же keyless-модель, что и в /ingest.
 //
 // Отдаём флаги проекта для SDK: включена ли обратная форма ошибок (feedback), порог
-// «медленного» запроса (slowMs) и включена ли запись экрана сессий (record). Данные не
+// «медленного» запроса (slowMs), включена ли запись экрана сессий (record), автоблок
+// уведомления о cookie (cookie) и просьба отключить VPN (vpn). Данные не
 // чувствительны, но, как и ingest, отвечаем ACAO только зарегистрированному домену —
 // чтобы конфиг читал лишь свой сайт.
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getClientIp } from "@/lib/request-ip";
+import { resolveCountry } from "@/lib/geo";
 
 export const dynamic = "force-dynamic";
 
@@ -37,18 +40,29 @@ function corsHeaders(origin: string): Record<string, string> {
   };
 }
 
+type ProjectConfig = {
+  feedbackEnabled: boolean;
+  slowMs: number;
+  recordSession: boolean;
+  cookieBanner: boolean;
+  vpnNotice: boolean;
+};
+
 async function resolveProject(req: Request) {
   const origin = req.headers.get("origin");
   const host = originHostname(origin);
   if (!origin || !host) {
-    return {
-      origin,
-      project: null as null | { feedbackEnabled: boolean; slowMs: number; recordSession: boolean },
-    };
+    return { origin, project: null as null | ProjectConfig };
   }
   const project = await prisma.project.findUnique({
     where: { domain: host },
-    select: { feedbackEnabled: true, slowMs: true, recordSession: true },
+    select: {
+      feedbackEnabled: true,
+      slowMs: true,
+      recordSession: true,
+      cookieBanner: true,
+      vpnNotice: true,
+    },
   });
   return { origin, project };
 }
@@ -65,8 +79,25 @@ export async function GET(req: Request) {
   if (!origin || !project) {
     return NextResponse.json({ feedback: false }, { status: 403 });
   }
+  // Плашку «отключите VPN» показываем только посетителям не из РФ. Страну считаем
+  // здесь, на сервере: запрос конфига приходит из браузера посетителя, поэтому IP в
+  // заголовках — его собственный. Геолокация опциональна: если страну определить не
+  // удалось (локальный/приватный адрес, недоступен внешний сервис), плашку не
+  // показываем — лучше промолчать, чем показать её россиянину.
+  let vpn = false;
+  if (project.vpnNotice) {
+    const country = await resolveCountry(getClientIp(req));
+    vpn = country !== null && country !== "RU";
+  }
+
   return NextResponse.json(
-    { feedback: project.feedbackEnabled, slowMs: project.slowMs, record: project.recordSession },
+    {
+      feedback: project.feedbackEnabled,
+      slowMs: project.slowMs,
+      record: project.recordSession,
+      cookie: project.cookieBanner,
+      vpn,
+    },
     { headers: corsHeaders(origin) },
   );
 }

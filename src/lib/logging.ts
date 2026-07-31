@@ -68,6 +68,20 @@ export function formatDurationSec(ms: number): string {
   return (ms / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " с";
 }
 
+/**
+ * Длительность визита — от начала сессии до последнего действия («2 мин 14 с»).
+ * Секунды скрываем от часа и выше: точность там уже не важна, а строка короче.
+ */
+export function formatSessionLength(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h} ч ${m} мин`;
+  if (m > 0) return `${m} мин ${s} с`;
+  return `${s} с`;
+}
+
 /** Усечь строку до лимита, добавив маркер обрезки. */
 export function truncate(value: string | null | undefined, max = MAX_TEXT_CHARS): string | null {
   if (value == null) return null;
@@ -287,6 +301,12 @@ export async function purgeExpiredLogs(now: Date = new Date()): Promise<{ delete
   // просто перестаёт срабатывать (см. TgIgnoreToken в prisma/schema.prisma).
   const tgTokenCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   await prisma.tgIgnoreToken.deleteMany({ where: { createdAt: { lt: tgTokenCutoff } } });
+
+  // Привязки «ответить посетителю письмом из Telegram» живут дольше: переписка по
+  // обращению может продолжиться и через недели. Через 30 дней ответ на старое
+  // оповещение перестаёт распознаваться (см. TgReplyToken в prisma/schema.prisma).
+  const tgReplyCutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  await prisma.tgReplyToken.deleteMany({ where: { createdAt: { lt: tgReplyCutoff } } });
 
   return { deletedEvents };
 }

@@ -10,6 +10,7 @@ const items = [
   { key: "connection", label: "Подключение", suffix: "/connection" },
   { key: "contacts", label: "Контакты", suffix: "/contacts" },
   { key: "alerts", label: "Алерты", suffix: "/alerts" },
+  { key: "api", label: "API", suffix: "/api" },
   { key: "tariff", label: "Тариф", suffix: "/tariff" },
 ];
 
@@ -21,6 +22,7 @@ export type ProjectServiceKey =
   | "connection"
   | "contacts"
   | "alerts"
+  | "api"
   | "tariff";
 
 export function ProjectServiceTabs({

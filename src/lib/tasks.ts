@@ -29,6 +29,13 @@ export type ReportTaskInput = {
 };
 
 /**
+ * Обработанное сообщение обратной формы и задача, к которой оно привязано (taskId = null,
+ * если задачу завести не удалось). taskId нужен уведомлениям: ответ владельца из Telegram
+ * дописывается в переписку именно этой задачи (см. src/lib/user-report.ts).
+ */
+export type ReportTaskResult = ReportTaskInput & { taskId: string | null };
+
+/**
  * Заводит задачи в статусе CREATED по сообщениям обратной формы ошибок. Вызывается из
  * ингеста логов: на каждое непустое сообщение USER_REPORT либо создаётся отдельная
  * задача (привязанная к породившей её сессии), либо, если в этой же сессии уже есть
@@ -37,6 +44,9 @@ export type ReportTaskInput = {
  * не плодит новые задачи, а превращается в переписку в рамках существующей задачи.
  * Заголовок новой задачи — первая строка сообщения (усечён), полный текст — в описании.
  * Best-effort: ошибки не должны мешать приёму логов.
+ *
+ * Возвращает непустые сообщения вместе с id задачи, к которой каждое привязано (новой или
+ * продолженной) — по нему уведомление о сообщении умеет принять ответ владельца в переписку.
  *
  * Задачи создаём по одной через prisma.task.create (как ручное создание в /api/tasks),
  * а не пачкой createMany: во-первых, это та же операция, что уже работает при ручном
@@ -47,9 +57,10 @@ export async function createTasksFromReports(
   projectId: string,
   sessionId: string,
   reports: ReportTaskInput[],
-): Promise<void> {
+): Promise<ReportTaskResult[]> {
   const items = reports.filter((r) => r.message && r.message.trim());
-  if (items.length === 0) return;
+  if (items.length === 0) return [];
+  const results: ReportTaskResult[] = [];
 
   // Новые задачи кладём наверх колонки «Создано»: берём минимальную текущую позицию.
   const top = await prisma.task.aggregate({
@@ -87,13 +98,14 @@ export async function createTasksFromReports(
               fromEmail: email,
             },
           });
+          results.push({ ...r, taskId: existing.id });
           continue;
         }
       }
 
       const firstLine = message.split("\n")[0]!.trim();
       const title = firstLine.length > 120 ? `${firstLine.slice(0, 119)}…` : firstLine;
-      await prisma.task.create({
+      const task = await prisma.task.create({
         data: {
           projectId,
           title: title || "Сообщение об ошибке",
@@ -104,12 +116,18 @@ export async function createTasksFromReports(
           sessionId,
           position: position--,
         },
+        select: { id: true },
       });
+      results.push({ ...r, taskId: task.id });
     } catch (err) {
       console.error(
         "[Logsy] Не удалось завести задачу из сообщения пользователя:",
         err,
       );
+      // Сообщение всё равно возвращаем: уведомление о нём должно уйти и без задачи.
+      results.push({ ...r, taskId: null });
     }
   }
+
+  return results;
 }

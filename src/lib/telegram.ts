@@ -15,6 +15,7 @@
  */
 import { ProxyAgent, type Dispatcher } from "undici";
 import { prisma } from "@/lib/prisma";
+import { sendMail } from "@/lib/mailer";
 
 const API_BASE = "https://api.telegram.org";
 
@@ -23,9 +24,17 @@ const API_BASE = "https://api.telegram.org";
 // короткий id строки TgIgnoreToken, где хранится описание правила (см. schema.prisma).
 const IGNORE_PREFIX = "ig:";
 
+// Префикс callback_data кнопки «Ответить на почту»: "rp:<id токена TgReplyToken>".
+const REPLY_PREFIX = "rp:";
+
 /** callback_data для кнопки «Игнорировать ошибку» по id токена TgIgnoreToken. */
 export function ignoreCallbackData(tokenId: string): string {
   return `${IGNORE_PREFIX}${tokenId}`;
+}
+
+/** callback_data для кнопки «Ответить на почту» по id токена TgReplyToken. */
+export function replyCallbackData(tokenId: string): string {
+  return `${REPLY_PREFIX}${tokenId}`;
 }
 
 /** Кнопка инлайн-клавиатуры: либо callback (обрабатывается ботом), либо ссылка. */
@@ -116,8 +125,34 @@ export function escapeHtml(s: string): string {
 export async function sendTelegramMessage(
   chatId: string,
   text: string,
-  opts: { html?: boolean; replyMarkup?: InlineKeyboard } = {},
+  opts: SendOptions = {},
 ): Promise<boolean> {
+  return (await sendMessage(chatId, text, opts)).ok;
+}
+
+/**
+ * То же, что sendTelegramMessage, но возвращает message_id отправленного сообщения
+ * (или null, если отправить не удалось либо бот не настроен). Нужен там, где на
+ * сообщение потом отвечают: по паре (chat id, message id) бот узнаёт, к какому
+ * обращению относится ответ владельца (см. TgReplyToken).
+ */
+export async function sendTelegramMessageWithId(
+  chatId: string,
+  text: string,
+  opts: SendOptions = {},
+): Promise<number | null> {
+  return (await sendMessage(chatId, text, opts)).messageId;
+}
+
+/** Параметры отправки: HTML-разметка, инлайн-кнопки, приглашение ответить (force_reply). */
+type SendOptions = { html?: boolean; replyMarkup?: InlineKeyboard; forceReply?: boolean };
+
+/** Общая реализация отправки: ok — ушло ли сообщение, messageId — его id (если известен). */
+async function sendMessage(
+  chatId: string,
+  text: string,
+  opts: SendOptions,
+): Promise<{ ok: boolean; messageId: number | null }> {
   if (!getBotToken()) {
     console.log(
       "\n===== [Logsy] TELEGRAM (бот не настроен, вывод в консоль) =====\n" +
@@ -126,7 +161,7 @@ export async function sendTelegramMessage(
         (opts.replyMarkup ? `[кнопки: ${opts.replyMarkup.flat().map((b) => b.text).join(", ")}]\n` : "") +
         "==============================================================\n",
     );
-    return true;
+    return { ok: true, messageId: null };
   }
 
   const params: Record<string, unknown> = {
@@ -136,8 +171,30 @@ export async function sendTelegramMessage(
   };
   if (opts.html) params.parse_mode = "HTML";
   if (opts.replyMarkup) params.reply_markup = { inline_keyboard: opts.replyMarkup };
+  // force_reply открывает у владельца поле ответа на это сообщение — так его текст
+  // придёт нам как reply и будет распознан (взаимоисключимо с инлайн-клавиатурой).
+  else if (opts.forceReply) params.reply_markup = { force_reply: true };
 
-  const res = await telegramApi("sendMessage", params);
+  const res = await telegramApi<{ message_id?: number }>("sendMessage", params);
+  return { ok: res !== null, messageId: res?.message_id ?? null };
+}
+
+/**
+ * Заменяет инлайн-клавиатуру уже отправленного сообщения. Нужен, когда кнопку можно
+ * собрать только после отправки — например, кнопка «Ответить на почту» ссылается на
+ * токен, который заводится по message_id самого оповещения (см. user-report.ts).
+ */
+export async function setTelegramReplyMarkup(
+  chatId: string,
+  messageId: number,
+  keyboard: InlineKeyboard,
+): Promise<boolean> {
+  if (!getBotToken()) return true;
+  const res = await telegramApi("editMessageReplyMarkup", {
+    chat_id: chatId,
+    message_id: messageId,
+    reply_markup: { inline_keyboard: keyboard },
+  });
   return res !== null;
 }
 
@@ -192,6 +249,9 @@ interface TgMessage {
   message_id?: number;
   chat?: TgChat;
   text?: string;
+  // Сообщение, на которое отвечают. По его message_id бот понимает, что владелец
+  // отвечает на оповещение о сообщении посетителя (см. handleReplyToReport).
+  reply_to_message?: TgMessage;
 }
 interface TgCallbackQuery {
   id: string;
@@ -274,22 +334,65 @@ async function handleUpdate(update: TgUpdate): Promise<void> {
 }
 
 /**
- * Нажатие инлайн-кнопки «Игнорировать ошибку». data = "ig:<id токена>". Находим токен,
- * проверяем, что нажал владелец проекта (его Telegram привязан контактом), и заводим
- * правило в игнор-листе проекта. Действие идемпотентно: повторное нажатие ничего не ломает.
+ * Нажатие инлайн-кнопки: «Игнорировать ошибку» (ig:) — заводит правило игнор-листа,
+ * «Ответить на почту» (rp:) — присылает приглашение написать ответ посетителю.
  */
 async function handleCallbackQuery(cb: TgCallbackQuery): Promise<void> {
   const data = cb.data ?? "";
-  if (!data.startsWith(IGNORE_PREFIX)) {
-    // Незнакомый callback — просто гасим «часики», чтобы кнопка не висела в загрузке.
-    await answerCallbackQuery(cb.id);
+  const fromChatId = cb.from?.id != null ? String(cb.from.id) : null;
+
+  if (data.startsWith(IGNORE_PREFIX)) {
+    const message = await ignoreErrorFromToken(data.slice(IGNORE_PREFIX.length), fromChatId);
+    // show_alert=true — показать текст модалкой (заметнее, чем всплывашка), т.к. это итог действия.
+    await answerCallbackQuery(cb.id, message, true);
     return;
   }
-  const tokenId = data.slice(IGNORE_PREFIX.length);
-  const fromChatId = cb.from?.id != null ? String(cb.from.id) : null;
-  const message = await ignoreErrorFromToken(tokenId, fromChatId);
-  // show_alert=true — показать текст модалкой (заметнее, чем всплывашка), т.к. это итог действия.
-  await answerCallbackQuery(cb.id, message, true);
+  if (data.startsWith(REPLY_PREFIX)) {
+    const message = await promptEmailReply(data.slice(REPLY_PREFIX.length), fromChatId);
+    await answerCallbackQuery(cb.id, message ?? undefined, message !== null);
+    return;
+  }
+  // Незнакомый callback — просто гасим «часики», чтобы кнопка не висела в загрузке.
+  await answerCallbackQuery(cb.id);
+}
+
+/**
+ * Кнопка «Ответить на почту»: присылает в чат приглашение написать ответ (force_reply) и
+ * привязывает его к тому же обращению — ответ на это приглашение уйдёт письмом посетителю
+ * (см. handleReplyToReport). Возвращает текст ошибки для всплывашки либо null, если всё
+ * прошло успешно (тогда пояснение уже пришло отдельным сообщением).
+ */
+async function promptEmailReply(
+  tokenId: string,
+  fromChatId: string | null,
+): Promise<string | null> {
+  if (!tokenId) return "Не удалось распознать действие.";
+
+  const token = await prisma.tgReplyToken.findUnique({ where: { id: tokenId } });
+  if (!token) return "Кнопка устарела — ответить на это обращение уже нельзя.";
+  if (!fromChatId || fromChatId !== token.chatId) {
+    return "Нет доступа: это оповещение адресовано другому чату.";
+  }
+
+  const messageId = await sendTelegramMessageWithId(
+    token.chatId,
+    `✍️ Напишите ответ для <b>${escapeHtml(token.email)}</b> — ответом (reply) на это сообщение. ` +
+      `Текст уйдёт посетителю письмом от имени проекта.`,
+    { html: true, forceReply: true },
+  );
+  if (messageId == null) return "Не удалось отправить приглашение. Попробуйте позже.";
+
+  // Приглашение — ещё одна точка ответа на то же обращение: копируем токен на него.
+  await prisma.tgReplyToken.create({
+    data: {
+      projectId: token.projectId,
+      taskId: token.taskId,
+      email: token.email,
+      chatId: token.chatId,
+      messageId,
+    },
+  });
+  return null;
 }
 
 /**
@@ -346,12 +449,18 @@ async function ignoreErrorFromToken(
 
 /**
  * Отвечает пользователю его chat id (по /start или любому сообщению). Именно это
- * число пользователь вставляет в панели на вкладке «Контакты».
+ * число пользователь вставляет в панели на вкладке «Контакты». Исключение — ответ
+ * (reply) на оповещение о сообщении посетителя: такой текст уходит письмом ему
+ * (см. handleReplyToReport).
  */
 async function handleMessage(update: TgUpdate): Promise<void> {
   const message = update.message ?? update.edited_message;
   const chat = message?.chat;
   if (!chat?.id) return;
+
+  // Ответы обрабатываем только у новых сообщений: правка уже отправленного ответа
+  // не должна отправлять посетителю второе письмо.
+  if (update.message && (await handleReplyToReport(update.message))) return;
 
   const name = escapeHtml(
     [chat.first_name, chat.last_name].filter(Boolean).join(" ") ||
@@ -367,4 +476,107 @@ async function handleMessage(update: TgUpdate): Promise<void> {
     `чтобы получать сюда уведомления о падении сайтов и SSL.`;
 
   await sendTelegramMessage(String(chat.id), text, { html: true });
+}
+
+// ------------------------- Ответ посетителю письмом из Telegram -------------------------
+
+/** Максимальная длина ответа — как в форме переписки задачи (/api/tasks/[id]/messages). */
+const MAX_REPLY_CHARS = 4000;
+
+/**
+ * Ответ (reply) владельца на оповещение о сообщении посетителя: отправляем текст письмом
+ * на почту обращения и дописываем в переписку задачи как OUTGOING — ровно то же, что даёт
+ * ответ из карточки задачи в панели. Возвращает true, если сообщение было таким ответом и
+ * обработано (тогда обычную подсказку с chat id слать не нужно).
+ *
+ * Авторизация: обращение ищется по паре (chat id, message id), а оповещение уходило только
+ * в чат владельца — значит, ответить может лишь тот, кому оно пришло. Пересланная копия
+ * лежит в другом чате и по этому ключу не находится.
+ */
+async function handleReplyToReport(message: TgMessage): Promise<boolean> {
+  const chatId = message.chat?.id != null ? String(message.chat.id) : null;
+  const replyToId = message.reply_to_message?.message_id;
+  if (!chatId || replyToId == null) return false;
+
+  const token = await prisma.tgReplyToken.findUnique({
+    where: { chatId_messageId: { chatId, messageId: replyToId } },
+    include: {
+      project: {
+        select: { name: true, domain: true, user: { select: { email: true } } },
+      },
+    },
+  });
+  if (!token) return false;
+
+  const body = (message.text ?? "").trim().slice(0, MAX_REPLY_CHARS);
+  if (!body) {
+    await sendTelegramMessage(chatId, "Пустой ответ — напишите текст письма посетителю.");
+    return true;
+  }
+
+  // Письмо уходит с технического SMTP_FROM, но Reply-To ставим на почту владельца
+  // проекта — так прямой ответ посетителя придёт ему (как и в переписке по задаче).
+  const ownerEmail = token.project.user.email;
+  try {
+    await sendMail({
+      to: token.email,
+      subject: `Ответ по вашему обращению · ${token.project.name}`,
+      text: `${body}\n\n— поддержка проекта ${token.project.name} (${token.project.domain})`,
+      replyTo: ownerEmail || undefined,
+    });
+  } catch (err) {
+    console.error("[Logsy] Не удалось отправить ответ посетителю из Telegram:", err);
+    await sendTelegramMessage(
+      chatId,
+      `⚠️ Не удалось отправить письмо на ${token.email}. Попробуйте ещё раз позже или ответьте из панели.`,
+    );
+    return true;
+  }
+
+  // Переписка задачи — не критично для доставки письма, поэтому ошибку только логируем.
+  if (token.taskId) {
+    await prisma.taskMessage
+      .create({
+        data: {
+          taskId: token.taskId,
+          direction: "OUTGOING",
+          body,
+          fromEmail: ownerEmail || null,
+          toEmail: token.email,
+        },
+      })
+      .catch((err) =>
+        console.error("[Logsy] Не удалось сохранить ответ из Telegram в переписку задачи:", err),
+      );
+  }
+
+  await sendTelegramMessage(
+    chatId,
+    `✅ Ответ отправлен на <b>${escapeHtml(token.email)}</b>` +
+      (token.taskId ? " и сохранён в переписке задачи." : "."),
+    { html: true },
+  );
+  return true;
+}
+
+/**
+ * Регистрирует сообщение оповещения как точку ответа посетителю: ответ (reply) на него в
+ * Telegram уйдёт письмом на email. Вызывается после отправки оповещения о сообщении из
+ * обратной формы (см. src/lib/user-report.ts). Возвращает id созданного токена — его
+ * кладут в callback_data кнопки «Ответить на почту».
+ */
+export async function registerReplyTarget(params: {
+  projectId: string;
+  taskId: string | null;
+  email: string;
+  chatId: string;
+  messageId: number;
+}): Promise<string | null> {
+  try {
+    const token = await prisma.tgReplyToken.create({ data: params, select: { id: true } });
+    return token.id;
+  } catch (err) {
+    console.error("[Logsy] Не удалось привязать ответ из Telegram к обращению:", err);
+    return null;
+  }
 }

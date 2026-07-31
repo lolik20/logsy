@@ -4,6 +4,8 @@ import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { FeedbackFormSettings } from "@/components/FeedbackFormSettings";
 import { RecordSessionSettings } from "@/components/RecordSessionSettings";
+import { CookieBannerSettings } from "@/components/CookieBannerSettings";
+import { VpnNoticeSettings } from "@/components/VpnNoticeSettings";
 import { SlowThresholdSettings } from "@/components/SlowThresholdSettings";
 import { SdkStatusCard } from "@/components/SdkStatusCard";
 import { retentionLabel } from "@/lib/logging";
@@ -67,6 +69,10 @@ export default async function ConnectionPage({
       <FeedbackFormSettings projectId={project.id} enabled={project.feedbackEnabled} />
 
       <RecordSessionSettings projectId={project.id} enabled={project.recordSession} />
+
+      <CookieBannerSettings projectId={project.id} enabled={project.cookieBanner} />
+
+      <VpnNoticeSettings projectId={project.id} enabled={project.vpnNotice} />
     </div>
   );
 }

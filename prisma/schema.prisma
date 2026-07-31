@@ -82,6 +82,14 @@ model Project {
   domain    String    @unique
   createdAt DateTime  @default(now())
 
+  // Ключ публичного HTTP-API проекта (вкладка «API»). Им подписываются запросы к
+  // /api/v1/* — по нему сервер определяет проект и его владельца. Приём логов с сайта
+  // ключа не требует (там keyless-модель по Origin): ключ нужен только для чтения
+  // данных снаружи. null — ключ ещё не выпущен; он создаётся лениво при первом
+  // открытии вкладки «API» (см. ensureProjectApiKey в src/lib/api-key.ts) и может
+  // быть перевыпущен кнопкой — старый ключ при этом сразу перестаёт работать.
+  apiKey    String?   @unique
+
   // Контроль срока действия SSL-сертификата домена проекта.
   checkSsl     Boolean   @default(true)
   sslStatus    String    @default("PENDING") // VALID | EXPIRING | EXPIRED | ERROR | OFF | PENDING
@@ -116,6 +124,18 @@ model Project {
   // По умолчанию выключена: запись объёмна и включается осознанно. Приватность обеспечивает
   // рекордер (пароли и поля с data-logsy-mask маскируются на клиенте до отправки).
   recordSession Boolean @default(false)
+
+  // Автоблок уведомления о cookie. Если включён, клиентский SDK показывает на сайте
+  // проекта плашку внизу экрана с кнопками «Хорошо» и «Не согласен» — обе просто
+  // закрывают плашку (согласие не хранится на сервере, отметка о закрытии — в
+  // localStorage браузера посетителя, чтобы плашка не появлялась на каждой странице).
+  cookieBanner Boolean @default(false)
+
+  // Автоблок с просьбой отключить VPN. Если включён, SDK показывает плашку
+  // «Пожалуйста, отключите VPN…» посетителям, чей IP определился как НЕ российский
+  // (страну считает сервер в /api/logger/config по IP запроса). Кнопка «ОК» закрывает
+  // плашку до конца визита (отметка в sessionStorage).
+  vpnNotice Boolean @default(false)
 
   // Порог «медленного» запроса/ресурса в миллисекундах, настраиваемый из панели. SDK
   // читает его через /api/logger/config и считает медленными запросы/статические файлы
@@ -153,6 +173,7 @@ model Project {
   tasks         Task[]
   errorAlerts   ErrorAlert[]
   tgIgnoreTokens TgIgnoreToken[]
+  tgReplyTokens TgReplyToken[]
 
   @@index([userId])
 }
@@ -201,6 +222,37 @@ model TgIgnoreToken {
   @@index([createdAt])
 }
 
+// Привязка Telegram-сообщения к обращению пользователя из обратной формы ошибок.
+// Позволяет владельцу проекта ответить посетителю письмом прямо из Telegram: он
+// отвечает (reply) на оповещение о сообщении — бот находит по паре (chat id, id
+// сообщения) это обращение и отправляет текст ответа письмом на почту отправителя,
+// дописывая его в переписку задачи (TaskMessage, OUTGOING) — так же, как ответ из
+// карточки задачи в панели. Строк на одно обращение может быть несколько: сама
+// карточка оповещения и подсказка-приглашение, которую бот присылает по кнопке
+// «Ответить на почту» (на неё тоже можно отвечать). Просроченные строки чистятся
+// вместе с логами (purgeExpiredLogs) — ответ на старое оповещение просто перестаёт
+// распознаваться, и бот отвечает обычной подсказкой с chat id.
+model TgReplyToken {
+  id        String   @id @default(cuid())
+  projectId String
+  // Задача-обращение, в переписку которой попадёт ответ (null — задачу не завели
+  // или её удалили; письмо в этом случае всё равно уйдёт, но без записи в переписке).
+  taskId    String?
+  // Почта отправителя обращения — адрес, на который уйдёт ответ.
+  email     String
+  // Чат и сообщение в нём, ответ на которое считается ответом посетителю.
+  chatId    String
+  messageId Int
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@unique([chatId, messageId])
+  @@index([projectId])
+  @@index([createdAt])
+}
+
 // Задачи проекта — простая доска со статусами (канбан). Задачу можно создать вручную
 // или она заводится автоматически при получении сообщения об ошибке из обратной формы
 // (событие USER_REPORT). Статусы: CREATED (создано) → IN_PROGRESS (в работе) →
@@ -225,6 +277,7 @@ model Task {
 
   project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   messages TaskMessage[]
+  tgReplyTokens TgReplyToken[]
 
   @@index([projectId, status])
 }

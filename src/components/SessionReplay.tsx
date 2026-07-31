@@ -31,6 +31,7 @@ type ReplayerLike = {
   getCurrentTime: () => number;
   play: (timeOffset?: number) => void;
   pause: (timeOffset?: number) => void;
+  setConfig?: (config: { speed?: number }) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on: (event: string, handler: (...args: any[]) => void) => void;
   destroy?: () => void;
@@ -47,6 +48,9 @@ function fmt(ms: number): string {
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
+
+/** Доступные скорости воспроизведения. */
+const SPEEDS = [1, 2, 4, 8] as const;
 
 /** Собирает все поля события в многострочный текст (для кнопки «Копировать»). */
 function markerToText(m: Marker): string {
@@ -97,6 +101,8 @@ export function SessionReplay({
   const pendingRef = useRef<{ events: RRWebEvent[]; markers: Marker[] } | null>(null);
   // Размеры записанного вьюпорта (из Meta-события) — нужны для пересчёта масштаба на resize.
   const vpRef = useRef<{ w: number; h: number }>({ w: 1280, h: 720 });
+  // Выбранная скорость в ref — чтобы применить её к плееру сразу после создания.
+  const speedRef = useRef<number>(1);
 
   const [state, setState] = useState<PlayerState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +111,7 @@ export function SessionReplay({
   const [total, setTotal] = useState(0); // длительность записи, мс
   const [placed, setPlaced] = useState<PlacedMarker[]>([]);
   const [openIdx, setOpenIdx] = useState<number | null>(null); // открытая карточка маркера
+  const [speed, setSpeedState] = useState(1); // скорость воспроизведения, ×
 
   const stopRaf = useCallback(() => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -190,6 +197,7 @@ export function SessionReplay({
           { root: frame, showWarning: false, mouseTail: false, skipInactive: false },
         ) as unknown as ReplayerLike;
         replayerRef.current = rep;
+        if (speedRef.current !== 1) rep.setConfig?.({ speed: speedRef.current });
 
         const meta = rep.getMetaData();
         setTotal(meta.totalTime);
@@ -285,6 +293,20 @@ export function SessionReplay({
       rep.play(from);
       setPlaying(true);
       startRaf(total);
+    }
+  }
+
+  // Скорость меняется «на лету»: rrweb пересчитывает таймер в setConfig. Если метода нет
+  // (старая сборка) — перезапускаем воспроизведение с текущей позиции.
+  function setSpeed(next: number) {
+    speedRef.current = next;
+    setSpeedState(next);
+    const rep = replayerRef.current;
+    if (!rep) return;
+    if (rep.setConfig) {
+      rep.setConfig({ speed: next });
+    } else if (playing) {
+      rep.play(cur);
     }
   }
 
@@ -402,6 +424,29 @@ export function SessionReplay({
             <span className="shrink-0 font-mono text-xs tabular-nums text-slate-500">
               {fmt(cur)} / {fmt(total)}
             </span>
+
+            {/* Скорость воспроизведения */}
+            <div
+              className="flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200 p-0.5 dark:border-slate-700"
+              role="group"
+              aria-label="Скорость воспроизведения"
+            >
+              {SPEEDS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSpeed(s)}
+                  aria-pressed={speed === s}
+                  className={`rounded-md px-2 py-1 font-mono text-xs tabular-nums transition-colors ${
+                    speed === s
+                      ? "bg-brand text-white"
+                      : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {s}×
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
