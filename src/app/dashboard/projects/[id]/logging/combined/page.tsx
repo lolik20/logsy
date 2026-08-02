@@ -144,9 +144,7 @@ export default async function CombinedIpPage({
           ? "border-l-2 border-l-violet-400 bg-violet-50/50 dark:bg-violet-900/10"
           : departureIds.has(e.id)
             ? "bg-slate-50 dark:bg-slate-800/40"
-            : breadcrumbIds.has(e.id)
-              ? "border-l-2 border-l-amber-400 bg-amber-50/40 dark:bg-amber-900/10"
-              : ""
+            : ""
       }`}
     >
       <td className="px-4 py-2 whitespace-nowrap text-slate-500">

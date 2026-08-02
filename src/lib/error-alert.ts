@@ -12,12 +12,12 @@
 // UNHANDLED_REJECTION) лимит «не чаще раза в час» действует на каждую отдельную
 // (одинаковую) ошибку, а не на проект целиком: одна и та же ошибка (совпадает подпись
 // errorSignature) уведомляет не чаще раза в час, а другая, непохожая — сразу. Часовой
-// слот по каждой подписи занимается атомарно через таблицу ErrorAlert (см. claimError
-// ниже), поэтому параллельные батчи не задваивают отправку одной и той же ошибки.
+// слот по каждой подписи занимается атомарно (см. claimAlertSlot в
+// src/lib/alert-throttle.ts), поэтому параллельные батчи не задваивают отправку одной и
+// той же ошибки.
 
-import { createHash } from "crypto";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { alertSignature, claimAlertSlot } from "@/lib/alert-throttle";
 import { sendMail } from "@/lib/mailer";
 import {
   sendTelegramMessage,
@@ -163,35 +163,7 @@ export function errorSignature(e: SessionError): string {
   } else {
     key = `${e.type}|${(e.message ?? "").trim()}`;
   }
-  return createHash("sha1").update(key).digest("hex");
-}
-
-/**
- * Атомарно «занимает» часовой слот для одной подписи ошибки. Возвращает true, если по
- * этой ошибке пора уведомлять (её ещё не видели или с прошлого уведомления прошёл час),
- * и false, если уведомление о ней уже уходило меньше часа назад.
- *
- * Гонка исключена: сначала пробуем условный update (пройдёт только у одного процесса,
- * если час прошёл), а если строки ещё нет — пробуем create (уникальный индекс
- * пропустит только одного; проигравший ловит P2002 и молчит).
- */
-async function claimError(projectId: string, signature: string, now: Date): Promise<boolean> {
-  const threshold = new Date(now.getTime() - THROTTLE_MS);
-  const updated = await prisma.errorAlert.updateMany({
-    where: { projectId, signature, lastSentAt: { lt: threshold } },
-    data: { lastSentAt: now },
-  });
-  if (updated.count > 0) return true;
-  try {
-    await prisma.errorAlert.create({ data: { projectId, signature, lastSentAt: now } });
-    return true; // ошибка встретилась впервые — уведомляем
-  } catch (err) {
-    // P2002 — строка уже есть и час не прошёл: недавно уведомляли, пропускаем.
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      return false;
-    }
-    throw err;
-  }
+  return alertSignature(key);
 }
 
 /**
@@ -293,7 +265,9 @@ export async function notifySessionErrors(
       toNotify.push(error);
       continue;
     }
-    if (await claimError(projectId, errorSignature(error), now)) toNotify.push(error);
+    if (await claimAlertSlot(projectId, errorSignature(error), now, THROTTLE_MS)) {
+      toNotify.push(error);
+    }
   }
   if (toNotify.length === 0) return;
 

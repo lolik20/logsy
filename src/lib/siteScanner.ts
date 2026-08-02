@@ -22,7 +22,7 @@ const MAX_REQUESTS = 800; // сколько сетевых запросов ма
 const NAV_TIMEOUT_MS = 20_000; // таймаут перехода на страницу
 const IDLE_TIMEOUT_MS = 6_000; // сколько ждать «затишья» сети после загрузки
 const TOTAL_BUDGET_MS = 55_000; // общий бюджет обхода (route maxDuration = 60)
-const SLOW_MS = 2000; // порог «медленного» запроса при обходе — 2 секунды
+const SLOW_MS = 5000; // порог «медленного» запроса при обходе — 5 секунд
 const MAX_FORMS = 25; // сколько форм максимум учесть в отчёте
 const MAX_FORM_SUBMITS = 10; // сколько форм максимум реально отправить за обход
 const FORM_SUBMIT_WAIT_MS = 4500; // сколько ждать реакцию после отправки формы
@@ -171,6 +171,7 @@ function isBlockedHost(host: string): boolean {
 
 // Домены аналитики/метрики и рекламы Google и Яндекса. Их запросы игнорируем при обходе —
 // это не бэкенд владельца сайта, они часто медленные/блокируются и только зашумляют отчёт.
+// Каждый суффикс матчится вместе со всеми поддоменами (host === s или host заканчивается на "." + s).
 const IGNORED_HOST_SUFFIXES = [
   // Google (Analytics / Tag Manager / Ads / DoubleClick)
   "google-analytics.com",
@@ -181,17 +182,22 @@ const IGNORED_HOST_SUFFIXES = [
   "googleadservices.com",
   "doubleclick.net",
   "google-analytics.l.google.com",
-  // Яндекс (Метрика / Директ / рекламная сеть)
-  "mc.yandex.ru",
-  "mc.yandex.com",
-  "metrika.yandex.ru",
-  "an.yandex.ru",
-  "yabs.yandex.ru",
-  "ads.yandex.ru",
+  // Яндекс: сервисы метрики/рекламы вне зоны yandex.* (сам yandex.* — см. YANDEX_HOST_RE)
   "yandexadexchange.net",
   "adfox.ru",
-  "adfox.yandex.ru",
+  "admetrica.ru",
+  "ymetrica1.com",
+  "yandexmetrica.com",
 ];
+
+// Яндекс целиком: любая зона (yandex.ru, yandex.com, yandex.net, yandex.by, yandex.com.tr …)
+// вместе со ВСЕМИ поддоменами. Перечислять хосты поимённо оказалось бесполезно: метрика и
+// реклама сыпятся с десятков поддоменов (mc, mc2, an, yabs, ads, avatars.mds, static-mon,
+// bs, informer, awaps, matchid.adfox …) и из разных зон — список всегда оказывается неполным.
+// Своим бэкендом клиента такие хосты быть не могут, поэтому режем домен целиком.
+// Проверка: (^|.) перед yandex — чтобы myyandex.ru не совпал; $ в конце — чтобы не совпал
+// yandex.ru.evil.com.
+const YANDEX_HOST_RE = /(^|\.)yandex\.[a-z]{2,3}(\.[a-z]{2})?$/;
 
 /** Запрос к аналитике/метрике Google или Яндекса? (такие запросы при обходе игнорируем). */
 function isAnalyticsUrl(url: string): boolean {
@@ -201,6 +207,7 @@ function isAnalyticsUrl(url: string): boolean {
   } catch {
     return false;
   }
+  if (YANDEX_HOST_RE.test(host)) return true;
   return IGNORED_HOST_SUFFIXES.some((s) => host === s || host.endsWith("." + s));
 }
 

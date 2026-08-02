@@ -411,7 +411,7 @@ export function ScanReportView({ report: r, scanId }: { report: ScanReport; scan
 
       {/* Медленные запросы */}
       {r.slowRequests.length > 0 && (
-        <Section title="Медленные загрузки (дольше 2 секунд)" count={r.summary.slow}>
+        <Section title="Медленные загрузки (дольше 5 секунд)" count={r.summary.slow}>
           <ul className="space-y-1.5">
             {r.slowRequests.map((s, i) => (
               <li key={i} className="flex items-center gap-2 text-sm">
@@ -589,7 +589,7 @@ export function ScanReportView({ report: r, scanId }: { report: ScanReport; scan
                     <td className="py-1.5 pr-2 text-xs text-slate-500">{formatBytes(a.bytes)}</td>
                     <td
                       className={`py-1.5 pr-2 text-xs font-medium ${
-                        a.ms >= 2000 ? "text-amber-600 dark:text-amber-400" : "text-slate-500"
+                        a.ms >= 5000 ? "text-amber-600 dark:text-amber-400" : "text-slate-500"
                       }`}
                     >
                       {formatMs(a.ms)}
