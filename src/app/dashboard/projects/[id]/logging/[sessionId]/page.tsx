@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
 import { isStaticAssetEvent } from "@/lib/staticAssets";
-import { collectDepartures, departureEventId } from "@/lib/breadcrumbs";
+import { departureEventId } from "@/lib/breadcrumbs";
 import { formatDurationSec, truncateUrl } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { CopyEventButton } from "@/components/CopyEventButton";
@@ -46,12 +46,6 @@ export default async function SessionPage({
   const recordingChunks = await prisma.recordingChunk.count({
     where: { sessionId: session.id },
   });
-
-  // Крошки перед уходом: id событий-действий, предшествующих каждому SESSION_END —
-  // подсвечиваем их в ленте (см. collectDepartures в src/lib/breadcrumbs.ts).
-  const breadcrumbIds = new Set(
-    collectDepartures(session.events).flatMap((d) => d.actions.map((a) => a.id)),
-  );
 
   // Реальный уход — только последнее событие SESSION_END сессии. Промежуточные
   // SESSION_END (выгрузка при переходе на другую страницу сайта, встречаются в старых
@@ -109,11 +103,6 @@ export default async function SessionPage({
           {e.id === departureId && (
             <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-200">
               Отказ
-            </span>
-          )}
-          {breadcrumbIds.has(e.id) && (
-            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-              перед уходом
             </span>
           )}
         </div>

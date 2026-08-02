@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { eventKind, eventUrl, matchesException } from "@/lib/exceptions";
 import { isStaticAssetEvent } from "@/lib/staticAssets";
-import { collectDepartures, departureEventId } from "@/lib/breadcrumbs";
+import { departureEventId } from "@/lib/breadcrumbs";
 import { formatDurationSec, truncateUrl } from "@/lib/logging";
 import { AddExceptionButton } from "@/components/AddExceptionButton";
 import { CopyEventButton } from "@/components/CopyEventButton";
@@ -95,22 +95,18 @@ export default async function CombinedIpPage({
 
   const errorCount = events.filter((e) => ERROR_TYPES.includes(e.type)).length;
 
-  // Крошки перед уходом: считаем по каждой сессии отдельно (события здесь идут единым
-  // списком по времени, поэтому сперва группируем по sessionId).
+  // Отказ считаем по каждой сессии отдельно (события здесь идут единым списком по
+  // времени, поэтому сперва группируем по sessionId).
   const eventsBySession = new Map<string, typeof events>();
   for (const e of events) {
     const arr = eventsBySession.get(e.sessionId);
     if (arr) arr.push(e);
     else eventsBySession.set(e.sessionId, [e]);
   }
-  const breadcrumbIds = new Set<string>();
   // Реальный уход каждой сессии — только последнее SESSION_END (см. departureEventId).
   // Промежуточные SESSION_END (переходы между страницами) отказом не отмечаем.
   const departureIds = new Set<string>();
   for (const list of eventsBySession.values()) {
-    for (const d of collectDepartures(list)) {
-      for (const a of d.actions) breadcrumbIds.add(a.id);
-    }
     const dep = departureEventId(list);
     if (dep) departureIds.add(dep);
   }
@@ -169,11 +165,6 @@ export default async function CombinedIpPage({
           {departureIds.has(e.id) && (
             <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-200">
               Отказ
-            </span>
-          )}
-          {breadcrumbIds.has(e.id) && (
-            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-              перед уходом
             </span>
           )}
         </div>
