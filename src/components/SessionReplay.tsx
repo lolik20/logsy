@@ -137,9 +137,14 @@ export function SessionReplay({
     [stopRaf],
   );
 
-  // Вписывание записи в контейнер по ШИРИНЕ и ВЫСОТЕ (раньше — только по ширине, из-за чего
-  // высокие/узкие записи вылезали за экран). scale = min(поВысоте, поШирине, 1); запись
-  // центрируем по горизонтали. Высоту ограничиваем видимой областью окна.
+  // Вписывание записи в сцену по ШИРИНЕ и ВЫСОТЕ: scale = min(поШирине, поВысоте, 1), запись
+  // центрируем по обеим осям.
+  //
+  // Высоту сцены задаёт CSS (h-[calc(100vh-16rem)]), а не JS: раньше rescale писал
+  // frame.style.height, и ResizeObserver, наблюдавший тот же элемент, гонял высоту по кругу
+  // (появилась/пропала полоса прокрутки → новый масштаб → новая высота). Плюс rrweb-событие
+  // «resize» во время проигрывания меняло высоту кадра — из-за этого панель перемотки и
+  // скорости прыгала при скролле. Теперь сцена неподвижна, меняется только transform записи.
   const rescale = useCallback(() => {
     const frame = frameRef.current;
     if (!frame) return;
@@ -147,18 +152,14 @@ export function SessionReplay({
     const { w: vw, h: vh } = vpRef.current;
     if (!wrapper || !vw || !vh) return;
     const availW = frame.clientWidth || vw;
-    // Оставляем место под шапку страницы и панель управления — чтобы запись влезала в экран.
-    const availH = Math.max(240, (typeof window !== "undefined" ? window.innerHeight : 800) - 260);
+    const availH = frame.clientHeight || vh;
     const scale = Math.min(availW / vw, availH / vh, 1);
-    const dispW = vw * scale;
-    const dispH = vh * scale;
     wrapper.style.position = "absolute";
     wrapper.style.transformOrigin = "top left";
     wrapper.style.transform = `scale(${scale})`;
-    wrapper.style.top = "0";
-    wrapper.style.left = `${Math.max(0, (availW - dispW) / 2)}px`;
+    wrapper.style.top = `${Math.max(0, (availH - vh * scale) / 2)}px`;
+    wrapper.style.left = `${Math.max(0, (availW - vw * scale) / 2)}px`;
     wrapper.style.margin = "0";
-    frame.style.height = `${Math.round(dispH)}px`;
   }, []);
 
   // Уничтожаем плеер и снимаем слушатели при размонтировании.
@@ -353,12 +354,15 @@ export function SessionReplay({
 
       <div className={state === "ready" ? "" : "hidden"}>
         <div className="overflow-hidden rounded-t-xl border border-slate-200 bg-slate-950 dark:border-slate-800">
-          {/* Контейнер под rrweb.Replayer (вписывается по ширине и высоте, центрируется). */}
-          <div ref={frameRef} className="relative mx-auto w-full" />
+          {/* Сцена под rrweb.Replayer: высота фиксирована CSS, запись вписывается внутрь. */}
+          <div
+            ref={frameRef}
+            className="relative mx-auto h-[calc(100vh-16rem)] min-h-[240px] w-full"
+          />
         </div>
 
-        {/* Панель управления */}
-        <div className="rounded-b-xl border border-t-0 border-slate-200 bg-white px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900">
+        {/* Панель управления — прилипает к низу экрана, чтобы не уезжать при скролле. */}
+        <div className="sticky bottom-0 z-20 rounded-b-xl border border-t-0 border-slate-200 bg-white px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-3">
             <button
               type="button"
