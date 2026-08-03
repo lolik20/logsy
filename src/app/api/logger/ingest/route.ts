@@ -18,7 +18,6 @@ import { matchesException } from "@/lib/exceptions";
 import { resolveCountry } from "@/lib/geo";
 import { notifyUserReports } from "@/lib/user-report";
 import { notifySessionErrors } from "@/lib/error-alert";
-import { notifyRageClicks } from "@/lib/rage-alert";
 import { createTasksFromReports } from "@/lib/tasks";
 
 export const dynamic = "force-dynamic";
@@ -297,18 +296,6 @@ export async function POST(req: Request) {
   if (errorEvents.length) {
     void notifySessionErrors(project.id, session.id, errorEvents).catch((err) =>
       console.error("[Logsy] Ошибка уведомления об ошибках в сессии:", err),
-    );
-  }
-
-  // Уведомление о rage-кликах (серия быстрых повторных кликов в одну точку — признак
-  // того, что элемент не отвечает). Лимит «раз в час» на каждый проблемный элемент —
-  // троттлинг внутри notifyRageClicks. Шлём в фоне (best-effort), как и остальные.
-  const rageEvents = rows
-    .filter((r) => r.type === "RAGE_CLICK")
-    .map((r) => ({ message: r.message, url: r.url }));
-  if (rageEvents.length) {
-    void notifyRageClicks(project.id, session.id, rageEvents).catch((err) =>
-      console.error("[Logsy] Ошибка уведомления о rage-кликах:", err),
     );
   }
 
