@@ -15,18 +15,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
 import { resolveCountry } from "@/lib/geo";
+import { resolveRequestOrigin } from "@/lib/logger-origin";
 
 export const dynamic = "force-dynamic";
-
-/** Хостнейм из заголовка Origin (без схемы и порта), либо null. */
-function originHostname(origin: string | null): string | null {
-  if (!origin) return null;
-  try {
-    return new URL(origin).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
 
 /** Заголовки CORS для разрешённого origin (эхо конкретного домена, не "*"). */
 function corsHeaders(origin: string): Record<string, string> {
@@ -49,8 +40,7 @@ type ProjectConfig = {
 };
 
 async function resolveProject(req: Request) {
-  const origin = req.headers.get("origin");
-  const host = originHostname(origin);
+  const { origin, host } = resolveRequestOrigin(req);
   if (!origin || !host) {
     return { origin, project: null as null | ProjectConfig };
   }

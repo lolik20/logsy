@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { accountNewSession, truncate, isBotUserAgent } from "@/lib/logging";
+import { resolveRequestOrigin } from "@/lib/logger-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -42,16 +43,6 @@ const batchSchema = z.object({
     .max(MAX_CHUNKS_PER_BATCH),
 });
 
-/** Хостнейм из заголовка Origin (без схемы и порта), либо null. */
-function originHostname(origin: string | null): string | null {
-  if (!origin) return null;
-  try {
-    return new URL(origin).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
 /** Заголовки CORS для разрешённого origin (эхо конкретного домена, не "*"). */
 function corsHeaders(origin: string): Record<string, string> {
   return {
@@ -63,10 +54,9 @@ function corsHeaders(origin: string): Record<string, string> {
   };
 }
 
-/** Находит проект по домену из Origin (только с включённой записью экрана). */
+/** Находит проект по домену сайта-источника (только с включённой записью экрана). */
 async function resolveProject(req: Request) {
-  const origin = req.headers.get("origin");
-  const host = originHostname(origin);
+  const { origin, host } = resolveRequestOrigin(req);
   if (!origin || !host) {
     return {
       origin,
@@ -104,10 +94,11 @@ export async function POST(req: Request) {
   const { origin, project } = await resolveProject(req);
   if (!origin || !project) {
     // Частая причина «запись не пишется»: домен сайта не совпадает с Project.domain,
-    // либо запрос пришёл без заголовка Origin. Логируем, чтобы это было видно.
+    // либо запрос пришёл без Origin и домен не в списке доверенных (см. logger-origin).
     console.warn(
-      `[logsy/rec] отклонено 403: проект не определён по Origin` +
-        ` (origin=${origin ?? "—"}, host=${originHostname(origin) ?? "—"}).` +
+      `[logsy/rec] отклонено 403: сайт-источник не определён` +
+        ` (origin=${req.headers.get("origin") ?? "—"}, referer=${req.headers.get("referer") ?? "—"},` +
+        ` host=${req.headers.get("host") ?? "—"}).` +
         ` Проверьте, что домен сайта совпадает с Project.domain.`,
     );
     return NextResponse.json({ error: "forbidden" }, { status: 403 });

@@ -6,6 +6,9 @@
 // поэтому CORS-гейт = авторизация: с чужого домена ответ уходит без заголовка
 // Access-Control-Allow-Origin, и браузер блокирует чтение/отправку.
 //
+// Исключение — сайты, проксирующие Logsy у себя: там запросы same-origin и браузер Origin
+// не шлёт, поэтому источник определяется по Referer/Host (см. src/lib/logger-origin.ts).
+//
 // Тело батча приходит как text/plain (SDK шлёт keepalive-fetch и sendBeacon), чтобы
 // запросы оставались CORS-simple и не вызывали preflight. Здесь мы всё равно парсим JSON.
 
@@ -19,6 +22,7 @@ import { resolveCountry } from "@/lib/geo";
 import { notifyUserReports } from "@/lib/user-report";
 import { notifySessionErrors } from "@/lib/error-alert";
 import { createTasksFromReports } from "@/lib/tasks";
+import { resolveRequestOrigin } from "@/lib/logger-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -85,16 +89,6 @@ const batchSchema = z.object({
   events: z.array(eventSchema).min(1).max(MAX_EVENTS_PER_BATCH),
 });
 
-/** Хостнейм из заголовка Origin (без схемы и порта), либо null. */
-function originHostname(origin: string | null): string | null {
-  if (!origin) return null;
-  try {
-    return new URL(origin).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
 /** Заголовки CORS для разрешённого origin (эхо конкретного домена, не "*"). */
 function corsHeaders(origin: string): Record<string, string> {
   return {
@@ -106,10 +100,9 @@ function corsHeaders(origin: string): Record<string, string> {
   };
 }
 
-/** Находит проект по домену из Origin. Возвращает проект и сам origin, если разрешён. */
+/** Находит проект по домену сайта-источника. Возвращает проект и origin, если разрешён. */
 async function resolveProject(req: Request) {
-  const origin = req.headers.get("origin");
-  const host = originHostname(origin);
+  const { origin, host } = resolveRequestOrigin(req);
   if (!origin || !host)
     return {
       origin,
