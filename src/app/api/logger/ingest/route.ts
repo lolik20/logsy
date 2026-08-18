@@ -23,6 +23,7 @@ import { notifyUserReports } from "@/lib/user-report";
 import { notifySessionErrors } from "@/lib/error-alert";
 import { createTasksFromReports } from "@/lib/tasks";
 import { resolveRequestOrigin } from "@/lib/logger-origin";
+import { isTrackerEvent } from "@/lib/trackers";
 
 export const dynamic = "force-dynamic";
 
@@ -243,6 +244,10 @@ export async function POST(req: Request) {
           : null,
       createdAt: e.ts ? new Date(e.ts) : undefined,
     }))
+    // Запросы и ресурсы сторонних счётчиков (Метрика, GA/GTM и т.п.) не храним: сайт на
+    // них не влияет, а в карте загрузки и топах они вытесняют реальные проблемы. Тот же
+    // фильтр стоит в SDK — здесь он страхует от старой версии скрипта в кэше браузера.
+    .filter((row) => !isTrackerEvent(row))
     .filter((row) => !exceptions.some((rule) => matchesException(row, rule)));
 
   if (rows.length) {

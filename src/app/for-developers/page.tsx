@@ -5,7 +5,7 @@ import { LandingNav } from "@/components/LandingNav";
 import { LandingFooter } from "@/components/LandingFooter";
 
 export const metadata: Metadata = {
-  title: "Logsy для разработчиков — воспроизводите баги прода, а не гадайте",
+  title: "Логи и запись сессий для разработчиков — баги прода без гаданий",
   description:
     "Стектрейсы фронт-ошибок, упавшие 4xx/5xx с payload, запись сессии и медленные запросы. Одна строка в <head>, 0 зависимостей, батчинг раз в 10 сек.",
 };

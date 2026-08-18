@@ -3,6 +3,7 @@
 // краулером (src/lib/crawler.ts) и страницей карты (dashboard/.../pages).
 
 import { normalizeResourceInitiator } from "@/lib/staticAssets";
+import { isTrackerEvent } from "@/lib/trackers";
 
 // Расширения файлов-ресурсов, которые НЕ считаем страницами (краулер по ним не ходит,
 // в карту не добавляет). Страницы — это HTML-документы, а не картинки/скрипты/архивы.
@@ -129,10 +130,12 @@ const SLOW_EVENT_TYPES: ReadonlySet<string> = new Set(["SLOW_REQUEST", "SLOW_RES
  * события сессий (тип + url страницы). Возвращает Map: путь → { errors, slow }.
  */
 export function aggregatePageCounts(
-  events: { type: string; url: string | null }[],
+  events: { type: string; url: string | null; route?: string | null }[],
 ): Map<string, PageCounts> {
   const out = new Map<string, PageCounts>();
   for (const e of events) {
+    // Запросы сторонних счётчиков (Метрика, GA/GTM) в счётчики страницы не берём.
+    if (isTrackerEvent(e)) continue;
     const isErr = ERROR_EVENT_TYPES.has(e.type);
     const isSlow = SLOW_EVENT_TYPES.has(e.type);
     if (!isErr && !isSlow) continue;
@@ -186,6 +189,9 @@ export function aggregateCriticalRequests(
     const route = e.route;
     const dur = e.durationMs;
     if (!route || dur == null || dur <= 0) continue;
+    // Скрипты и пиксели сторонних счётчиков — не проблема страницы: владелец сайта на их
+    // скорость не влияет. В список критических запросов не показываем (см. lib/trackers).
+    if (isTrackerEvent(e)) continue;
     const path = pageUrlToPath(e.url);
     if (!path) continue;
     const kind: "RESOURCE" | "REQUEST" = e.type === "SLOW_RESOURCE" ? "RESOURCE" : "REQUEST";

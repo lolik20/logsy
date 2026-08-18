@@ -8,6 +8,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/session";
 import { normalizeScanUrl, scanSite } from "@/lib/siteScanner";
+import { analyzeCompliance } from "@/lib/compliance";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,6 +43,8 @@ export async function POST(req: Request) {
 
   try {
     const report = await scanSite(url);
+    // Та же проверка соответствия 152-ФЗ, что и на публичной странице /site-check.
+    const compliance = analyzeCompliance(report);
 
     // Сохраняем прогон для истории. Ошибка записи не должна ломать ответ.
     let scanId: string | null = null;
@@ -60,6 +63,9 @@ export async function POST(req: Request) {
           phonesCount: report.summary.phones,
           durationMs: report.durationMs,
           report: JSON.stringify(report),
+          source: "ADMIN",
+          compliance: JSON.stringify(compliance),
+          complianceScore: compliance.score,
         },
         select: { id: true },
       });
@@ -68,7 +74,7 @@ export async function POST(req: Request) {
       console.error("[Logsy] Не удалось сохранить прогон обхода:", err);
     }
 
-    return NextResponse.json({ ...report, scanId });
+    return NextResponse.json({ ...report, scanId, compliance });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Не удалось обойти сайт — попробуйте ещё раз";

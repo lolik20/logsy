@@ -7,6 +7,7 @@ const navLinks = [
   { href: "/#features", label: "Мониторинг" },
   { href: "/#logging", label: "Сессии" },
   { href: "/speed-test", label: "Скорость сайта" },
+  { href: "/#compliance", label: "152-ФЗ" },
   { href: "/#pricing", label: "Тарифы" },
 ];
 

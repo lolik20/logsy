@@ -11,6 +11,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  // Базовый адрес нужен, чтобы относительные canonical и Open Graph на посадочных
+  // страницах разворачивались в абсолютные ссылки.
+  metadataBase: new URL(process.env.APP_URL || process.env.NEXTAUTH_URL || "https://logsy.ru"),
   title: "Logsy — мониторинг доступности сайтов",
   description:
     "Сервис мониторинга uptime для российского рынка. Следите за доступностью сайтов и получайте алерты на почту.",

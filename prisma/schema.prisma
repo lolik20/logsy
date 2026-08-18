@@ -23,15 +23,15 @@ model User {
   image         String?
   passwordHash  String?
   role          String    @default("USER") // USER | ADMIN
-  signupIp      String?   // IP, с которого зарегистрировался пользователь (антифрод)
+  signupIp      String? // IP, с которого зарегистрировался пользователь (антифрод)
   createdAt     DateTime  @default(now())
 
-  accounts      Account[]
-  sessions      Session[]
-  projects      Project[]
-  contacts      Contact[]
-  subscription  Subscription?
-  payments      Payment[]
+  accounts     Account[]
+  sessions     Session[]
+  projects     Project[]
+  contacts     Contact[]
+  subscription Subscription?
+  payments     Payment[]
 
   @@index([signupIp])
 }
@@ -74,13 +74,13 @@ model VerificationToken {
 // ------------------------------- Домен приложения -------------------------------
 
 model Project {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
   name      String
   // Домен проекта. Уникален глобально: по нему сервис логирования однозначно
   // определяет проект по заголовку Origin входящего запроса (keyless-модель).
-  domain    String    @unique
-  createdAt DateTime  @default(now())
+  domain    String   @unique
+  createdAt DateTime @default(now())
 
   // Ключ публичного HTTP-API проекта (вкладка «API»). Им подписываются запросы к
   // /api/v1/* — по нему сервер определяет проект и его владельца. Приём логов с сайта
@@ -88,15 +88,15 @@ model Project {
   // данных снаружи. null — ключ ещё не выпущен; он создаётся лениво при первом
   // открытии вкладки «API» (см. ensureProjectApiKey в src/lib/api-key.ts) и может
   // быть перевыпущен кнопкой — старый ключ при этом сразу перестаёт работать.
-  apiKey    String?   @unique
+  apiKey String? @unique
 
   // Контроль срока действия SSL-сертификата домена проекта.
-  checkSsl     Boolean   @default(true)
-  sslStatus    String    @default("PENDING") // VALID | EXPIRING | EXPIRED | ERROR | OFF | PENDING
-  sslExpiresAt DateTime? // дата окончания действия сертификата (notAfter)
-  sslDaysLeft  Int?      // сколько полных дней осталось до окончания
-  sslIssuer    String?   // издатель сертификата (CA)
-  sslCheckedAt DateTime? // когда сертификат проверяли в последний раз
+  checkSsl      Boolean   @default(true)
+  sslStatus     String    @default("PENDING") // VALID | EXPIRING | EXPIRED | ERROR | OFF | PENDING
+  sslExpiresAt  DateTime? // дата окончания действия сертификата (notAfter)
+  sslDaysLeft   Int? // сколько полных дней осталось до окончания
+  sslIssuer     String? // издатель сертификата (CA)
+  sslCheckedAt  DateTime? // когда сертификат проверяли в последний раз
   // Порог (в часах) последнего отправленного предупреждения: 168 | 72 | 24 | 1 | 0.
   // Нужен, чтобы каждое оповещение (за неделю/3 дня/1 день/1 час/истёк) ушло один раз.
   sslAlertHours Int?
@@ -105,8 +105,8 @@ model Project {
   checkDomain     Boolean   @default(true)
   domainStatus    String    @default("PENDING") // VALID | EXPIRING | EXPIRED | ERROR | OFF | PENDING
   domainExpiresAt DateTime? // дата окончания срока регистрации домена
-  domainDaysLeft  Int?      // сколько полных дней осталось до окончания регистрации
-  domainRegistrar String?   // регистратор домена (по данным RDAP)
+  domainDaysLeft  Int? // сколько полных дней осталось до окончания регистрации
+  domainRegistrar String? // регистратор домена (по данным RDAP)
   domainCheckedAt DateTime? // когда срок регистрации проверяли в последний раз
   // Порог (в днях) последнего отправленного предупреждения: 30 | 14 | 7 | 3 | 1 | 0.
   // Нужен, чтобы каждое оповещение (за 30/14/7/3/1 день/истёк) ушло один раз.
@@ -137,6 +137,13 @@ model Project {
   // плашку до конца визита (отметка в sessionStorage).
   vpnNotice Boolean @default(false)
 
+  // Галочка согласия на обработку персональных данных в формах сайта. Если включена,
+  // SDK встраивает чекбокс со ссылками на политику и оферту проекта прямо в форму
+  // (в обычный DOM, а не в Shadow DOM — иначе он не уедет вместе с данными), при
+  // consentMode = STRICT блокирует отправку без галочки и пишет факт согласия в
+  // журнал (модель Consent). Тексты, реквизиты оператора и режим — в ProjectLegal.
+  consentEnabled Boolean @default(false)
+
   // Порог «медленного» запроса/ресурса в миллисекундах, настраиваемый из панели. SDK
   // читает его через /api/logger/config и считает медленными запросы/статические файлы
   // дольше этого значения. Атрибут data-slow-ms на теге скрипта, если задан, переопределяет
@@ -148,32 +155,35 @@ model Project {
   // (300 сессий/сутки, хранение 12 часов) плюс помесячная доплата за расширение
   // (1 ₽/мес за суточную сессию сверх 300, 10 ₽/мес за час хранения сверх 12).
   // Суточная квота пользовательских сессий.
-  sessionsPerDay Int      @default(300)
+  sessionsPerDay     Int       @default(300)
   // Срок хранения логов, часов.
-  retentionHours Int      @default(12)
+  retentionHours     Int       @default(12)
   // Легаси-поле старой тарификации (T1000 | T3000). Больше не используется.
-  tier          String?
+  tier               String?
   // FREE — бесплатный тариф (по умолчанию); ACTIVE — оплачен; INACTIVE — истёк/не оплачен.
-  billingStatus String    @default("FREE")
+  billingStatus      String    @default("FREE")
   // Конец оплаченного периода (для ACTIVE).
-  currentPeriodEnd DateTime?
+  currentPeriodEnd   DateTime?
   // Устаревшее поле от отменённого пробного периода; больше не заполняется.
-  trialEndsAt   DateTime?
+  trialEndsAt        DateTime?
   // Значение currentPeriodEnd, для которого уже отправлено предупреждение об истечении
   // (чтобы напоминание ушло один раз за период). Аналог поля в Subscription.
   expiryAlertSentFor DateTime?
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  monitors      Monitor[]
-  logSessions   LogSession[]
-  logUsage      LogUsage[]
-  logExceptions LogException[]
-  pages         ProjectPage[]
-  payments      Payment[]
-  tasks         Task[]
-  errorAlerts   ErrorAlert[]
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monitors       Monitor[]
+  logSessions    LogSession[]
+  logUsage       LogUsage[]
+  logExceptions  LogException[]
+  pages          ProjectPage[]
+  payments       Payment[]
+  tasks          Task[]
+  errorAlerts    ErrorAlert[]
+  legal          ProjectLegal?
+  legalDocs      LegalDoc[]
+  consents       Consent[]
   tgIgnoreTokens TgIgnoreToken[]
-  tgReplyTokens TgReplyToken[]
+  tgReplyTokens  TgReplyToken[]
 
   @@index([userId])
 }
@@ -262,25 +272,25 @@ model TgReplyToken {
 // (событие USER_REPORT). Статусы: CREATED (создано) → IN_PROGRESS (в работе) →
 // DONE (выполнено). Пользователь редактирует задачи и перетаскивает их между колонками.
 model Task {
-  id          String   @id @default(cuid())
-  projectId   String
-  title       String
-  description String?
+  id            String   @id @default(cuid())
+  projectId     String
+  title         String
+  description   String?
   // CREATED | IN_PROGRESS | DONE. Новая задача и задача из репорта — в статусе CREATED.
-  status      String   @default("CREATED")
+  status        String   @default("CREATED")
   // Порядок задачи внутри своей колонки (меньше — выше). Обновляется при перетаскивании.
-  position    Int      @default(0)
+  position      Int      @default(0)
   // Источник задачи: MANUAL (создана вручную) | REPORT (из обратной формы ошибок).
-  source      String   @default("MANUAL")
+  source        String   @default("MANUAL")
   // Почта отправителя обратной формы (если задача заведена из репорта и почта указана).
   reporterEmail String?
   // Сессия логирования, породившая задачу (для ссылки на неё), если источник — REPORT.
-  sessionId   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  sessionId     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  messages TaskMessage[]
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages      TaskMessage[]
   tgReplyTokens TgReplyToken[]
 
   @@index([projectId, status])
@@ -317,21 +327,21 @@ model TaskMessage {
 // «карта загрузки»: среднее время до прогрузки конечного контента (события PAGE_LOAD)
 // и критические/медленные запросы и статические файлы на каждой странице.
 model ProjectPage {
-  id        String  @id @default(cuid())
-  projectId String
+  id            String    @id @default(cuid())
+  projectId     String
   // Путь страницы (pathname без схемы/хоста/query/hash). Нормализован: ведущий слэш,
   // без завершающего слэша (кроме корня "/"). Уникален в рамках проекта.
-  path      String
+  path          String
   // <title> страницы, пойманный краулером (для читаемых подписей в дереве).
-  title     String?
+  title         String?
   // Глубина в дереве каталогов = число непустых сегментов пути (корень "/" — 0).
-  depth     Int     @default(0)
+  depth         Int       @default(0)
   // Источник обнаружения: CRAWL (найдена краулером по ссылкам) | SESSION (замечена в
   // сессиях пользователей, но краулер до неё не дошёл).
-  source    String  @default("CRAWL")
+  source        String    @default("CRAWL")
   // Когда страницу в последний раз видел краулер (для отсева исчезнувших страниц).
   lastCrawledAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -340,26 +350,26 @@ model ProjectPage {
 }
 
 model Monitor {
-  id             String        @id @default(cuid())
+  id             String    @id @default(cuid())
   projectId      String
   name           String
   url            String
-  port           Int?          // порт для проверки; если не задан — 80 (http) или 443 (https)
-  method         String        @default("GET") // GET | POST | PUT | DELETE
-  interval       String        @default("1m")  // 1m | 1h | 1d
-  expectedStatus Int           @default(200)
-  timeoutMs      Int           @default(10000)
-  headers        String?       // JSON-объект заголовков { "Name": "Value" }
-  bodyType       String        @default("NONE") // NONE | JSON | XML | FORM
-  body           String?       // тело запроса (для POST/PUT/DELETE)
-  isActive       Boolean       @default(true)
-  lastStatus     String        @default("PENDING") // UP | DOWN | PENDING
+  port           Int? // порт для проверки; если не задан — 80 (http) или 443 (https)
+  method         String    @default("GET") // GET | POST | PUT | DELETE
+  interval       String    @default("1m") // 1m | 1h | 1d
+  expectedStatus Int       @default(200)
+  timeoutMs      Int       @default(10000)
+  headers        String? // JSON-объект заголовков { "Name": "Value" }
+  bodyType       String    @default("NONE") // NONE | JSON | XML | FORM
+  body           String? // тело запроса (для POST/PUT/DELETE)
+  isActive       Boolean   @default(true)
+  lastStatus     String    @default("PENDING") // UP | DOWN | PENDING
   lastCheckedAt  DateTime?
-  createdAt      DateTime      @default(now())
+  createdAt      DateTime  @default(now())
 
-  project        Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  results        CheckResult[]
-  alerts         Alert[]
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  results CheckResult[]
+  alerts  Alert[]
 
   @@index([projectId])
   @@index([isActive])
@@ -404,9 +414,9 @@ model LogSession {
   startedAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
 
-  project    Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  events     LogEvent[]
-  recChunks  RecordingChunk[]
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  events    LogEvent[]
+  recChunks RecordingChunk[]
 
   @@unique([projectId, sessionKey])
   @@index([projectId, startedAt])
@@ -445,15 +455,15 @@ model LogEvent {
   type       String
   message    String?
   stack      String?
-  url        String?  // URL страницы, где произошло событие
-  route      String?  // URL/маршрут сетевого запроса (с query-строкой)
-  query      String?  // query-параметры запроса (усечено)
+  url        String? // URL страницы, где произошло событие
+  route      String? // URL/маршрут сетевого запроса (с query-строкой)
+  query      String? // query-параметры запроса (усечено)
   method     String?
   statusCode Int?
   durationMs Int?
-  reqBody    String?  // тело запроса / payload (усечено)
-  resBody    String?  // тело ответа сервера (усечено; только для ошибок запросов)
-  meta       String?  // произвольный JSON (расширяемость; hook под запись экрана)
+  reqBody    String? // тело запроса / payload (усечено)
+  resBody    String? // тело ответа сервера (усечено; только для ошибок запросов)
+  meta       String? // произвольный JSON (расширяемость; hook под запись экрана)
   createdAt  DateTime @default(now())
 
   session LogSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
@@ -525,28 +535,152 @@ model SpeedCheck {
 // статика, найденные почты и телефоны. Каждый запуск сохраняется — админ видит историю,
 // а полный отчёт лежит в JSON-поле report для повторного просмотра.
 model SiteScan {
-  id            String   @id @default(cuid())
+  id              String   @id @default(cuid())
   // Домен (hostname) обойдённого сайта — для читаемого списка.
-  domain        String
+  domain          String
   // Итоговый стартовый адрес (после переадресаций).
-  url           String
-  statusCode    Int      @default(0) // код ответа стартовой страницы
-  pagesCrawled  Int      @default(0) // сколько HTML-страниц обошли
-  requestsTotal Int      @default(0) // всего сетевых запросов (страницы + ресурсы)
+  url             String
+  statusCode      Int      @default(0) // код ответа стартовой страницы
+  pagesCrawled    Int      @default(0) // сколько HTML-страниц обошли
+  requestsTotal   Int      @default(0) // всего сетевых запросов (страницы + ресурсы)
   // Счётчики для списка без парсинга report.
-  errorsCount   Int      @default(0)
-  slowCount     Int      @default(0)
-  assetsCount   Int      @default(0)
-  emailsCount   Int      @default(0)
-  phonesCount   Int      @default(0)
-  durationMs    Int      @default(0)
+  errorsCount     Int      @default(0)
+  slowCount       Int      @default(0)
+  assetsCount     Int      @default(0)
+  emailsCount     Int      @default(0)
+  phonesCount     Int      @default(0)
+  durationMs      Int      @default(0)
   // Полный отчёт (ScanReport), сериализованный в JSON.
-  report        String
-  createdAt     DateTime @default(now())
+  report          String
+  // Кто запустил обход: ADMIN — админ-инструмент «Обход» (обходит глубоко и отправляет
+  // формы), PUBLIC — публичная страница /site-check (мелкий профиль, формы не шлём).
+  source          String   @default("ADMIN")
+  // IP инициатора публичного прогона: по нему считается лимит запусков в час.
+  ip              String?
+  // Оценка соответствия 152-ФЗ (ComplianceReport из src/lib/compliance.ts) в JSON.
+  // null — обход был без проверки соответствия (старые прогоны).
+  compliance      String?
+  // Итоговый балл соответствия 0…100 — чтобы не парсить compliance ради списка.
+  complianceScore Int?
+  createdAt       DateTime @default(now())
 
-  outreach      ScanOutreach[]
+  outreach ScanOutreach[]
 
   @@index([createdAt])
+  @@index([domain, createdAt])
+  @@index([ip, createdAt])
+}
+
+// ------------------------------- Правовые документы -------------------------------
+
+// Данные оператора персональных данных для автогенерации документов проекта:
+// политики обработки ПД, публичной оферты и текста согласия. Заполняется владельцем
+// на вкладке «Документы»; из этих полей рендерятся версии документов (LegalDoc), а
+// клиентский SDK подставляет на сайт проекта галочку согласия со ссылками на них.
+model ProjectLegal {
+  id        String @id @default(cuid())
+  projectId String @unique
+
+  // Публичный адрес документов проекта: /l/<publicSlug>/privacy. Слаг случайный —
+  // по нему нельзя перебрать чужие проекты; выпускается лениво (ensureLegalSlug).
+  publicSlug String @unique
+
+  // Кто оператор: COMPANY — юрлицо, IP — ИП, PERSON — физлицо/самозанятый.
+  operatorType String  @default("COMPANY")
+  operatorName String // «ООО "Ромашка"» / «ИП Иванов Иван Иванович»
+  inn          String?
+  ogrn         String? // ОГРН или ОГРНИП
+  address      String? // юридический (почтовый) адрес оператора
+  email        String // адрес для обращений субъектов ПД
+  phone        String?
+  // Адрес сайта, к которому относятся документы (по умолчанию домен проекта).
+  siteUrl      String?
+
+  // Состав обрабатываемых данных — от него зависят разделы политики и текст согласия.
+  collectsName    Boolean @default(true)
+  collectsEmail   Boolean @default(true)
+  collectsPhone   Boolean @default(true)
+  collectsAddress Boolean @default(false)
+  collectsPayment Boolean @default(false)
+  collectsCookies Boolean @default(true)
+
+  // Цели обработки — JSON-массив строк («обратная связь», «оформление заказа», …).
+  purposes     String @default("[]")
+  // Третьи лица, которым передаются данные — JSON-массив строк (хостинг, CRM, служба
+  // доставки). Попадают в раздел политики о передаче данных.
+  thirdParties String @default("[]")
+
+  usesMetrika Boolean @default(true) // Яндекс.Метрика на сайте
+  usesGa      Boolean @default(false) // Google Analytics и другие зарубежные счётчики
+  usesMailing Boolean @default(false) // рекламная рассылка (нужна отдельная галочка)
+
+  // Когда оператор подал уведомление в Роскомнадзор (ч. 1 ст. 22 152-ФЗ).
+  // null — не подавал: показываем предупреждение в отчёте и в панели.
+  rknNotifiedAt DateTime?
+
+  // Поведение галочки на сайте: STRICT — без согласия форма не отправляется,
+  // SOFT — согласие фиксируется, но отправку не блокируем.
+  consentMode String  @default("STRICT")
+  // Переопределение текста рядом с галочкой (null — текст из шаблона).
+  consentText String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// Опубликованная версия правового документа проекта. Хранит снимок текста: именно он
+// показывается по публичной ссылке и именно его версия записывается в журнал согласий —
+// чтобы через год было видно, с каким текстом соглашался посетитель.
+model LegalDoc {
+  id              String   @id @default(cuid())
+  projectId       String
+  // PRIVACY — политика обработки ПД, OFFER — публичная оферта, CONSENT — согласие.
+  type            String
+  // Порядковый номер версии в рамках проекта и типа: 1, 2, 3…
+  version         Int
+  // Версия шаблона, из которого отрендерен документ (LEGAL_TEMPLATE_VERSION).
+  templateVersion String
+  title           String
+  // Готовая разметка документа (санированный HTML, собранный из шаблона).
+  html            String
+  publishedAt     DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, type, version])
+  @@index([projectId, type, publishedAt])
+}
+
+// Журнал согласий: факт, что конкретный посетитель поставил галочку. Это и есть
+// доказательство согласия (ч. 1 ст. 9 152-ФЗ) — сама по себе галочка на сайте без
+// фиксации юридической силы не имеет. Пишется keyless-эндпоинтом /api/logger/consent
+// по Origin, как и остальные события SDK.
+model Consent {
+  id         String   @id @default(cuid())
+  projectId  String
+  // Ключ пользовательской сессии SDK (LogSession.sessionKey), если он известен —
+  // по нему согласие связывается с записью экрана и лентой событий.
+  sessionKey String?
+  // PD — обработка персональных данных, MARKETING — рекламная рассылка,
+  // COOKIE — согласие на cookie из плашки.
+  kind       String   @default("PD")
+  // Страница, на которой поставили галочку, и адрес формы (для PD/MARKETING).
+  page       String
+  formAction String?
+  // Версии документов на момент согласия — JSON {"privacy":3,"offer":1,"consent":2}.
+  docs       String   @default("{}")
+  // Текст, который стоял рядом с галочкой (снимок формулировки).
+  text       String?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([projectId, sessionKey])
 }
 
 // Рассылка холодных писем по найденным при обходе почтам (см. /api/admin/scan/[id]/outreach).
@@ -561,7 +695,7 @@ model ScanOutreach {
   subject        String
   // SENT — отправлено; FAILED — ошибка отправки; UNSUBSCRIBED — получатель отписался.
   status         String    @default("SENT")
-  error          String?   // текст ошибки при FAILED
+  error          String? // текст ошибки при FAILED
   // Уникальный токен для пикселя открытия и ссылки отписки.
   token          String    @unique
   // Учёт открытий (по загрузке трекинг-пикселя).
@@ -609,19 +743,19 @@ model Alert {
 }
 
 model Subscription {
-  id               String    @id @default(cuid())
-  userId           String    @unique
-  plan             String    @default("FREE") // FREE | PAID
-  sitesLimit       Int       @default(1)
-  priceRub         Int       @default(0)
-  status           String    @default("inactive") // active | inactive
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  plan               String    @default("FREE") // FREE | PAID
+  sitesLimit         Int       @default(1)
+  priceRub           Int       @default(0)
+  status             String    @default("inactive") // active | inactive
   // Для PAID — конец оплаченного периода.
-  currentPeriodEnd DateTime?
+  currentPeriodEnd   DateTime?
   // Значение currentPeriodEnd, для которого уже отправлено предупреждение
   // «подписка истекает завтра». Нужно, чтобы оповещение ушло один раз за период:
   // при продлении currentPeriodEnd меняется — и напоминание срабатывает заново.
   expiryAlertSentFor DateTime?
-  createdAt        DateTime  @default(now())
+  createdAt          DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -629,29 +763,29 @@ model Subscription {
 // Платежи через Т-Кассу (T-Bank эквайринг). Создаётся при инициации оплаты
 // методом Init; статус обновляется по нотификации от Т-Кассы.
 model Payment {
-  id         String   @id @default(cuid())
-  userId     String
+  id             String   @id @default(cuid())
+  userId         String
   // Проект, тариф которого оплачивается (per-project биллинг).
-  projectId  String?
+  projectId      String?
   // Легаси-поле старой тарификации (T1000 | T3000). Больше не заполняется.
-  tier       String?
+  tier           String?
   // Оплаченная кастомная конфигурация — применяется к проекту при подтверждении оплаты.
   sessionsPerDay Int?
   retentionHours Int?
   // OrderId, переданный в Т-Кассу (совпадает с id этой записи).
-  orderId    String   @unique
+  orderId        String   @unique
   // PaymentId, присвоенный Т-Кассой.
-  paymentId  String?
+  paymentId      String?
   // Кол-во сайтов (вырожденное поле, оставлено для совместимости со старыми оплатами).
-  sites      Int      @default(1)
+  sites          Int      @default(1)
   // Длительность оплаченного периода в месяцах (1 | 3 | 12).
-  months     Int      @default(1)
+  months         Int      @default(1)
   // Сумма в рублях.
-  amountRub  Int
+  amountRub      Int
   // NEW | AUTHORIZED | CONFIRMED | REJECTED | REFUNDED | CANCELED
-  status     String   @default("NEW")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  status         String   @default("NEW")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)

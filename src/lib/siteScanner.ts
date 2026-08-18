@@ -16,6 +16,8 @@
 import { chromium, type Browser, type Request as PwRequest } from "playwright-core";
 
 // --- Пределы обхода (чтобы не подвесить запрос на крупном сайте) ---
+// Значения ниже — профиль админ-инструмента. Публичная страница /site-check вызывает
+// scanSite с более скромным профилем (см. ScanOptions и PUBLIC_SCAN_PROFILE).
 const MAX_PAGES = 20; // сколько HTML-страниц максимум обойти
 const MAX_DEPTH = 4; // максимальная глубина вложенности пути от корня
 const MAX_REQUESTS = 800; // сколько сетевых запросов максимум учесть
@@ -38,6 +40,27 @@ const UA =
 // Расширения файлов, которые не являются HTML-страницами (не ставим их в очередь обхода).
 const ASSET_EXT_ANY =
   /\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|avif|ico|bmp|woff2?|ttf|otf|eot|map|wasm|pdf|zip|mp4|webm|mp3|xml|json)$/i;
+
+/** Профиль обхода: чем публичный запуск отличается от админского. */
+export interface ScanOptions {
+  /** Сколько HTML-страниц обойти (по умолчанию MAX_PAGES). */
+  maxPages?: number;
+  /** Общий бюджет обхода в миллисекундах (по умолчанию TOTAL_BUDGET_MS). */
+  budgetMs?: number;
+  /**
+   * Заполнять и реально отправлять найденные формы. Для админского обхода — да
+   * (так видно, доходит ли заявка). Для публичного запуска — НЕТ: это чужой сайт,
+   * и посылать его владельцу тестовые заявки по требованию любого посетителя нельзя.
+   */
+  submitForms?: boolean;
+}
+
+/** Профиль публичной проверки: мельче, быстрее и без отправки форм. */
+export const PUBLIC_SCAN_PROFILE: ScanOptions = {
+  maxPages: 6,
+  budgetMs: 40_000,
+  submitForms: false,
+};
 
 export type AssetKind = "script" | "style" | "image" | "font" | "other";
 // Тип сетевого запроса для медленных: страница, статика или динамический запрос (XHR/fetch).
@@ -116,6 +139,33 @@ export interface ScanForm {
   submitted: boolean; // отправили
   skippedPayment: boolean; // пропущена как форма оплаты
   issues: ScanFormBug[]; // найденные проблемы
+  // ---- Сигналы для проверки соответствия 152-ФЗ ----
+  /** Форма собирает персональные данные (имя, почта, телефон, адрес). */
+  personalData: boolean;
+  /** Галочка согласия: обязательная, необязательная или её нет вовсе. */
+  consent: "required" | "optional" | "none";
+  /** Ссылка на политику/согласие внутри формы (абсолютный URL) либо null. */
+  consentLink: string | null;
+  /** Отдельная галочка согласия на рекламную рассылку. */
+  marketingConsent: boolean;
+}
+
+/** Ссылка на правовой документ, найденная на сайте. */
+export interface ScanLegalLink {
+  /** privacy — политика/конфиденциальность, offer — оферта/условия, consent — согласие. */
+  kind: "privacy" | "offer" | "consent";
+  url: string;
+  text: string;
+  /** Внутренняя ссылка (тот же хост) — такие ставим в очередь обхода, чтобы знать код ответа. */
+  internal: boolean;
+}
+
+/** Реквизиты оператора, найденные в разметке (обычно в подвале). */
+export interface ScanOperator {
+  inn: string | null;
+  ogrn: string | null;
+  /** Наименование рядом с ИНН/ОГРН («ООО …», «ИП …») — если удалось вычленить. */
+  name: string | null;
 }
 
 /** Итоговый отчёт по сайту. */
@@ -137,6 +187,15 @@ export interface ScanReport {
   forms: ScanForm[]; // проверенные формы и их проблемы
   emails: string[];
   phones: string[];
+  // ---- Сигналы для проверки соответствия 152-ФЗ (см. src/lib/compliance.ts) ----
+  /** Хосты аналитики, рекламы и сторонних виджетов, встреченные при обходе. */
+  trackers: string[];
+  /** Найденные ссылки на политику, оферту и согласие. */
+  legalLinks: ScanLegalLink[];
+  /** На сайте показывается плашка про cookie. */
+  cookieNotice: boolean;
+  /** Реквизиты оператора из разметки. */
+  operator: ScanOperator;
   summary: {
     errors: number;
     slow: number;
@@ -209,6 +268,21 @@ function isAnalyticsUrl(url: string): boolean {
   }
   if (YANDEX_HOST_RE.test(host)) return true;
   return IGNORED_HOST_SUFFIXES.some((s) => host === s || host.endsWith("." + s));
+}
+
+// Двухуровневые доменные зоны, где «свой» домен состоит из трёх частей (site.com.tr).
+const SECOND_LEVEL_ZONES = ["co.uk", "com.tr", "com.br", "com.au", "co.jp", "com.ua", "org.ua", "net.ua"];
+
+/**
+ * Базовый домен хоста: cdn.shop.example.ru → example.ru. Нужен, чтобы отличить свои
+ * поддомены от сторонних хостов при сборе третьих лиц для проверки 152-ФЗ.
+ */
+function baseDomainOf(host: string): string {
+  const parts = host.toLowerCase().split(".").filter(Boolean);
+  if (parts.length <= 2) return parts.join(".");
+  const lastTwo = parts.slice(-2).join(".");
+  const take = SECOND_LEVEL_ZONES.includes(lastTwo) ? 3 : 2;
+  return parts.slice(-take).join(".");
 }
 
 /** Приводит введённый адрес к URL (добавляет https://). null — некорректный/внутренний. */
@@ -396,7 +470,11 @@ interface FormDescriptor {
     placeholder: string;
     autocomplete: string;
     required: boolean;
+    /** Подпись поля: текст связанного <label> — по нему узнаём галочку согласия. */
+    label: string;
   }[];
+  /** Ссылки внутри формы — обычно это и есть ссылка на политику рядом с галочкой. */
+  links: { href: string; text: string }[];
 }
 
 /** Снимает описатели всех форм со страницы (без заполнения). */
@@ -423,6 +501,18 @@ async function readForms(page: import("playwright-core").Page): Promise<FormDesc
             )
             .map((el) => {
               const e = el as HTMLInputElement;
+              // Подпись поля: <label for>, обёртка <label> или соседний текст. Нужна,
+              // чтобы отличить галочку согласия от галочки «перезвоните мне».
+              let label = "";
+              if (e.id) {
+                const byFor = document.querySelector('label[for="' + CSS.escape(e.id) + '"]');
+                if (byFor) label = byFor.textContent || "";
+              }
+              if (!label) {
+                const wrap = e.closest("label");
+                if (wrap) label = wrap.textContent || "";
+              }
+              if (!label && e.parentElement) label = e.parentElement.textContent || "";
               return {
                 tag: el.tagName,
                 type: (e.type || "").toLowerCase(),
@@ -431,11 +521,133 @@ async function readForms(page: import("playwright-core").Page): Promise<FormDesc
                 placeholder: e.placeholder || "",
                 autocomplete: (e.autocomplete || "").toLowerCase(),
                 required: !!e.required,
+                label: label.replace(/\s+/g, " ").trim().slice(0, 300),
               };
             }),
+          links: Array.from(f.querySelectorAll("a[href]"))
+            .slice(0, 10)
+            .map((a) => ({
+              href: (a as HTMLAnchorElement).href || "",
+              text: (a.textContent || "").replace(/\s+/g, " ").trim().slice(0, 200),
+            })),
         }));
     })
     .catch(() => [] as FormDescriptor[]);
+}
+
+// Текст галочки согласия на обработку персональных данных.
+// Внимание: \w в JS не покрывает кириллицу, поэтому окончания слов — через [а-яё].
+const CONSENT_LABEL_RE =
+  /(соглас[а-яё]*|принима[а-яё]*|подтвержда[а-яё]*)[^.]{0,80}(персональн|обработк|политик|оферт|конфиденциальн)|персональн[а-яё]* данн|обработк[а-яё]* данн|политик[а-яё]* конфиденциальн|пользовательск[а-яё]* соглашен|публичн[а-яё]* оферт/i;
+// Текст галочки согласия на рекламную рассылку — по 152-ФЗ и ст. 18 ФЗ «О рекламе»
+// это отдельное согласие, его нельзя «вшивать» в общую галочку.
+const MARKETING_LABEL_RE = /(рассылк|новост|акци|реклам|маркетинг|уведомлен\w* о)/i;
+// Поле формы собирает персональные данные?
+const PERSONAL_FIELD_RE =
+  /(name|fio|surname|firstname|lastname|имя|фамил|отчеств|phone|tel|мобильн|телефон|email|e-?mail|почт|address|адрес|city|город|birth|дата рожд|passport|паспорт|inn|снилс)/i;
+// Ссылка ведёт на правовой документ?
+const LEGAL_LINK_RE = {
+  privacy: /(политик|конфиденциальн|privacy|персональн[а-яё]* данн|обработк[а-яё]* данн|personal-?data|persdata)/i,
+  offer: /(оферт|offer|пользовательск[а-яё]* соглашен|услови[а-яё]* (использован|продаж|оказан)|terms|правила)/i,
+  consent: /(соглас[а-яё]* на обработк|consent|соглашен[а-яё]* на обработк)/i,
+};
+
+/** Поле формы собирает персональные данные? */
+function isPersonalField(x: FormDescriptor["fields"][number]): boolean {
+  if (x.type === "email" || x.type === "tel") return true;
+  if (x.type === "checkbox" || x.type === "radio") return false;
+  return PERSONAL_FIELD_RE.test(`${x.name} ${x.id} ${x.autocomplete} ${x.placeholder} ${x.label}`);
+}
+
+/** Сигналы соответствия 152-ФЗ по описателю формы: ПД, галочка согласия, ссылка. */
+function formConsentSignals(f: FormDescriptor, pageUrl: string) {
+  const checkboxes = f.fields.filter((x) => x.type === "checkbox");
+  const consentBox = checkboxes.find((x) => CONSENT_LABEL_RE.test(x.label));
+  const marketingBox = checkboxes.find(
+    (x) => MARKETING_LABEL_RE.test(x.label) && !CONSENT_LABEL_RE.test(x.label),
+  );
+  let consentLink: string | null = null;
+  for (const link of f.links) {
+    if (!link.href) continue;
+    if (LEGAL_LINK_RE.privacy.test(link.text) || LEGAL_LINK_RE.privacy.test(link.href)) {
+      try {
+        consentLink = new URL(link.href, pageUrl).toString();
+      } catch {
+        consentLink = link.href;
+      }
+      break;
+    }
+  }
+  return {
+    personalData: f.fields.some(isPersonalField),
+    consent: (consentBox ? (consentBox.required ? "required" : "optional") : "none") as
+      | "required"
+      | "optional"
+      | "none",
+    consentLink,
+    marketingConsent: !!marketingBox,
+  };
+}
+
+/**
+ * Есть ли на странице плашка про cookie. Эвристика: закреплённый (fixed/sticky) блок
+ * либо элемент с «cookie/consent» в классе или id, где есть текст про файлы cookie и
+ * кнопка. Ложноположительные срабатывания дешевле ложноотрицательных: отчёт всё равно
+ * показывает, что именно нашли.
+ */
+async function readCookieNotice(page: import("playwright-core").Page): Promise<boolean> {
+  return page
+    .evaluate(() => {
+      // Внутри evaluate только инлайн-выражения (см. комментарий в readForms).
+      const byAttr = Array.from(
+        document.querySelectorAll(
+          '[class*="cookie" i],[id*="cookie" i],[class*="consent" i],[id*="consent" i],[data-cookie]',
+        ),
+      ).slice(0, 40);
+      for (const node of byAttr) {
+        const el = node as HTMLElement;
+        const text = (el.textContent || "").toLowerCase();
+        if ((text.includes("cookie") || text.includes("куки")) && el.querySelector("button,a")) {
+          return true;
+        }
+      }
+      const blocks = Array.from(document.body.querySelectorAll("div,section,aside,footer")).slice(0, 400);
+      for (const node of blocks) {
+        const el = node as HTMLElement;
+        const pos = getComputedStyle(el).position;
+        if (pos !== "fixed" && pos !== "sticky") continue;
+        const text = (el.textContent || "").toLowerCase();
+        if ((text.includes("cookie") || text.includes("куки")) && el.querySelector("button,a")) {
+          return true;
+        }
+      }
+      return false;
+    })
+    .catch(() => false);
+}
+
+// Реквизиты оператора в разметке (обычно подвал): ИНН — 10 цифр у юрлица, 12 у ИП;
+// ОГРН — 13 цифр, ОГРНИП — 15.
+const INN_RE = /ИНН[\s:№]*([0-9]{10}|[0-9]{12})/i;
+const OGRN_RE = /ОГРН(?:ИП)?[\s:№]*([0-9]{13}|[0-9]{15})/i;
+const ORG_NAME_RE =
+  /((?:ООО|ОАО|ЗАО|ПАО|АО)\s*[«"][^»"]{2,120}[»"]|ИП\s+[А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+){1,2})/;
+
+/** Достаёт реквизиты оператора из отрисованной разметки страницы. */
+function extractOperator(html: string, into: ScanOperator): void {
+  const text = html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
+  if (!into.inn) into.inn = INN_RE.exec(text)?.[1] ?? null;
+  if (!into.ogrn) into.ogrn = OGRN_RE.exec(text)?.[1] ?? null;
+  if (!into.name) into.name = ORG_NAME_RE.exec(text)?.[1]?.trim() ?? null;
+}
+
+/** Тип правового документа по тексту ссылки и её адресу, либо null. */
+function legalLinkKind(text: string, href: string): ScanLegalLink["kind"] | null {
+  const hay = `${text} ${href}`;
+  if (LEGAL_LINK_RE.consent.test(hay)) return "consent";
+  if (LEGAL_LINK_RE.privacy.test(hay)) return "privacy";
+  if (LEGAL_LINK_RE.offer.test(hay)) return "offer";
+  return null;
 }
 
 /** Статический анализ формы (безопасно, без отправки): небезопасность, кривая разметка. */
@@ -624,10 +836,13 @@ interface CapturedRequest {
  * бэкенда, медленные запросы, статика, найденные почты и телефоны. Кидает ошибку, если
  * стартовая страница не открылась.
  */
-export async function scanSite(startUrl: URL): Promise<ScanReport> {
+export async function scanSite(startUrl: URL, opts: ScanOptions = {}): Promise<ScanReport> {
   const host = startUrl.hostname.toLowerCase();
   const origin = `${startUrl.protocol}//${startUrl.host}`;
   const startedAt = Date.now();
+  const maxPages = Math.max(1, Math.min(opts.maxPages ?? MAX_PAGES, MAX_PAGES));
+  const budgetMs = Math.max(5_000, Math.min(opts.budgetMs ?? TOTAL_BUDGET_MS, TOTAL_BUDGET_MS));
+  const submitForms = opts.submitForms ?? true;
 
   const browser = await launchBrowser();
   try {
@@ -644,6 +859,9 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
     const rows = new Map<PwRequest, CapturedRequest>();
     const pending: Promise<void>[] = [];
     let currentPage = startUrl.toString();
+    // Хосты аналитики и рекламы: в отчёт о скорости они не идут (только шумят), но для
+    // проверки 152-ФЗ важны — по ним видно, каким третьим лицам уходят данные посетителя.
+    const trackers = new Set<string>();
 
     const rowFor = (req: PwRequest): CapturedRequest | null => {
       let row = rows.get(req);
@@ -651,7 +869,16 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
       if (rows.size >= MAX_REQUESTS) return null;
       const url = req.url();
       if (url.startsWith("data:") || url.startsWith("blob:")) return null;
-      if (isAnalyticsUrl(url)) return null; // метрику Google/Яндекса игнорируем
+      // Сторонний хост — запоминаем всегда, даже если сам запрос дальше игнорируем.
+      if (trackers.size < 60) {
+        try {
+          const h = new URL(url).hostname.toLowerCase();
+          if (h && baseDomainOf(h) !== baseDomainOf(host)) trackers.add(h);
+        } catch {
+          /* некорректный URL — пропускаем */
+        }
+      }
+      if (isAnalyticsUrl(url)) return null; // метрику Google/Яндекса в измерениях игнорируем
       const rt = req.resourceType();
       row = {
         url,
@@ -711,6 +938,11 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
     const emails = new Set<string>();
     const phones = new Set<string>();
 
+    // Сигналы соответствия 152-ФЗ, собираемые по ходу обхода.
+    const legalLinks = new Map<string, ScanLegalLink>(); // ключ — абсолютный URL
+    const operator: ScanOperator = { inn: null, ogrn: null, name: null };
+    let cookieNotice = false;
+
     // Проверка форм: собираем уникальные формы (по подписи) и план на отправку.
     const forms: ScanForm[] = [];
     const testedFormSigs = new Set<string>();
@@ -739,11 +971,11 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
     let stopped: ScanReport["stopped"] = "done";
 
     while (queue.length > 0) {
-      if (pagesCrawled >= MAX_PAGES) {
+      if (pagesCrawled >= maxPages) {
         stopped = "pages";
         break;
       }
-      if (Date.now() - startedAt > TOTAL_BUDGET_MS) {
+      if (Date.now() - startedAt > budgetMs) {
         stopped = "budget";
         break;
       }
@@ -805,15 +1037,45 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
       if (content) {
         extractEmails(content, emails);
         extractPhones(content, phones);
+        extractOperator(content, operator);
       }
 
-      // Внутренние ссылки — в очередь на обход.
-      const hrefs: string[] = await page
+      // Плашку про cookie ищем, пока не нашли: обычно она на первой же странице.
+      if (!cookieNotice) cookieNotice = await readCookieNotice(page);
+
+      // Ссылки страницы: внутренние — в очередь на обход, правовые — в отчёт.
+      const anchors: { href: string; text: string }[] = await page
         .$$eval("a[href]", (els) =>
-          els.map((e) => (e as HTMLAnchorElement).getAttribute("href") || ""),
+          els.slice(0, 400).map((e) => ({
+            href: (e as HTMLAnchorElement).getAttribute("href") || "",
+            text: (e.textContent || "").replace(/\s+/g, " ").trim().slice(0, 200),
+          })),
         )
         .catch(() => []);
+      const hrefs = anchors.map((a) => a.href);
       const here = page.url();
+
+      // Правовые документы: запоминаем ссылку и ставим внутреннюю страницу в начало
+      // очереди — тогда обход дойдёт до неё и мы узнаем, открывается ли она вообще.
+      for (const a of anchors) {
+        if (!a.href || legalLinks.size >= 20) break;
+        const kind = legalLinkKind(a.text, a.href);
+        if (!kind) continue;
+        let abs: string;
+        try {
+          abs = new URL(a.href, here).toString();
+        } catch {
+          continue;
+        }
+        if (legalLinks.has(abs)) continue;
+        const norm = internalPath(a.href, here, host);
+        legalLinks.set(abs, { kind, url: abs, text: a.text, internal: !!norm });
+        if (norm && !seen.has(norm)) {
+          seen.add(norm);
+          queue.unshift(norm);
+        }
+      }
+
       for (const href of hrefs) {
         const norm = internalPath(href, here, host);
         if (!norm || seen.has(norm)) continue;
@@ -840,6 +1102,7 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
           const isPayment = d.fields.some((x) =>
             PAYMENT_FIELD_RE.test(`${x.name} ${x.id} ${x.autocomplete} ${x.placeholder} ${x.type}`),
           );
+          const consent = formConsentSignals(d, pageUrl);
           const rec: ScanForm = {
             page: pageUrl,
             action,
@@ -849,12 +1112,31 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
             submitted: false,
             skippedPayment: isPayment,
             issues: analyzeForm(d, pageUrl),
+            ...consent,
           };
           if (isPayment) {
             rec.issues.push({ severity: "warning", message: "Форма оплаты — не заполнялась и не отправлялась" });
           }
+          // Требования 152-ФЗ к форме, собирающей персональные данные.
+          if (consent.personalData && consent.consent === "none") {
+            rec.issues.push({
+              severity: "error",
+              message: "Форма собирает персональные данные без галочки согласия на их обработку",
+            });
+          } else if (consent.personalData && consent.consent === "optional") {
+            rec.issues.push({
+              severity: "warning",
+              message: "Галочку согласия можно не ставить — форма отправляется и без неё",
+            });
+          }
+          if (consent.personalData && consent.consent !== "none" && !consent.consentLink) {
+            rec.issues.push({
+              severity: "warning",
+              message: "Рядом с галочкой согласия нет ссылки на политику обработки данных",
+            });
+          }
           forms.push(rec);
-          if (!isPayment && d.fields.length > 0) {
+          if (submitForms && !isPayment && d.fields.length > 0) {
             submitPlan.push({ formRef: rec, pageUrl, sig });
           }
         }
@@ -866,7 +1148,7 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
     let formSubmits = 0;
     for (const plan of submitPlan) {
       if (formSubmits >= MAX_FORM_SUBMITS) break;
-      if (Date.now() - startedAt > TOTAL_BUDGET_MS) break;
+      if (Date.now() - startedAt > budgetMs) break;
       currentPage = plan.pageUrl;
       try {
         await page.goto(plan.pageUrl, { waitUntil: "domcontentloaded" });
@@ -1033,7 +1315,7 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
       transferBytes,
       durationMs: Date.now() - startedAt,
       stopped,
-      pages: pages.slice(0, MAX_PAGES),
+      pages: pages.slice(0, maxPages),
       backendErrors: errors.slice(0, MAX_LIST),
       slowRequests: slow.slice(0, MAX_LIST),
       staticAssets: assets.slice(0, MAX_ASSETS_LIST),
@@ -1041,6 +1323,10 @@ export async function scanSite(startUrl: URL): Promise<ScanReport> {
       forms: forms.slice(0, MAX_FORMS),
       emails: emailList.slice(0, MAX_LIST),
       phones: phoneList.slice(0, MAX_LIST),
+      trackers: Array.from(trackers).sort(),
+      legalLinks: Array.from(legalLinks.values()),
+      cookieNotice,
+      operator,
       summary: {
         errors: errors.length,
         slow: slow.length,

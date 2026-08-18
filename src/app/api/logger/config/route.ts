@@ -16,6 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
 import { resolveCountry } from "@/lib/geo";
 import { resolveRequestOrigin } from "@/lib/logger-origin";
+import { consentCheckboxText, currentDocVersions, legalDataFrom, legalDocUrl } from "@/lib/legal";
 
 export const dynamic = "force-dynamic";
 
@@ -32,11 +33,38 @@ function corsHeaders(origin: string): Record<string, string> {
 }
 
 type ProjectConfig = {
+  id: string;
+  domain: string;
   feedbackEnabled: boolean;
   slowMs: number;
   recordSession: boolean;
   cookieBanner: boolean;
   vpnNotice: boolean;
+  consentEnabled: boolean;
+  legal: {
+    publicSlug: string;
+    consentMode: string;
+    consentText: string | null;
+    operatorType: string;
+    operatorName: string;
+    inn: string | null;
+    ogrn: string | null;
+    address: string | null;
+    email: string;
+    phone: string | null;
+    siteUrl: string | null;
+    collectsName: boolean;
+    collectsEmail: boolean;
+    collectsPhone: boolean;
+    collectsAddress: boolean;
+    collectsPayment: boolean;
+    collectsCookies: boolean;
+    purposes: string;
+    thirdParties: string;
+    usesMetrika: boolean;
+    usesGa: boolean;
+    usesMailing: boolean;
+  } | null;
 };
 
 async function resolveProject(req: Request) {
@@ -47,11 +75,15 @@ async function resolveProject(req: Request) {
   const project = await prisma.project.findUnique({
     where: { domain: host },
     select: {
+      id: true,
+      domain: true,
       feedbackEnabled: true,
       slowMs: true,
       recordSession: true,
       cookieBanner: true,
       vpnNotice: true,
+      consentEnabled: true,
+      legal: true,
     },
   });
   return { origin, project };
@@ -80,6 +112,32 @@ export async function GET(req: Request) {
     vpn = country !== null && country !== "RU";
   }
 
+  // Галочка согласия: SDK встраивает её в формы сайта, поэтому здесь отдаём готовый
+  // текст и адреса опубликованных документов. Если документы ещё не опубликованы,
+  // фичу не включаем — ссылка вела бы в пустоту.
+  let consent: {
+    mode: string;
+    text: string;
+    privacyUrl: string;
+    consentUrl: string;
+    offerUrl: string | null;
+    marketing: boolean;
+  } | null = null;
+  if (project.consentEnabled && project.legal) {
+    const versions = await currentDocVersions(project.id);
+    if (versions.PRIVACY) {
+      const data = legalDataFrom(project.legal, project.domain);
+      consent = {
+        mode: project.legal.consentMode,
+        text: project.legal.consentText || consentCheckboxText(data),
+        privacyUrl: legalDocUrl(project.legal.publicSlug, "PRIVACY"),
+        consentUrl: legalDocUrl(project.legal.publicSlug, "CONSENT"),
+        offerUrl: versions.OFFER ? legalDocUrl(project.legal.publicSlug, "OFFER") : null,
+        marketing: project.legal.usesMailing,
+      };
+    }
+  }
+
   return NextResponse.json(
     {
       feedback: project.feedbackEnabled,
@@ -87,6 +145,7 @@ export async function GET(req: Request) {
       record: project.recordSession,
       cookie: project.cookieBanner,
       vpn,
+      consent,
     },
     { headers: corsHeaders(origin) },
   );

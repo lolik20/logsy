@@ -6,6 +6,7 @@
 
 import { endpointOf } from "@/lib/exceptions";
 import { isStaticAssetEvent } from "@/lib/staticAssets";
+import { isTrackerEvent } from "@/lib/trackers";
 
 // Типы событий-ошибок: JS-ошибка, необработанный reject, ошибка сетевого запроса.
 export const ERROR_TYPES = ["ERROR", "UNHANDLED_REJECTION", "HTTP_ERROR"] as const;
@@ -80,6 +81,8 @@ export function topErrors(events: IssueEvent[], limit = 10): TopError[] {
   const map = new Map<string, TopError>();
   for (const e of events) {
     if (!ERROR_SET.has(e.type)) continue;
+    // Упавшие запросы сторонних счётчиков (Метрика, GA/GTM) — не ошибки сайта.
+    if (isTrackerEvent(e)) continue;
     const { key, label } = errorSignature(e);
     const existing = map.get(key);
     if (existing) {
@@ -118,6 +121,7 @@ export function topSlowRequests(events: IssueEvent[], limit = 10): TopSlow[] {
   for (const e of events) {
     if (e.type !== "SLOW_REQUEST") continue;
     if (isStaticAssetEvent(e)) continue;
+    if (isTrackerEvent(e)) continue;
     const endpoint = endpointOf(e.route) ?? e.route ?? "—";
     const key = `${e.method ?? ""} ${endpoint}`;
     const dur = e.durationMs ?? 0;

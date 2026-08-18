@@ -7,6 +7,8 @@
 // самого скрипта, а проект на сервере определяется по Origin запроса. Поэтому ответ
 // кэшируется на CDN. Никакого ключа в теге нет — авторизация по домену (Origin).
 
+import { TRACKER_DOMAINS } from "@/lib/trackers";
+
 export const dynamic = "force-dynamic";
 
 // IIFE клиентского агента. Пишется как строка, чтобы отдавать без сборки/бандла.
@@ -298,6 +300,22 @@ const SDK = `(function(){
       catch (e) { return false; }
     }
 
+    // Сторонние счётчики и рекламные пиксели (Яндекс.Метрика, Google Analytics/GTM,
+    // top.mail.ru и т.п.). Их запросы и скрипты — не часть сайта: владелец на них не
+    // влияет, а в карте загрузки и топах они забивают собой реальные проблемы. Список
+    // общий с сервером (src/lib/trackers.ts) и подставляется при отдаче скрипта.
+    var TRACKERS = ${JSON.stringify(TRACKER_DOMAINS)};
+    function isTracker(url) {
+      try {
+        var h = new URL(String(url), location.href).hostname.toLowerCase();
+        for (var ti = 0; ti < TRACKERS.length; ti++) {
+          var d = TRACKERS[ti];
+          if (h === d || h.slice(-(d.length + 1)) === "." + d) return true;
+        }
+        return false;
+      } catch (e) { return false; }
+    }
+
     function flush(useBeacon) {
       if (!buffer.length) return;
       var batch = { sessionKey: sid, userAgent: ua, ip: clientIp, utm: marks, events: buffer.splice(0, buffer.length) };
@@ -321,6 +339,10 @@ const SDK = `(function(){
 
     // ---- Фронт-ошибки ----
     window.addEventListener("error", function(e) {
+      // Ошибку, брошенную скриптом стороннего счётчика, владельцу сайта чинить нечем —
+      // в ленту не пишем. Источник берём из filename события (у cross-origin скриптов
+      // браузер его скрывает — такие ошибки остаются, отличить их нечем).
+      if (e && e.filename && isTracker(e.filename)) return;
       push({
         type: "ERROR",
         message: (e && e.message) ? String(e.message) : "Error",
@@ -342,7 +364,7 @@ const SDK = `(function(){
     // resBody — тело ответа сервера (только для ошибок), чтобы в логе был не просто код,
     // а реальный текст ответа бэкенда.
     function record(method, url, status, durationMs, reqBody, failed, resBody) {
-      if (isOwn(url)) return;
+      if (isOwn(url) || isTracker(url)) return;
       var slow = durationMs > SLOW_MS;
       var httpErr = status >= 400;
       if (!slow && !httpErr && !failed) return;
@@ -644,7 +666,7 @@ const SDK = `(function(){
               if (it === "fetch" || it === "xmlhttprequest" || it === "beacon") continue;
               var dur = Math.round(en.duration || 0);
               if (dur <= SLOW_MS) continue;
-              if (isOwn(en.name)) continue;
+              if (isOwn(en.name) || isTracker(en.name)) continue;
               // Предзагруженные (<link rel=preload/prefetch>) картинки/шрифты браузер
               // помечает обобщённым «link» — по расширению определяем реальный тип (img/font),
               // иначе они отображаются как «link» вместо png/webp.

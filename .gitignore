@@ -39,3 +39,8 @@ next-env.d.ts
 /prisma/*.db
 /prisma/*.db-journal
 *.db
+
+# приватные ключи — не место в репозитории
+id_rsa
+id_rsa*
+*.key

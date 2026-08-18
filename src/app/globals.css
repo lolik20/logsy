@@ -32,3 +32,21 @@ body {
     );
   }
 }
+
+/* Правовые документы проектов (/l/<slug>/<doc>): текст приходит готовой разметкой из
+   шаблона, поэтому базовую типографику задаём здесь — заголовки, списки и отступы. */
+.legal-doc h2 {
+  @apply mt-8 mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100;
+}
+.legal-doc p {
+  @apply my-3;
+}
+.legal-doc ul {
+  @apply my-3 list-disc space-y-1 pl-6;
+}
+.legal-doc a {
+  @apply text-brand hover:underline;
+}
+.legal-doc .meta {
+  @apply text-sm text-slate-500;
+}

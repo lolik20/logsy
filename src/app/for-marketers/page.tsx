@@ -6,7 +6,7 @@ import { LandingFooter } from "@/components/LandingFooter";
 import { FREE_SESSIONS_PER_DAY } from "@/lib/pricing";
 
 export const metadata: Metadata = {
-  title: "Logsy для маркетологов — не сливайте рекламный бюджет на ошибки",
+  title: "Мониторинг лендингов для маркетологов — бюджет не в ошибки",
   description:
     "Смотрите записи сессий, где лиды упираются в ошибку формы, видите UTM и путь до отказа. Спасайте конверсию и бюджет. Старт бесплатно.",
 };

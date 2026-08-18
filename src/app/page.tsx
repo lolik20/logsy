@@ -42,6 +42,11 @@ const features = [
     text: "Проверки из РФ, оплата в рублях, данные в РФ, поддержка на русском.",
     icon: "🇷🇺",
   },
+  {
+    title: "Проверка по 152-ФЗ",
+    text: "Политика, галочки согласия, счётчики до согласия и реквизиты оператора — списком, с нормами закона.",
+    icon: "📋",
+  },
 ];
 
 const problems = [
@@ -142,6 +147,13 @@ export default async function LandingPage() {
                   видео: видно, что пользователь видел и куда нажимал перед сбоем.
                   На дорожке отмечены ошибки и медленные запросы — перематывайте
                   прямо к нужному моменту.
+                </p>
+                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                  Метрику отключать не нужно: Вебвизор показывает поведение, Logsy
+                  добавляет к нему причину сбоя.{" "}
+                  <Link href="/alternatives/webvisor" className="text-brand hover:underline">
+                    Как они работают вместе
+                  </Link>
                 </p>
                 <ul className="mt-5 space-y-2.5 text-sm">
                   {[
@@ -749,6 +761,83 @@ export default async function LandingPage() {
               </p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Соответствие 152-ФЗ: проверка сайта, документы и галочка согласия */}
+      <section id="compliance" className="relative z-10 mx-auto max-w-6xl px-4 py-16 sm:px-6">
+        <div className="overflow-hidden rounded-3xl shadow-card">
+          <div className="rounded-3xl bg-white/80 p-5 backdrop-blur-xl sm:p-8 md:p-12 dark:bg-slate-900/80">
+            <div className="text-center">
+              <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand dark:bg-brand/10">
+                📋 152-ФЗ
+              </span>
+              <h2 className="mx-auto mt-3 max-w-3xl text-3xl font-bold sm:text-4xl">
+                Проверим сайт по 152-ФЗ и{" "}
+                <span className="bg-gradient-to-r from-brand to-emerald-500 bg-clip-text text-transparent">
+                  закроем найденное
+                </span>
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-slate-600 dark:text-slate-300">
+                Обход сайта показывает, чего не хватает по закону: политики, галочек
+                согласия в формах, реквизитов оператора. Панель помогает это закрыть —
+                документы генерируются по вашим реквизитам, а согласия сохраняются.
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-4 md:grid-cols-3">
+              {[
+                {
+                  icon: "🔍",
+                  title: "Проверка соответствия",
+                  text: "Политика и её доступность, галочки в формах с персональными данными, счётчики до согласия, зарубежные сервисы, реквизиты оператора — списком, с указанием норм и балла.",
+                  href: "/site-audit",
+                  link: "Что проверяется",
+                },
+                {
+                  icon: "📄",
+                  title: "Документы по реквизитам",
+                  text: "Политика обработки данных, публичная оферта и текст согласия собираются из ваших данных и живут по постоянной ссылке. Каждая версия сохраняется снимком.",
+                  href: "/cookie-banner",
+                  link: "Как это устроено",
+                },
+                {
+                  icon: "✅",
+                  title: "Галочка и журнал согласий",
+                  text: "Скрипт встраивает согласие прямо в формы сайта и в строгом режиме не даёт отправить их без галочки. Факт согласия пишется в журнал: страница, версия документа, время.",
+                  href: "/blog/rkn-notification",
+                  link: "И про уведомление в РКН",
+                },
+              ].map((c) => (
+                <div
+                  key={c.title}
+                  className="flex flex-col rounded-2xl border border-slate-200/70 bg-white/70 p-6 dark:border-slate-700/60 dark:bg-slate-900/60"
+                >
+                  <div className="text-2xl">{c.icon}</div>
+                  <h3 className="mt-3 text-lg font-semibold">{c.title}</h3>
+                  <p className="mt-2 flex-1 text-sm text-slate-600 dark:text-slate-400">{c.text}</p>
+                  <Link
+                    href={c.href}
+                    className="mt-4 text-sm font-medium text-brand hover:underline"
+                  >
+                    {c.link} →
+                  </Link>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href="/register"
+                className="rounded-xl bg-gradient-to-r from-brand to-brand-light px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
+              >
+                Проверить свой сайт
+              </Link>
+              <span className="text-sm text-slate-500">
+                Техническая проверка, не юридическое заключение
+              </span>
+            </div>
+          </div>
         </div>
       </section>
 
