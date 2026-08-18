@@ -62,6 +62,22 @@ export const PUBLIC_SCAN_PROFILE: ScanOptions = {
   submitForms: false,
 };
 
+/**
+ * Отчёт, очищенный для выдачи наружу. Публичная проверка запускается по любому чужому
+ * адресу, поэтому собранные со страниц контакты в ответ не идут: иначе страница
+ * превращается в бесплатный сборщик почт и телефонов с любого сайта.
+ */
+export type PublicScanReport = Omit<ScanReport, "emails" | "phones" | "summary"> & {
+  summary: Omit<ScanReport["summary"], "emails" | "phones">;
+};
+
+/** Убирает из отчёта то, что нельзя показывать постороннему. */
+export function toPublicReport(report: ScanReport): PublicScanReport {
+  const { emails: _emails, phones: _phones, summary, ...rest } = report;
+  const { emails: _se, phones: _sp, ...publicSummary } = summary;
+  return { ...rest, summary: publicSummary };
+}
+
 export type AssetKind = "script" | "style" | "image" | "font" | "other";
 // Тип сетевого запроса для медленных: страница, статика или динамический запрос (XHR/fetch).
 export type RequestKind = "page" | "script" | "style" | "image" | "font" | "xhr" | "other";

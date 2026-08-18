@@ -31,6 +31,7 @@ export const EXTERNAL_TITLES: Record<string, string> = {
   "/for-marketers": "Logsy для маркетологов",
   "/for-developers": "Logsy для разработчиков",
   "/speed-test": "Проверить скорость загрузки сайта онлайн",
+  "/site-check": "Проверить сайт онлайн: ошибки, скорость и 152-ФЗ",
   "/docs/api": "Документация публичного API",
   "/docs/for-agents": "Logsy для ИИ-агентов",
   "/register": "Подключить сайт",

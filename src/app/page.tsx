@@ -828,7 +828,7 @@ export default async function LandingPage() {
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
-                href="/register"
+                href="/site-check"
                 className="rounded-xl bg-gradient-to-r from-brand to-brand-light px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
               >
                 Проверить свой сайт

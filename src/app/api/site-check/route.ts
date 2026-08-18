@@ -7,7 +7,12 @@
 //   • есть ограничения нагрузки — обход держит Chromium и стоит дорого:
 //       – не больше PARALLEL одновременных обходов на весь процесс;
 //       – не больше PER_IP_HOUR запусков с одного IP в час;
-//       – повторная проверка того же домена в течение CACHE_MIN минут отдаёт прошлый отчёт.
+//       – повторная проверка того же домена раньше COOLDOWN_MIN минут отклоняется.
+//
+// Уже собранные отчёты наружу НЕ отдаются: на запрос всегда идёт свой обход, а если по
+// этому домену недавно уже ходили — приходит отказ с просьбой подождать. Иначе через
+// публичный адрес можно было бы вытащить чужой прогон, в том числе админский (он глубже
+// и отправляет формы). Из ответа дополнительно вырезаются собранные со страниц контакты.
 //
 // Каждый прогон сохраняется в SiteScan с source=PUBLIC — история публичных проверок
 // видна админу там же, где админские обходы, и по найденным почтам работает аутрич.
@@ -16,7 +21,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
-import { normalizeScanUrl, scanSite, PUBLIC_SCAN_PROFILE, type ScanReport } from "@/lib/siteScanner";
+import { normalizeScanUrl, scanSite, toPublicReport, PUBLIC_SCAN_PROFILE } from "@/lib/siteScanner";
 import { analyzeCompliance } from "@/lib/compliance";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +31,7 @@ export const maxDuration = 60;
 
 const PARALLEL = 2; // сколько обходов одновременно на процесс
 const PER_IP_HOUR = 5; // запусков с одного IP в час
-const CACHE_MIN = 15; // сколько минут отдавать прошлый отчёт по тому же домену
+const COOLDOWN_MIN = 15; // как скоро можно проверить тот же домен повторно
 
 const schema = z.object({
   url: z.string().min(1, "Укажите адрес сайта").max(2000),
@@ -52,19 +57,27 @@ export async function POST(req: Request) {
   const domain = url.hostname.toLowerCase();
   const ip = getClientIp(req);
 
-  // Свежий отчёт по этому домену — отдаём его, не гоняя браузер второй раз.
-  const cached = await prisma.siteScan.findFirst({
-    where: { domain, createdAt: { gt: new Date(Date.now() - CACHE_MIN * 60_000) } },
+  // Недавно этот домен уже проверяли — отказываем, а не отдаём прошлый отчёт.
+  // Отдать сохранённый прогон значило бы показать постороннему чужие данные, поэтому
+  // здесь только защита сайта-цели от повторных обходов.
+  const recentForDomain = await prisma.siteScan.findFirst({
+    where: {
+      domain,
+      source: "PUBLIC",
+      createdAt: { gt: new Date(Date.now() - COOLDOWN_MIN * 60_000) },
+    },
     orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
   });
-  if (cached) {
-    return NextResponse.json({
-      scanId: cached.id,
-      cached: true,
-      checkedAt: cached.createdAt,
-      report: JSON.parse(cached.report) as ScanReport,
-      compliance: cached.compliance ? JSON.parse(cached.compliance) : null,
-    });
+  if (recentForDomain) {
+    const waitMin = Math.max(
+      1,
+      COOLDOWN_MIN - Math.floor((Date.now() - recentForDomain.createdAt.getTime()) / 60_000),
+    );
+    return NextResponse.json(
+      { error: `Этот сайт недавно проверяли. Следующая проверка будет доступна через ${waitMin} мин.` },
+      { status: 429 },
+    );
   }
 
   if (ip) {
@@ -120,7 +133,14 @@ export async function POST(req: Request) {
       /* история не записалась — не страшно */
     }
 
-    return NextResponse.json({ scanId, cached: false, checkedAt: new Date(), report, compliance });
+    // Наружу — очищенный отчёт: собранные со страниц почты и телефоны остаются только
+    // в сохранённом прогоне, который виден админу.
+    return NextResponse.json({
+      scanId,
+      checkedAt: new Date(),
+      report: toPublicReport(report),
+      compliance,
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Не удалось проверить сайт";
     return NextResponse.json({ error: message }, { status: 502 });

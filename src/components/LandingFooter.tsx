@@ -30,6 +30,7 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
   {
     title: "Проверки",
     links: [
+      { href: "/site-check", label: "Проверить сайт" },
       { href: "/site-audit", label: "Аудит сайта" },
       { href: "/speed-test", label: "Скорость сайта" },
       { href: "/tools/redirects", label: "Редиректы" },

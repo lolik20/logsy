@@ -20,6 +20,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/for-marketers", priority: 0.8, changeFrequency: "monthly" },
     { path: "/for-developers", priority: 0.8, changeFrequency: "monthly" },
     { path: "/speed-test", priority: 0.9, changeFrequency: "weekly" },
+    { path: "/site-check", priority: 0.9, changeFrequency: "weekly" },
     { path: "/docs/api", priority: 0.7, changeFrequency: "monthly" },
     { path: "/docs/for-agents", priority: 0.7, changeFrequency: "monthly" },
     { path: "/offer", priority: 0.3, changeFrequency: "yearly" },
