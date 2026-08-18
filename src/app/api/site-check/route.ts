@@ -23,6 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/request-ip";
 import { normalizeScanUrl, scanSite, toPublicReport, PUBLIC_SCAN_PROFILE } from "@/lib/siteScanner";
 import { analyzeCompliance } from "@/lib/compliance";
+import { verifyCheckToken } from "@/lib/site-check-token";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -35,18 +36,44 @@ const COOLDOWN_MIN = 15; // как скоро можно проверить то
 
 const schema = z.object({
   url: z.string().min(1, "Укажите адрес сайта").max(2000),
+  /** Токен, выданный страницей /site-check при рендере. */
+  token: z.string().max(200).optional(),
 });
+
+/** Запрос пришёл со страницы сайта, а не из чужого скрипта? */
+function fromOwnPage(req: Request): boolean {
+  const own = (process.env.APP_URL || process.env.NEXTAUTH_URL || "").replace(/\/+$/, "");
+  if (!own) return true; // адрес не задан — не на чем проверять, пропускаем
+  const origin = req.headers.get("origin");
+  if (origin) return origin.replace(/\/+$/, "") === own;
+  const referer = req.headers.get("referer");
+  return !!referer && referer.startsWith(own + "/");
+}
 
 // Счётчик одновременных обходов живёт в памяти процесса: этого достаточно, чтобы один
 // инстанс не запускал десяток браузеров разом.
 let running = 0;
 
 export async function POST(req: Request) {
+  // Эндпоинт обслуживает страницу /site-check, а не является публичным API: запрос
+  // должен прийти с нашей же страницы и принести выданный ею токен. Иначе обход
+  // превращается в бесплатный сканер по чужим доменам, запускаемый из скрипта.
+  if (!fromOwnPage(req)) {
+    return NextResponse.json({ error: "Проверка доступна только со страницы сервиса" }, { status: 403 });
+  }
+
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Некорректные данные" },
       { status: 400 },
+    );
+  }
+
+  if (!verifyCheckToken(parsed.data.token)) {
+    return NextResponse.json(
+      { error: "Страница устарела — обновите её и повторите проверку" },
+      { status: 403 },
     );
   }
 

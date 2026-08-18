@@ -61,7 +61,7 @@ function ms(value: number): string {
   return value < 1000 ? `${value} мс` : `${(value / 1000).toFixed(1)} с`;
 }
 
-export function SiteCheckForm() {
+export function SiteCheckForm({ token }: { token: string }) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -89,7 +89,7 @@ export function SiteCheckForm() {
       const res = await fetch("/api/site-check", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, token }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

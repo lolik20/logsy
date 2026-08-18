@@ -11,6 +11,7 @@ import { LandingNav } from "@/components/LandingNav";
 import { LandingFooter } from "@/components/LandingFooter";
 import { SiteCheckForm } from "@/components/SiteCheckForm";
 import { appUrl } from "@/lib/api-docs";
+import { issueCheckToken } from "@/lib/site-check-token";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,8 @@ const FAQ = [
 export default async function SiteCheckPage() {
   const session = await auth();
   const base = appUrl();
+  // Токен живёт 30 минут и подтверждает, что запрос пришёл со страницы, а не из скрипта.
+  const token = issueCheckToken();
 
   const jsonLd = [
     {
@@ -100,7 +103,7 @@ export default async function SiteCheckPage() {
         </p>
 
         <div className="mt-8">
-          <SiteCheckForm />
+          <SiteCheckForm token={token} />
         </div>
 
         {/* Что входит в отчёт */}
