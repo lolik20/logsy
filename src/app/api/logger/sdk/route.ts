@@ -122,6 +122,9 @@ const SDK = `(function(){
             if (d.feedback) { try { initFeedback(); } catch (e) { dbg("initFeedback бросил исключение", e); } }
             // Автоблок уведомления о cookie — включается флагом cookie в конфиге проекта.
             if (d.cookie) { try { initCookieBanner(); } catch (e) { dbg("initCookieBanner бросил исключение", e); } }
+            // Галочка согласия на обработку ПД (152-ФЗ). Конфиг приходит, только если
+            // фича включена в панели И документы проекта опубликованы.
+            if (d.consent) { try { initConsent(d.consent); } catch (e) { dbg("initConsent бросил исключение", e); } }
             // Автоблок «отключите VPN». Страну по IP считает сервер: флаг vpn приходит
             // true только если опция включена И посетитель определился как не из РФ.
             if (d.vpn) { try { initVpnNotice(); } catch (e) { dbg("initVpnNotice бросил исключение", e); } }
@@ -1080,6 +1083,249 @@ const SDK = `(function(){
           try { built.host.remove(); } catch (e) {}
         });
         dbg("VPN-блок показан");
+      });
+    }
+
+    // ---- Галочка согласия на обработку персональных данных (152-ФЗ) ----
+    // Конфиг приходит из панели проекта (вкладка «Документы»): текст рядом с галочкой,
+    // режим и адреса опубликованных документов. Чекбокс ставим в ОБЫЧНЫЙ DOM формы, а не
+    // в Shadow DOM, — иначе он не уедет вместе с данными и его не увидят обработчики сайта.
+    // В строгом режиме (STRICT) отправка без галочки блокируется, в мягком (SOFT) факт
+    // просто фиксируется. Доказательством по ч. 1 ст. 9 152-ФЗ является не галочка на экране,
+    // а запись в журнале — поэтому при отправке формы факт уходит на /api/logger/consent.
+    var CONSENT_URL = origin + "/api/logger/consent";
+    var consentCfg = null;
+    var consentReady = false;
+
+    // Поля, из-за которых форма считается собирающей персональные данные.
+    var PD_NAME_RE = /mail|phone|tel|fio|name|имя|фамил|телеф|почт/i;
+    // Служебные поля поиска — форма поиска персональных данных не собирает.
+    var SEARCH_NAME_RE = /^(q|s|query|search|поиск)$/i;
+    // Признак того, что владелец сайта уже поставил свою галочку согласия.
+    var OWN_CONSENT_RE = /соглас|персональн|обработк|политик|privacy/i;
+
+    // Собирает ли форма персональные данные. Формы входа (есть поле пароля) пропускаем:
+    // там обрабатываются учётные данные, а не заявка посетителя.
+    function formCollectsPd(form) {
+      var fields = form.querySelectorAll("input, textarea");
+      var hasPd = false;
+      for (var i = 0; i < fields.length; i++) {
+        var f = fields[i];
+        var type = (f.type || "").toLowerCase();
+        if (type === "password") return false;
+        if (type === "hidden" || type === "submit" || type === "button" || type === "search") continue;
+        var name = f.name || "";
+        if (SEARCH_NAME_RE.test(name)) continue;
+        if (type === "email" || type === "tel") { hasPd = true; continue; }
+        var key = name + " " + (f.id || "") + " " + (f.placeholder || "") + " " + (f.getAttribute("autocomplete") || "");
+        if (PD_NAME_RE.test(key)) hasPd = true;
+      }
+      return hasPd;
+    }
+
+    // В форме уже есть чекбокс с текстом про согласие или политику — своё не навязываем.
+    function formHasOwnConsent(form) {
+      try {
+        if (!form.querySelector("input[type=checkbox]")) return false;
+        return OWN_CONSENT_RE.test(form.innerText || form.textContent || "");
+      } catch (e) { return false; }
+    }
+
+    // Строка «галочка + текст + ссылки». Ссылки внутри label безопасны: по спецификации
+    // клик по интерактивному потомку не переключает чекбокс.
+    function consentRow(text, links, name) {
+      var row = document.createElement("label");
+      row.style.cssText = "display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin-top:6px;font-size:13px;line-height:1.4;text-align:left;font-weight:normal;";
+      var input = document.createElement("input");
+      input.type = "checkbox";
+      input.name = name;
+      input.value = "1";
+      input.style.cssText = "margin:2px 0 0 0;flex:none;width:14px;height:14px;";
+      var span = document.createElement("span");
+      span.appendChild(document.createTextNode(text));
+      for (var i = 0; i < links.length; i++) {
+        span.appendChild(document.createTextNode(i === 0 ? " — " : ", "));
+        var a = document.createElement("a");
+        a.href = links[i].url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = links[i].title;
+        a.style.cssText = "color:inherit;text-decoration:underline;";
+        span.appendChild(a);
+      }
+      row.appendChild(input);
+      row.appendChild(span);
+      return { row: row, input: input };
+    }
+
+    // Отправка факта согласия. Тело — text/plain, чтобы запрос остался CORS-simple, и через
+    // сохранённый _origFetch, иначе собственный запрос попал бы в лог сетевых событий.
+    function consentSend(kind, form, text) {
+      try {
+        var action = null;
+        try { if (form && form.action) action = String(form.action).slice(0, 2000); } catch (e) {}
+        var body = JSON.stringify({
+          kind: kind,
+          page: location.href.slice(0, 2000),
+          formAction: action,
+          sessionKey: sid,
+          text: text ? String(text).slice(0, 1000) : null
+        });
+        dbg("согласие " + kind + " → " + CONSENT_URL);
+        if (navigator.sendBeacon) {
+          var ok = false;
+          try { ok = navigator.sendBeacon(CONSENT_URL, new Blob([body], { type: "text/plain" })); } catch (e) { ok = false; }
+          if (ok) return;
+        }
+        (_origFetch || fetch)(CONSENT_URL, {
+          method: "POST",
+          headers: { "content-type": "text/plain" },
+          body: body,
+          keepalive: true,
+          credentials: "omit",
+          mode: "cors"
+        }).catch(function () {});
+      } catch (e) { dbg("не удалось отправить согласие", e); }
+    }
+
+    // Пишем согласие при отправке формы. Отправка иногда порождает пару событий (клик по
+    // кнопке и submit) — от дублей защищаемся отметкой времени.
+    function consentLog(st, form) {
+      var now = Date.now();
+      if (st.sentAt && now - st.sentAt < 3000) return;
+      st.sentAt = now;
+      if (st.input.checked) consentSend("PD", form, st.text);
+      if (st.marketing && st.marketing.checked) consentSend("MARKETING", form, st.marketingText);
+    }
+
+    // Строгий режим: гасим событие целиком, чтобы до обработчиков сайта оно не дошло.
+    function consentBlock(e, st) {
+      try {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      } catch (er) {}
+      st.hint.style.display = "block";
+      try { st.input.focus(); } catch (er) {}
+    }
+
+    // Встраивает галочку в одну форму. Владелец сайта может отказаться от встраивания
+    // атрибутом data-logsy-consent="off" на форме или на любом её предке.
+    function attachConsent(form) {
+      if (form.__logsy_consent) {
+        // React и подобные библиотеки при перерисовке выбрасывают наш узел — вернём его.
+        if (form.contains(form.__logsy_consent.input)) return;
+        form.__logsy_consent = null;
+      }
+      if ((form.getAttribute("data-logsy-consent") || "") === "off") return;
+      try { if (form.closest && form.closest("[data-logsy-consent=off]")) return; } catch (e) {}
+      if (!formCollectsPd(form)) return;
+      if (formHasOwnConsent(form)) { dbg("галочка согласия: в форме уже есть своя — пропускаем"); return; }
+
+      var links = [];
+      if (consentCfg.privacyUrl) links.push({ title: "Политика обработки данных", url: consentCfg.privacyUrl });
+      if (consentCfg.consentUrl) links.push({ title: "Согласие", url: consentCfg.consentUrl });
+      if (consentCfg.offerUrl) links.push({ title: "Оферта", url: consentCfg.offerUrl });
+
+      var wrap = document.createElement("div");
+      wrap.setAttribute("data-logsy-consent-block", "1");
+      wrap.style.cssText = "margin:10px 0;";
+
+      var pd = consentRow(consentCfg.text, links, "logsy_consent");
+      wrap.appendChild(pd.row);
+
+      // Согласие на рекламу отделяется от основного (ч. 1 ст. 18 ФЗ «О рекламе»),
+      // поэтому это отдельная галочка и она никогда не обязательна.
+      var marketingText = "Согласен получать рекламные и информационные сообщения";
+      var mk = null;
+      if (consentCfg.marketing) {
+        mk = consentRow(marketingText, [], "logsy_consent_marketing");
+        wrap.appendChild(mk.row);
+      }
+
+      var hint = document.createElement("div");
+      hint.style.cssText = "display:none;margin-top:6px;color:#dc2626;font-size:12px;";
+      hint.textContent = "Отметьте согласие на обработку персональных данных";
+      wrap.appendChild(hint);
+
+      pd.input.addEventListener("change", function () {
+        if (pd.input.checked) hint.style.display = "none";
+      });
+
+      // Ставим перед кнопкой отправки, если она нашлась, иначе в конец формы.
+      var submit = null;
+      try { submit = form.querySelector("button[type=submit], input[type=submit], button:not([type])"); } catch (e) {}
+      if (submit && submit.parentNode && form.contains(submit)) submit.parentNode.insertBefore(wrap, submit);
+      else form.appendChild(wrap);
+
+      form.__logsy_consent = {
+        input: pd.input,
+        marketing: mk ? mk.input : null,
+        hint: hint,
+        text: consentCfg.text,
+        marketingText: marketingText,
+        strict: consentCfg.mode !== "SOFT",
+        sentAt: 0
+      };
+      dbg("галочка согласия встроена в форму" + (form.action ? " " + form.action : ""));
+    }
+
+    function scanConsentForms() {
+      try {
+        var forms = document.querySelectorAll("form");
+        for (var i = 0; i < forms.length; i++) { try { attachConsent(forms[i]); } catch (e) {} }
+      } catch (e) {}
+    }
+
+    function initConsent(cfg) {
+      if (consentReady || !cfg || !cfg.text) return;
+      consentReady = true;
+      consentCfg = cfg;
+
+      whenBody(function () {
+        scanConsentForms();
+
+        // Формы часто появляются позже: попапы, шаги оформления заказа, SPA-навигация.
+        var rescan = null;
+        try {
+          new MutationObserver(function (muts) {
+            for (var i = 0; i < muts.length; i++) {
+              if (muts[i].addedNodes && muts[i].addedNodes.length) {
+                if (rescan) return;
+                rescan = setTimeout(function () { rescan = null; scanConsentForms(); }, 400);
+                return;
+              }
+            }
+          }).observe(document.body, { childList: true, subtree: true });
+        } catch (e) {}
+
+        // Слушаем на document в фазе перехвата: так наш обработчик отрабатывает раньше
+        // обработчиков сайта и в строгом режиме отправку удаётся остановить.
+        document.addEventListener("submit", function (e) {
+          var form = e.target;
+          var st = form && form.__logsy_consent;
+          if (!st) return;
+          if (st.strict && !st.input.checked) { consentBlock(e, st); return; }
+          consentLog(st, form);
+        }, true);
+
+        // Формы, которые отправляет скрипт сайта, события submit не порождают — тогда
+        // перехватываем клик по кнопке отправки.
+        document.addEventListener("click", function (e) {
+          var el = e.target;
+          if (!el || !el.closest) return;
+          var ctrl = el.closest("button, input[type=submit], input[type=image]");
+          if (!ctrl) return;
+          var type = (ctrl.getAttribute("type") || "").toLowerCase();
+          if (ctrl.tagName === "BUTTON" && (type === "button" || type === "reset")) return;
+          var form = ctrl.form || ctrl.closest("form");
+          var st = form && form.__logsy_consent;
+          if (!st) return;
+          if (st.strict && !st.input.checked) { consentBlock(e, st); return; }
+          consentLog(st, form);
+        }, true);
+
+        dbg("галочка согласия активна, режим=" + (consentCfg.mode || "STRICT"));
       });
     }
 

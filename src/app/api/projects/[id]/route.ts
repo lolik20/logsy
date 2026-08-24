@@ -13,6 +13,8 @@ const patchSchema = z.object({
   cookieBanner: z.boolean().optional(),
   // Автоблок с просьбой отключить VPN (показывается посетителям не из РФ).
   vpnNotice: z.boolean().optional(),
+  // Галочка согласия на обработку ПД в формах сайта (реквизиты и режим — в ProjectLegal).
+  consentEnabled: z.boolean().optional(),
   // Порог «медленного» запроса в мс (0…60000). 0 — считать медленным любой запрос.
   slowMs: z.number().int().min(0).max(60000).optional(),
 });
@@ -52,6 +54,7 @@ export async function PATCH(
     recordSession?: boolean;
     cookieBanner?: boolean;
     vpnNotice?: boolean;
+    consentEnabled?: boolean;
     slowMs?: number;
   } = {};
   if (parsed.data.checkSsl !== undefined) {
@@ -81,6 +84,9 @@ export async function PATCH(
   }
   if (parsed.data.vpnNotice !== undefined) {
     data.vpnNotice = parsed.data.vpnNotice;
+  }
+  if (parsed.data.consentEnabled !== undefined) {
+    data.consentEnabled = parsed.data.consentEnabled;
   }
   if (parsed.data.slowMs !== undefined) {
     data.slowMs = parsed.data.slowMs;
