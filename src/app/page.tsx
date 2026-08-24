@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import {
@@ -10,6 +11,16 @@ import {
 } from "@/lib/pricing";
 import { LandingNav } from "@/components/LandingNav";
 import { LandingFooter } from "@/components/LandingFooter";
+
+// Заголовок главной — под запрос-ядро «мониторинг сайта» (10 315 показов в месяц,
+// Wordstat, регион «Россия»). Названия сервиса в title нет: место дороже узнаваемости,
+// бренд читается по домену в выдаче.
+export const metadata: Metadata = {
+  title: "Мониторинг сайта 24/7: узнаете о падении раньше клиентов",
+  description:
+    "Мониторинг доступности и работы сайта каждую минуту: контроль SSL и домена, логирование ошибок JavaScript, запись сессий посетителей. Алерты на почту и в Telegram, серверы и данные в России.",
+  alternates: { canonical: "/" },
+};
 
 const features = [
   {
@@ -1007,6 +1018,71 @@ export default async function LandingPage() {
               >
                 Настроить тариф
               </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Публичное API: документация открыта без авторизации — и для людей, и для ИИ-агентов */}
+      <section id="api" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
+        <div className="rounded-3xl border border-white/50 bg-white/60 p-8 shadow-card backdrop-blur-xl sm:p-10 dark:border-white/10 dark:bg-slate-900/50">
+          <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
+            <div>
+              <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand dark:bg-brand/10">
+                Публичное API
+              </span>
+              <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
+                Документация открыта — читаете вы, читает ваш ИИ-агент
+              </h2>
+              <p className="mt-4 text-slate-600 dark:text-slate-300">
+                Сессии посетителей и все их события — ошибки JavaScript со стектрейсом,
+                упавшие и медленные запросы с телом и заголовками — отдаются в JSON по
+                ключу проекта. Документация, OpenAPI-спецификация и llms.txt открыты без
+                авторизации: дайте ключ Claude Code или Cursor — агент сам заберёт
+                стектрейс и починит конкретное место, вместо того чтобы гадать по
+                пересказу.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href="/docs/api"
+                  className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-card hover:bg-brand-dark"
+                >
+                  Документация API
+                </Link>
+                <Link
+                  href="/docs/for-agents"
+                  className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:border-brand hover:text-brand dark:border-slate-700 dark:text-slate-200"
+                >
+                  Для ИИ-агентов
+                </Link>
+                <a
+                  href="/llms.txt"
+                  className="rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-500 hover:text-brand dark:text-slate-400"
+                >
+                  llms.txt
+                </a>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 p-5 text-xs leading-relaxed text-slate-300 shadow-card">
+              <div className="mb-3 flex gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                <span className="h-2.5 w-2.5 rounded-full bg-green-400" />
+              </div>
+              <pre className="overflow-x-auto font-mono">
+                <code>{`# список сессий сайта
+curl -H "Authorization: Bearer $LOGSY_API_KEY" \\
+  https://logsy.ru/api/v1/sessions?limit=20
+
+# полная лента одной сессии
+curl -H "Authorization: Bearer $LOGSY_API_KEY" \\
+  https://logsy.ru/api/v1/sessions/{id}`}</code>
+              </pre>
+              <p className="mt-4 border-t border-slate-800 pt-3 text-[11px] text-slate-500">
+                Методы только на чтение, ответ всегда JSON. Ключ проекта — в панели, на
+                вкладке «API».
+              </p>
             </div>
           </div>
         </div>
