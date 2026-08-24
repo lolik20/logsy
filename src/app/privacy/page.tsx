@@ -5,7 +5,7 @@ import { LandingNav } from "@/components/LandingNav";
 import { LandingFooter } from "@/components/LandingFooter";
 
 export const metadata: Metadata = {
-  title: "Политика обработки персональных данных — Logsy",
+  title: "Политика обработки персональных данных сервиса по 152-ФЗ",
   description:
     "Как сервис Logsy обрабатывает и защищает персональные данные пользователей и посетителей сайтов клиентов в соответствии с Федеральным законом № 152-ФЗ «О персональных данных».",
 };

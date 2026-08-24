@@ -17,10 +17,10 @@ export function generateMetadata({ params }: { params: { method: string } }): Me
   const endpoint = endpointBySlug(params.method);
   if (!endpoint) return { title: "Метод не найден" };
   return {
-    title: `${endpoint.method} ${endpoint.path} — API Logsy`,
+    title: `${endpoint.method} ${endpoint.path} — документация API`,
     description: endpoint.summary,
     alternates: { canonical: `/docs/api/${endpoint.slug}` },
-    openGraph: { title: `${endpoint.method} ${endpoint.path} — API Logsy`, description: endpoint.summary, type: "article" },
+    openGraph: { title: `${endpoint.method} ${endpoint.path} — документация API`, description: endpoint.summary, type: "article" },
   };
 }
 

@@ -5,7 +5,7 @@ import { LandingNav } from "@/components/LandingNav";
 import { SpeedTestForm } from "@/components/SpeedTestForm";
 
 export const metadata: Metadata = {
-  title: "Проверить скорость сайта онлайн — Logsy",
+  title: "Проверить скорость загрузки сайта онлайн бесплатно",
   description:
     "Бесплатный онлайн-инструмент: узнайте скорость загрузки сайта по URL — время до первого байта, полное время загрузки и размер ответа. А Logsy покажет, что происходит после загрузки: подробное логирование сессий и запись экрана пользователей.",
 };

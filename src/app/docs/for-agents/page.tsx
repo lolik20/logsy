@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     "Как подключить Logsy к ИИ-агенту: ключ проекта, OpenAPI, llms.txt и готовые запросы. Агент видит стектрейс ошибки, упавший запрос с телом и шаги пользователя до сбоя.",
   alternates: { canonical: "/docs/for-agents" },
   openGraph: {
-    title: "Logsy для ИИ-агентов",
+    title: "Ошибки прода для ИИ-агента: ключ проекта, OpenAPI и llms.txt",
     description:
       "Ключ проекта, OpenAPI и llms.txt — агент сам забирает сессии и ошибки прода и чинит по фактам, а не по скриншоту.",
     type: "article",

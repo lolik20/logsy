@@ -8,7 +8,7 @@ const crumb = { title: "Коды ошибок", href: "/errors/500" };
 export const ERROR_PAGES: SeoPageContent[] = [
   {
     url: "/errors/500",
-    title: "Ошибка 500 Internal Server Error: причины и что делать",
+    title: "Ошибка 500 Internal Server Error: что значит и как исправить",
     description:
       "Что означает ошибка 500 на сайте, из-за чего появляется и как найти причину: логи сервера, последний деплой, база данных. Пошаговый разбор и способ поймать сбой сразу.",
     h1: "Ошибка 500 Internal Server Error: причины и что делать",
@@ -71,7 +71,7 @@ export const ERROR_PAGES: SeoPageContent[] = [
   },
   {
     url: "/errors/502",
-    title: "Ошибка 502 Bad Gateway: как найти и починить",
+    title: "Ошибка 502 Bad Gateway: что значит и как исправить в nginx",
     description:
       "Ошибка 502 Bad Gateway: что означает, почему появляется на nginx и что делать. Разбор причин — упавший upstream, таймаут, перегрузка — и способ поймать сбой сразу.",
     h1: "Ошибка 502 Bad Gateway: как найти и починить",
@@ -134,7 +134,7 @@ export const ERROR_PAGES: SeoPageContent[] = [
   },
   {
     url: "/errors/504",
-    title: "Ошибка 504 Gateway Timeout: сервер не ответил вовремя",
+    title: "Ошибка 504 Gateway Timeout: что значит и как исправить",
     description:
       "Ошибка 504 Gateway Timeout: почему сервер не успевает ответить, где искать долгий запрос и как это чинить. Разбор причин и способ отследить медленные ответы.",
     h1: "Ошибка 504 Gateway Timeout: сервер не ответил вовремя",
@@ -195,7 +195,7 @@ export const ERROR_PAGES: SeoPageContent[] = [
   },
   {
     url: "/errors/403",
-    title: "Ошибка 403 Forbidden: доступ запрещён — что делать",
+    title: "Ошибка 403 Forbidden на сайте: что значит и как исправить",
     description:
       "Ошибка 403 Forbidden: почему сервер запрещает доступ и как это исправить. Права на файлы, .htaccess, блокировки по IP и защита от ботов — разбор с шагами.",
     h1: "Ошибка 403 Forbidden: доступ запрещён",
@@ -252,7 +252,7 @@ export const ERROR_PAGES: SeoPageContent[] = [
   },
   {
     url: "/errors/429",
-    title: "Ошибка 429 Too Many Requests: что значит и как убрать",
+    title: "Ошибка 429 Too Many Requests: что значит и как исправить",
     description:
       "Ошибка 429 Too Many Requests: почему сервер ограничивает частоту запросов, как её снять на своём сайте и что делать при работе с чужим API.",
     h1: "Ошибка 429 Too Many Requests: слишком много запросов",
@@ -307,7 +307,7 @@ export const ERROR_PAGES: SeoPageContent[] = [
   },
   {
     url: "/errors/connection-refused",
-    title: "ERR_CONNECTION_REFUSED: не удаётся получить доступ к сайту",
+    title: "ERR_CONNECTION_REFUSED: ошибка соединения с сервером — что делать",
     description:
       "«Не удаётся получить доступ к сайту» и ERR_CONNECTION_REFUSED: что означает, чья это проблема и как проверить сайт, сеть и DNS по шагам.",
     h1: "ERR_CONNECTION_REFUSED: не удаётся получить доступ к сайту",
@@ -367,7 +367,7 @@ export const ERROR_PAGES: SeoPageContent[] = [
   },
   {
     url: "/errors/ssl-connection",
-    title: "«Этот сайт не может обеспечить безопасное соединение» — решение",
+    title: "Этот сайт не может обеспечить безопасное соединение: как исправить",
     description:
       "Ошибка безопасного соединения: истёкший или неполный SSL-сертификат, неверное имя, старые протоколы. Как найти причину и починить HTTPS на сайте.",
     h1: "«Этот сайт не может обеспечить безопасное соединение»",
@@ -429,7 +429,7 @@ export const ERROR_PAGES: SeoPageContent[] = [
   },
   {
     url: "/errors/too-many-redirects",
-    title: "«Сайт выполнил переадресацию слишком много раз» — как исправить",
+    title: "Сайт выполнил переадресацию слишком много раз: как исправить",
     description:
       "Цикл редиректов: почему сайт бесконечно перенаправляет, где искать петлю в .htaccess, nginx и CMS, и как проверить цепочку переадресаций.",
     h1: "«Сайт выполнил переадресацию слишком много раз»: цикл редиректов",

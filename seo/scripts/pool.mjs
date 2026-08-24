@@ -1,7 +1,12 @@
 // Чистый пул запросов: объединяет отчёты Wordstat, режет мусор, отдаёт TSV.
 import fs from "node:fs";
 
-const files = ["wordstat1.json", "wordstat2.json", "wordstat3.json", "wordstat4.json", "wordstat5.json", "wordstat6.json", "wordstat7.json"].filter((f) => fs.existsSync(f));
+// Проходы сбора нумеруются по порядку: wordstat1.json, wordstat2.json и так далее.
+// Список не зашит, чтобы новый проход подхватывался без правки скрипта.
+const files = fs
+  .readdirSync(".")
+  .filter((f) => /^wordstat\d+\.json$/.test(f))
+  .sort((a, b) => parseInt(a.slice(8)) - parseInt(b.slice(8)));
 const raw = files.flatMap((f) => JSON.parse(fs.readFileSync(f, "utf8")));
 
 const pool = new Map();

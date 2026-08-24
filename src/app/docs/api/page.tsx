@@ -12,12 +12,12 @@ import { API_ENDPOINTS, appUrl } from "@/lib/api-docs";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Документация API: сессии и события сайта в JSON — Logsy",
+  title: "Документация API: сессии и события сайта в JSON, OpenAPI",
   description:
     "Документация API Logsy: сессии посетителей сайта, ошибки JavaScript со стектрейсом, упавшие и медленные запросы. Авторизация ключом проекта, ответы в JSON, OpenAPI-спецификация.",
   alternates: { canonical: "/docs/api" },
   openGraph: {
-    title: "API Logsy — документация публичного HTTP-API",
+    title: "Документация публичного HTTP-API: сессии и события сайта",
     description:
       "Сессии и события сайта в JSON: ошибки, упавшие запросы, действия посетителя. Ключ проекта, OpenAPI, llms.txt для ИИ-агентов.",
     type: "article",
@@ -40,7 +40,7 @@ export default async function ApiDocsPage() {
           / Документация API
         </nav>
 
-        <h1 className="mt-3 text-3xl font-bold sm:text-4xl">Документация API Logsy</h1>
+        <h1 className="mt-3 text-3xl font-bold sm:text-4xl">Документация публичного API</h1>
         <p className="mt-4 max-w-2xl text-slate-600 dark:text-slate-300">
           Публичное HTTP-API отдаёт то же, что вы видите в панели: сессии посетителей сайта и
           все их события — ошибки JavaScript со стектрейсом, упавшие и медленные запросы с
