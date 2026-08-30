@@ -1,0 +1,50 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Logsy 1.0.0\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ru_RU\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Logsy adds uptime monitoring, JavaScript error logging, session replay and RU 152-FZ consent tools to your site through a single script."
+msgstr "Logsy добавляет на сайт мониторинг доступности, логирование ошибок JavaScript, запись сессий и инструменты 152-ФЗ — одним скриптом."
+
+msgid "Create a free project at <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">logsy.ru</a> for the domain <code>%2$s</code>. The script is matched to your project by domain, so no API key is needed."
+msgstr "Создайте бесплатный проект на <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">logsy.ru</a> для домена <code>%2$s</code>. Скрипт привязывается к проекту по домену сайта — API-ключ не нужен."
+
+msgid "Enable the switch below — the monitoring script will be embedded on public pages."
+msgstr "Включите переключатель ниже — скрипт мониторинга будет встроен на публичные страницы."
+
+msgid "Open your <a href=\"%s\" target=\"_blank\" rel=\"noopener\">Logsy dashboard</a> to see sessions, errors and monitoring results."
+msgstr "Откройте <a href=\"%s\" target=\"_blank\" rel=\"noopener\">панель Logsy</a> — там сессии, ошибки и результаты мониторинга."
+
+msgid "Monitoring script"
+msgstr "Скрипт мониторинга"
+
+msgid "Enable: embed the Logsy script on public pages"
+msgstr "Включить: встраивать скрипт Logsy на публичные страницы"
+
+msgid "While disabled, the plugin makes no external requests and collects nothing."
+msgstr "Пока выключено, плагин не делает внешних запросов и ничего не собирает."
+
+msgid "Administrators"
+msgstr "Администраторы"
+
+msgid "Do not load the script for logged-in administrators"
+msgstr "Не загружать скрипт для вошедших администраторов"
+
+msgid "Keeps your own visits out of session recordings and error logs."
+msgstr "Ваши собственные визиты не попадут в записи сессий и журнал ошибок."
+
+msgid "Status: the script is being embedded. If no data appears in the dashboard within a few minutes, check that your Logsy project domain matches this site."
+msgstr "Статус: скрипт встраивается. Если данных в панели нет через несколько минут, проверьте, что домен проекта в Logsy совпадает с доменом сайта."
+
+msgid "Status: disabled — the script is not embedded."
+msgstr "Статус: выключено — скрипт не встраивается."
+
+msgid "When enabled, the script sends technical data about visitor sessions (JavaScript errors, network requests, page views, and — if enabled in your project — session recordings and consent events including IP address) to Logsy servers. See the <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">privacy policy</a> and <a href=\"%2$s\" target=\"_blank\" rel=\"noopener\">terms of service</a>."
+msgstr "Когда включено, скрипт отправляет на серверы Logsy технические данные о сессиях посетителей: ошибки JavaScript, сетевые запросы, просмотры страниц, а при включённых в проекте функциях — записи сессий и события согласий, включая IP-адрес. См. <a href=\"%1$s\" target=\"_blank\" rel=\"noopener\">политику конфиденциальности</a> и <a href=\"%2$s\" target=\"_blank\" rel=\"noopener\">оферту</a>."
