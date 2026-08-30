@@ -83,15 +83,15 @@ export function ProjectBillingManager({
     <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
       <div className="mb-1 text-lg font-semibold">Настройте тариф под себя</div>
       <p className="mb-6 text-sm text-slate-500">
-        {FREE_SESSIONS_PER_DAY} сессий в сутки и хранение логов{" "}
+        {FREE_SESSIONS_PER_DAY} пользователей в сутки и хранение логов{" "}
         {retentionHoursLabel(FREE_RETENTION_HOURS)} — бесплатно навсегда. Дальше:{" "}
-        {RUB_PER_SESSION_MONTH} ₽/мес за каждую суточную сессию и{" "}
+        {RUB_PER_SESSION_MONTH} ₽/мес за каждого пользователя в сутки и{" "}
         {RUB_PER_RETENTION_HOUR_MONTH} ₽/мес за каждый час хранения.
       </p>
 
       {/* Ползунок: суточные сессии */}
       <Slider
-        label="Пользовательских сессий в сутки"
+        label="Пользователей в сутки"
         value={sessions}
         min={FREE_SESSIONS_PER_DAY}
         max={MAX_SESSIONS_PER_DAY}

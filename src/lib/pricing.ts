@@ -61,7 +61,7 @@ export const FREE_SESSIONS_PER_DAY = 300;
 export const FREE_RETENTION_HOURS = 12;
 
 /** Доплата в месяц за каждую суточную сессию сверх бесплатных 300, ₽. */
-export const RUB_PER_SESSION_MONTH = 2;
+export const RUB_PER_SESSION_MONTH = 3;
 /** Доплата в месяц за каждый час хранения логов сверх бесплатных 12, ₽. */
 export const RUB_PER_RETENTION_HOUR_MONTH = 10;
 
@@ -87,11 +87,11 @@ export const FREE_TIER = {
   name: "Бесплатный",
   sessionsPerDay: FREE_SESSIONS_PER_DAY,
   retentionHours: FREE_RETENTION_HOURS,
-  sessionsLabel: `до ${FREE_SESSIONS_PER_DAY} сессий в сутки`,
+  sessionsLabel: `до ${FREE_SESSIONS_PER_DAY} пользователей в сутки`,
   features: [
     "Uptime-мониторинг",
     "Логирование фронт-ошибок и сессий",
-    `до ${FREE_SESSIONS_PER_DAY} сессий в сутки`,
+    `до ${FREE_SESSIONS_PER_DAY} пользователей в сутки`,
     "Хранение логов 12 часов",
     "Алертинг",
   ],
