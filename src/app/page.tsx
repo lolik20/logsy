@@ -5,12 +5,11 @@ import {
   FREE_TIER,
   FREE_SESSIONS_PER_DAY,
   FREE_RETENTION_HOURS,
-  RUB_PER_SESSION_MONTH,
-  RUB_PER_RETENTION_HOUR_MONTH,
   retentionHoursLabel,
 } from "@/lib/pricing";
 import { LandingNav } from "@/components/LandingNav";
 import { LandingFooter } from "@/components/LandingFooter";
+import { PricingCalculator } from "@/components/PricingCalculator";
 
 // Заголовок главной — под запрос-ядро «мониторинг сайта» (10 315 показов в месяц,
 // Wordstat, регион «Россия»). Названия сервиса в title нет: место дороже узнаваемости,
@@ -72,8 +71,8 @@ const problems = [
     icon: "🔒",
   },
   {
-    title: "Клиенты уходят",
-    text: "Каждая минута простоя — потерянные клиенты, деньги и репутация.",
+    title: "Реклама крутится вхолостую",
+    text: "Сайт лежит, а Директ продолжает списывать за клики. Каждый клик в этот час приводит посетителя на ошибку.",
     icon: "📉",
   },
 ];
@@ -82,7 +81,7 @@ export default async function LandingPage() {
   const session = await auth();
 
   return (
-    <main className="relative min-h-screen overflow-hidden">
+    <main className="relative min-h-screen overflow-x-clip">
       {/* Парящие градиентные пятна на фоне */}
       <div
         aria-hidden
@@ -101,7 +100,7 @@ export default async function LandingPage() {
       <LandingNav authed={!!session} />
 
       {/* Hero */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-16 pt-16 text-center">
+      <section className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 pb-16 pt-16 text-center">
         <h1 className="mx-auto max-w-3xl text-4xl font-extrabold leading-tight tracking-tight sm:text-6xl">
           Узнавайте о падении сайта{" "}
           <span className="bg-gradient-to-r from-brand to-sky-500 bg-clip-text text-transparent">
@@ -113,16 +112,16 @@ export default async function LandingPage() {
           сразу шлём уведомление о сбое на почту и в Telegram. Настройка за пару
           минут.
         </p>
-        <div className="mt-8 flex justify-center gap-3">
+        <div className="mx-auto mt-8 flex max-w-xs flex-col items-stretch justify-center gap-3 sm:max-w-none sm:flex-row sm:items-center">
           <Link
             href="/register"
-            className="rounded-xl bg-gradient-to-r from-brand to-brand-light px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
+            className="rounded-full bg-gradient-to-r from-brand to-brand-light px-7 py-3 text-center font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
           >
             Попробовать бесплатно
           </Link>
           <Link
             href="#pricing"
-            className="rounded-xl border border-white/50 bg-white/60 px-6 py-3 font-semibold text-slate-700 backdrop-blur-md transition-transform hover:-translate-y-0.5 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+            className="rounded-full border border-white/50 bg-white/60 px-7 py-3 text-center font-semibold text-slate-700 backdrop-blur-md backdrop-saturate-150 transition-transform hover:-translate-y-0.5 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
           >
             Тарифы
           </Link>
@@ -133,7 +132,7 @@ export default async function LandingPage() {
       {/* Логирование фронтенда — новое направление */}
       <section id="logging" className="relative z-10 mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="overflow-hidden rounded-3xl shadow-card">
-          <div className="rounded-3xl bg-white/80 p-5 backdrop-blur-xl sm:p-8 md:p-12 dark:bg-slate-900/80">
+          <div className="rounded-3xl bg-white/80 p-5 backdrop-blur-xl backdrop-saturate-150 sm:p-8 md:p-12 dark:bg-slate-900/80">
             <div className="text-center">
               <h2 className="mx-auto max-w-3xl text-3xl font-bold sm:text-4xl">
                 Следите за ошибками прода{" "}
@@ -657,7 +656,7 @@ export default async function LandingPage() {
               ].map((f) => (
                 <div
                   key={f.t}
-                  className="rounded-2xl border border-white/60 bg-white/70 p-5 backdrop-blur-md dark:border-white/10 dark:bg-white/5"
+                  className="rounded-2xl border border-white/60 bg-white/70 p-5 backdrop-blur-md backdrop-saturate-150 dark:border-white/10 dark:bg-white/5"
                 >
                   <div className="text-2xl">{f.icon}</div>
                   <h3 className="mt-3 text-base font-semibold">{f.t}</h3>
@@ -669,7 +668,7 @@ export default async function LandingPage() {
             <div className="mt-10 text-center">
               <Link
                 href="/register"
-                className="inline-block rounded-xl bg-gradient-to-r from-brand to-indigo-500 px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
+                className="inline-block rounded-full bg-gradient-to-r from-brand to-indigo-500 px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
               >
                 Подключить логирование
               </Link>
@@ -679,7 +678,7 @@ export default async function LandingPage() {
       </section>
 
       {/* Проблемы */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 py-16">
+      <section className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 py-16">
         <div className="text-center">
           <span className="inline-block rounded-full bg-red-50 px-4 py-1.5 text-sm font-medium text-red-600 dark:bg-red-950/40 dark:text-red-400">
             Знакомо?
@@ -692,7 +691,7 @@ export default async function LandingPage() {
           {problems.map((p) => (
             <div
               key={p.title}
-              className="rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50"
+              className="rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl backdrop-saturate-150 dark:border-white/10 dark:bg-slate-900/50"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-2xl dark:bg-red-950/40">
                 {p.icon}
@@ -707,16 +706,16 @@ export default async function LandingPage() {
       </section>
 
       {/* Решение как сервис */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 py-8">
+      <section className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 py-8">
         <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-sky-500 p-[1.5px] shadow-card">
-          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-5 backdrop-blur-xl sm:p-8 md:p-12 dark:bg-slate-900/80">
+          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-5 backdrop-blur-xl backdrop-saturate-150 sm:p-8 md:p-12 dark:bg-slate-900/80">
             <div className="grid items-center gap-8 md:grid-cols-2">
               <div>
                 <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand dark:bg-brand/10">
                   Решение — Logsy как сервис
                 </span>
                 <h2 className="mt-4 text-3xl font-bold sm:text-4xl">
-                  Мы следим за вашим бизнесом 24/7
+                  О сбое оплаты узнаете через 60 секунд
                 </h2>
                 <p className="mt-4 text-slate-600 dark:text-slate-300">
                   Круглосуточно проверяем оплату, авторизацию и ключевые API из
@@ -725,7 +724,7 @@ export default async function LandingPage() {
                 </p>
                 <Link
                   href="/register"
-                  className="mt-6 inline-block rounded-xl bg-gradient-to-r from-brand to-brand-light px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
+                  className="mt-6 inline-block rounded-full bg-gradient-to-r from-brand to-brand-light px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
                 >
                   Подключить мониторинг
                 </Link>
@@ -738,7 +737,7 @@ export default async function LandingPage() {
                 ].map((row) => (
                   <div
                     key={row.t}
-                    className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/70 p-4 backdrop-blur-md dark:border-white/10 dark:bg-white/5"
+                    className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/70 p-4 backdrop-blur-md backdrop-saturate-150 dark:border-white/10 dark:bg-white/5"
                   >
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-950/50">
                       ✓
@@ -756,12 +755,12 @@ export default async function LandingPage() {
       </section>
 
       {/* Фичи */}
-      <section id="features" className="relative z-10 mx-auto max-w-6xl px-6 py-12">
+      <section id="features" className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 py-12">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (
             <div
               key={f.title}
-              className="rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl transition-transform duration-200 hover:-translate-y-1.5 dark:border-white/10 dark:bg-slate-900/50"
+              className="rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl backdrop-saturate-150 transition-transform duration-200 hover:-translate-y-1.5 dark:border-white/10 dark:bg-slate-900/50"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 text-2xl dark:from-brand/20 dark:to-brand/10">
                 {f.icon}
@@ -778,7 +777,7 @@ export default async function LandingPage() {
       {/* Соответствие 152-ФЗ: проверка сайта, документы и галочка согласия */}
       <section id="compliance" className="relative z-10 mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="overflow-hidden rounded-3xl shadow-card">
-          <div className="rounded-3xl bg-white/80 p-5 backdrop-blur-xl sm:p-8 md:p-12 dark:bg-slate-900/80">
+          <div className="rounded-3xl bg-white/80 p-5 backdrop-blur-xl backdrop-saturate-150 sm:p-8 md:p-12 dark:bg-slate-900/80">
             <div className="text-center">
               <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand dark:bg-brand/10">
                 📋 152-ФЗ
@@ -840,7 +839,7 @@ export default async function LandingPage() {
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/site-check"
-                className="rounded-xl bg-gradient-to-r from-brand to-brand-light px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
+                className="rounded-full bg-gradient-to-r from-brand to-brand-light px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
               >
                 Проверить свой сайт
               </Link>
@@ -853,9 +852,9 @@ export default async function LandingPage() {
       </section>
 
       {/* Безопасность и соответствие 152-ФЗ */}
-      <section id="security" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
+      <section id="security" className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 py-16">
         <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-brand p-[1.5px] shadow-card">
-          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-5 backdrop-blur-xl sm:p-8 md:p-12 dark:bg-slate-900/80">
+          <div className="rounded-[calc(1.5rem-1.5px)] bg-white/80 p-5 backdrop-blur-xl backdrop-saturate-150 sm:p-8 md:p-12 dark:bg-slate-900/80">
             <div className="grid items-center gap-8 md:grid-cols-2">
               <div>
                 <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
@@ -873,7 +872,7 @@ export default async function LandingPage() {
                 </p>
                 <Link
                   href="/register"
-                  className="mt-6 inline-block rounded-xl bg-gradient-to-r from-emerald-500 to-brand px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
+                  className="mt-6 inline-block rounded-full bg-gradient-to-r from-emerald-500 to-brand px-6 py-3 font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
                 >
                   Начать бесплатно
                 </Link>
@@ -903,7 +902,7 @@ export default async function LandingPage() {
                 ].map((c) => (
                   <div
                     key={c.t}
-                    className="rounded-2xl border border-white/60 bg-white/70 p-5 backdrop-blur-md dark:border-white/10 dark:bg-white/5"
+                    className="rounded-2xl border border-white/60 bg-white/70 p-5 backdrop-blur-md backdrop-saturate-150 dark:border-white/10 dark:bg-white/5"
                   >
                     <div className="text-2xl">{c.icon}</div>
                     <h3 className="mt-3 text-base font-semibold">{c.t}</h3>
@@ -919,17 +918,17 @@ export default async function LandingPage() {
       </section>
 
       {/* Тарифы — кастомные, настраиваются ползунками */}
-      <section id="pricing" className="relative z-10 mx-auto max-w-5xl px-6 py-16">
-        <h2 className="text-center text-3xl font-bold">Тарифы — платите за нужное</h2>
+      <section id="pricing" className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6 py-16">
+        <h2 className="text-center text-3xl font-bold">Тарифы</h2>
         <p className="mx-auto mt-3 max-w-2xl text-center text-slate-500">
-          Никаких фиксированных пакетов. Настройте суточную квоту сессий и срок
-          хранения логов ползунками — цена считается автоматически.
+          Без фиксированных пакетов: базовый объём бесплатен навсегда, доплата —
+          только за пользователей и хранение сверх него. При оплате за год — минус 20%.
         </p>
 
         <div className="mt-10 grid gap-6 md:grid-cols-2">
           {/* Бесплатный тариф */}
           <div className="rounded-3xl bg-white/50 p-[1.5px] shadow-card transition-transform hover:-translate-y-1 dark:bg-white/10">
-            <div className="flex h-full flex-col rounded-[calc(1.5rem-1.5px)] bg-white/85 p-7 backdrop-blur-xl dark:bg-slate-900/85">
+            <div className="flex h-full flex-col rounded-[calc(1.5rem-1.5px)] bg-white/85 p-7 backdrop-blur-xl backdrop-saturate-150 dark:bg-slate-900/85">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold uppercase tracking-wide text-brand">
                   {FREE_TIER.name}
@@ -943,7 +942,7 @@ export default async function LandingPage() {
                 <span className="text-slate-500">/ проект в месяц</span>
               </div>
               <div className="mt-2 text-sm font-medium text-slate-500">
-                {FREE_SESSIONS_PER_DAY} сессий в сутки · хранение{" "}
+                {FREE_SESSIONS_PER_DAY} пользователей в сутки · хранение{" "}
                 {retentionHoursLabel(FREE_RETENTION_HOURS)}
               </div>
 
@@ -958,74 +957,36 @@ export default async function LandingPage() {
 
               <Link
                 href="/register"
-                className="mt-6 block rounded-xl border border-brand/40 px-6 py-3 text-center font-semibold text-brand shadow-card transition-transform hover:-translate-y-0.5 hover:bg-brand/5"
+                className="mt-6 block rounded-full border border-brand/40 px-6 py-3 text-center font-semibold text-brand shadow-card transition-transform hover:-translate-y-0.5 hover:bg-brand/5"
               >
                 Начать бесплатно
               </Link>
             </div>
           </div>
 
-          {/* Кастомный тариф */}
+          {/* Кастомный тариф — собирается ползунками, цена сразу финальная */}
           <div className="rounded-3xl bg-gradient-to-br from-brand to-indigo-500 p-[1.5px] shadow-card transition-transform hover:-translate-y-1">
-            <div className="flex h-full flex-col rounded-[calc(1.5rem-1.5px)] bg-white/85 p-7 backdrop-blur-xl dark:bg-slate-900/85">
+            <div className="flex h-full flex-col rounded-[calc(1.5rem-1.5px)] bg-white/85 p-7 backdrop-blur-xl backdrop-saturate-150 dark:bg-slate-900/85">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold uppercase tracking-wide text-brand">
                   Кастомный
                 </span>
                 <span className="rounded-full bg-brand px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                  Ползунки
+                  Соберите сами
                 </span>
               </div>
-              <div className="mt-3 flex items-baseline gap-1">
-                <span className="text-4xl font-extrabold">от 0 ₽</span>
-                <span className="text-slate-500">/ проект в месяц</span>
+              <div className="mt-3 mb-5 text-sm text-slate-500">
+                Подвиньте ползунки — цена пересчитается сразу, со скидкой за период.
               </div>
-              <div className="mt-2 text-sm font-medium text-slate-500">
-                Сколько нужно сессий и хранения — столько и платите
-              </div>
-
-              <ul className="mt-5 flex-1 space-y-2.5 text-sm">
-                <li className="flex items-start gap-2">
-                  <span className="text-brand">✓</span>
-                  <span>
-                    Первые {FREE_SESSIONS_PER_DAY} сессий в сутки и{" "}
-                    {retentionHoursLabel(FREE_RETENTION_HOURS)} хранения — бесплатно
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-brand">✓</span>
-                  <span>
-                    {RUB_PER_SESSION_MONTH} ₽/мес за каждую суточную сессию сверх{" "}
-                    {FREE_SESSIONS_PER_DAY}
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-brand">✓</span>
-                  <span>
-                    {RUB_PER_RETENTION_HOUR_MONTH} ₽/мес за каждый час хранения сверх{" "}
-                    {FREE_RETENTION_HOURS}
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-brand">✓</span>
-                  <span>Скидки за период: −10% на 3 месяца, −20% на год</span>
-                </li>
-              </ul>
-
-              <Link
-                href="/register"
-                className="mt-6 block rounded-xl bg-gradient-to-r from-brand to-indigo-500 px-6 py-3 text-center font-semibold text-white shadow-card transition-transform hover:-translate-y-0.5"
-              >
-                Настроить тариф
-              </Link>
+              <PricingCalculator />
             </div>
           </div>
         </div>
       </section>
 
       {/* Публичное API: документация открыта без авторизации — и для людей, и для ИИ-агентов */}
-      <section id="api" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
-        <div className="rounded-3xl border border-white/50 bg-white/60 p-8 shadow-card backdrop-blur-xl sm:p-10 dark:border-white/10 dark:bg-slate-900/50">
+      <section id="api" className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 py-16">
+        <div className="rounded-3xl border border-white/50 bg-white/60 p-8 shadow-card backdrop-blur-xl backdrop-saturate-150 sm:p-10 dark:border-white/10 dark:bg-slate-900/50">
           <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
             <div>
               <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand dark:bg-brand/10">
@@ -1045,19 +1006,19 @@ export default async function LandingPage() {
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href="/docs/api"
-                  className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-card hover:bg-brand-dark"
+                  className="rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-card hover:bg-brand-dark"
                 >
                   Документация API
                 </Link>
                 <Link
                   href="/docs/for-agents"
-                  className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:border-brand hover:text-brand dark:border-slate-700 dark:text-slate-200"
+                  className="rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:border-brand hover:text-brand dark:border-slate-700 dark:text-slate-200"
                 >
                   Для ИИ-агентов
                 </Link>
                 <a
                   href="/llms.txt"
-                  className="rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-500 hover:text-brand dark:text-slate-400"
+                  className="rounded-full px-5 py-2.5 text-sm font-semibold text-slate-500 hover:text-brand dark:text-slate-400"
                 >
                   llms.txt
                 </a>
@@ -1089,7 +1050,7 @@ curl -H "Authorization: Bearer $LOGSY_API_KEY" \\
       </section>
 
       {/* Страницы под роль — офферы для конкретной аудитории */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 py-16">
+      <section className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 py-16">
         <div className="text-center">
           <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand dark:bg-brand/10">
             Кому подходит Logsy
@@ -1125,7 +1086,7 @@ curl -H "Authorization: Bearer $LOGSY_API_KEY" \\
             <Link
               key={r.href}
               href={r.href}
-              className="group flex flex-col rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl transition-transform hover:-translate-y-1.5 dark:border-white/10 dark:bg-slate-900/50"
+              className="group flex flex-col rounded-2xl border border-white/50 bg-white/60 p-6 shadow-card backdrop-blur-xl backdrop-saturate-150 transition-transform hover:-translate-y-1.5 dark:border-white/10 dark:bg-slate-900/50"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 text-2xl dark:from-brand/20 dark:to-brand/10">
                 {r.icon}

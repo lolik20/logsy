@@ -11,6 +11,8 @@ import { TOOL_PAGES } from "@/content/seo/tools";
 import { SOLUTION_PAGES } from "@/content/seo/solutions";
 import { MISC_PAGES } from "@/content/seo/misc";
 import { WEBVISOR_PAGES } from "@/content/seo/webvisor";
+import { LEGAL_PAGES } from "@/content/seo/legal";
+import { CMS_PAGES } from "@/content/seo/cms";
 
 export const SEO_PAGES: SeoPageContent[] = [
   ...SOLUTION_PAGES,
@@ -19,6 +21,8 @@ export const SEO_PAGES: SeoPageContent[] = [
   ...TOOL_PAGES,
   ...MISC_PAGES,
   ...WEBVISOR_PAGES,
+  ...LEGAL_PAGES,
+  ...CMS_PAGES,
 ];
 
 /**
@@ -27,6 +31,7 @@ export const SEO_PAGES: SeoPageContent[] = [
  */
 export const EXTERNAL_TITLES: Record<string, string> = {
   "/": "Мониторинг сайта 24/7: узнаете о падении раньше клиентов",
+  "/demo": "Как работает Logsy: демо от сбоя до починки за 7 шагов",
   "/for-owners": "Мониторинг сайта для владельцев бизнеса",
   "/for-marketers": "Мониторинг лендингов для маркетологов",
   "/for-developers": "Логи и запись сессий для разработчиков",

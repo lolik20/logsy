@@ -41,6 +41,8 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
   {
     title: "152-ФЗ и документы",
     links: [
+      { href: "/legal/privacy-generator", label: "Генератор политики" },
+      { href: "/tools/152fz-check", label: "Проверка 152-ФЗ" },
       { href: "/cookie-banner", label: "Cookie и согласия" },
       { href: "/blog/rkn-notification", label: "Уведомление в РКН" },
       { href: "/monitoring-from-russia", label: "Данные в России" },
@@ -69,8 +71,8 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
 
 export function LandingFooter() {
   return (
-    <footer className="border-t border-slate-200 py-10 text-sm text-slate-500 dark:border-slate-800">
-      <div className="mx-auto max-w-6xl px-6">
+    <footer className="border-t border-slate-200 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-10 text-sm text-slate-500 dark:border-slate-800">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-6">
           {COLUMNS.map((col) => (
             <nav key={col.title}>
