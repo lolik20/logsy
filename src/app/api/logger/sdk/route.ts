@@ -912,7 +912,7 @@ const SDK = `(function(){
         + '<textarea maxlength="1000" placeholder="Что случилось?"></textarea>'
         + '<div class="field-err text-err" style="display:none">Опишите проблему</div>'
         + '<div class="row">'
-        + '<a class="powered" href="' + origin + '" target="_blank" rel="noopener noreferrer">Работает на Logsy</a>'
+        + '<a class="powered" href="https://logsy.ru" target="_blank" rel="noopener noreferrer">Работает на Logsy</a>'
         + '<button type="button" class="act send">Отправить</button>'
         + '</div>'
         + '</div>'
@@ -977,7 +977,7 @@ const SDK = `(function(){
         emailInput.value = "";
         // Показываем благодарность и закрываем форму.
         panel.innerHTML = '<div class="ok">Спасибо! Сообщение отправлено.</div>'
-          + '<div class="foot"><a href="' + origin + '" target="_blank" rel="noopener noreferrer">Работает на Logsy</a></div>';
+          + '<div class="foot"><a href="https://logsy.ru" target="_blank" rel="noopener noreferrer">Работает на Logsy</a></div>';
         setTimeout(closePanel, 1500);
       });
     }
