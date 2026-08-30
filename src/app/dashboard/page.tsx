@@ -2,7 +2,6 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
 import { ProjectManager } from "@/components/ProjectManager";
-import { StatusBadge } from "@/components/StatusBadge";
 import { StatusAutoRefresh } from "@/components/StatusAutoRefresh";
 import { statusSignature } from "@/lib/status";
 import { AdminMonitoring } from "@/components/AdminMonitoring";
@@ -107,12 +106,6 @@ export default async function DashboardPage() {
         )}
         {projects.map((p) => {
           const down = p.monitors.filter((m) => m.lastStatus === "DOWN").length;
-          const status =
-            p.monitors.length === 0
-              ? "PENDING"
-              : down > 0
-                ? "DOWN"
-                : "UP";
           return (
             <Link
               key={p.id}
@@ -120,10 +113,7 @@ export default async function DashboardPage() {
               className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 hover:border-brand dark:border-slate-800 dark:bg-slate-900"
             >
               <div>
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold">{p.name}</span>
-                  <StatusBadge status={status} />
-                </div>
+                <div className="font-semibold">{p.name}</div>
                 <div className="mt-1 text-sm text-slate-500">{p.domain}</div>
               </div>
               <div className="text-right text-sm text-slate-500">

@@ -85,12 +85,6 @@ export async function AdminMonitoring() {
                 const down = p.monitors.filter(
                   (m) => m.lastStatus === "DOWN",
                 ).length;
-                const status =
-                  p.monitors.length === 0
-                    ? "PENDING"
-                    : down > 0
-                      ? "DOWN"
-                      : "UP";
                 return (
                   <div
                     key={p.id}
@@ -100,10 +94,7 @@ export async function AdminMonitoring() {
                       href={`/dashboard/projects/${p.id}`}
                       className="flex items-center justify-between hover:text-brand"
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="font-semibold">{p.name}</span>
-                        <StatusBadge status={status} />
-                      </div>
+                      <span className="font-semibold">{p.name}</span>
                       <div className="text-right text-sm text-slate-500">
                         {p.domain}
                         {down > 0 && (

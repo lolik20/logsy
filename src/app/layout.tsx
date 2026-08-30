@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
@@ -17,6 +17,18 @@ export const metadata: Metadata = {
   title: "Мониторинг доступности сайта, логи ошибок и записи сессий",
   description:
     "Сервис мониторинга uptime для российского рынка. Следите за доступностью сайтов и получайте алерты на почту.",
+};
+
+// viewport-fit=cover — чтобы env(safe-area-inset-*) работали на iPhone с вырезом,
+// themeColor красит системную полосу браузера под цвет фона страницы.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+    { media: "(prefers-color-scheme: dark)", color: "#020617" },
+  ],
 };
 
 export default function RootLayout({

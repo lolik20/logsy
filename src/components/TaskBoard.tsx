@@ -255,7 +255,13 @@ function TaskCard({
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={`group cursor-grab rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition active:cursor-grabbing dark:border-slate-800 dark:bg-slate-900 ${
+      onClick={(e) => {
+        // Клик по карточке открывает модалку просмотра/редактирования, но клики
+        // по вложенным ссылкам и кнопкам (почта, сессия, удаление) — нет.
+        if ((e.target as HTMLElement).closest("a, button")) return;
+        onEdit();
+      }}
+      className={`group cursor-pointer rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition dark:border-slate-800 dark:bg-slate-900 ${
         dragging ? "opacity-50" : "hover:border-brand/60"
       }`}
     >

@@ -20,7 +20,11 @@ export function ProjectHeader({
       </Link>
       <div className="mt-2">
         <h1 className="text-2xl font-bold">{name}</h1>
-        <p className="text-sm text-slate-500">{domain}</p>
+        {/* Имя проекта по умолчанию равно домену (см. api/projects) — тогда
+            строка с доменом дублировала бы заголовок, и мы её не показываем. */}
+        {domain.trim().toLowerCase() !== name.trim().toLowerCase() && (
+          <p className="text-sm text-slate-500">{domain}</p>
+        )}
       </div>
       <ProjectServiceTabs projectId={projectId} active={active} />
     </div>

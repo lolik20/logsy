@@ -12,25 +12,116 @@ body {
   margin: 0;
 }
 
+html {
+  /* Якоря (#pricing и т.п.) не должны прятаться под фиксированной шапкой */
+  scroll-padding-top: calc(5rem + env(safe-area-inset-top));
+  scroll-behavior: smooth;
+  /* iOS: без серой вспышки при тапе и без автоувеличения шрифта в альбомной ориентации */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+/* Фоновый градиент отдельным фиксированным слоем: background-attachment: fixed
+   не работает в iOS Safari, а слой с position: fixed — работает везде. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background-image: radial-gradient(
     1200px 600px at 50% -200px,
     #eef4ff 0%,
     #f8fafc 60%
   );
-  background-attachment: fixed;
 }
 
 @media (prefers-color-scheme: dark) {
   body {
     @apply bg-slate-950 text-slate-100;
+  }
+  body::before {
     background-image: radial-gradient(
       1200px 600px at 50% -200px,
       #0b1b3a 0%,
       #020617 60%
     );
   }
+}
+
+/* Появление мобильного меню и подложки — короткая iOS-пружинка */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-menu-in {
+  animation: menu-in 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .animate-menu-in,
+  .animate-fade-in {
+    animation: none;
+  }
+}
+
+/* Ползунки тарифа — вид iOS UISlider: тонкая дорожка и круглая белая ручка */
+.range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 0.375rem;
+  border-radius: 9999px;
+}
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.3);
+  cursor: grab;
+}
+.range-slider::-moz-range-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.3);
+  cursor: grab;
+}
+.range-slider:active::-webkit-slider-thumb {
+  cursor: grabbing;
 }
 
 /* Правовые документы проектов (/l/<slug>/<doc>): текст приходит готовой разметкой из
