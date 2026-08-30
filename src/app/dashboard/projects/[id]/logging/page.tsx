@@ -108,6 +108,18 @@ export default async function LoggingPage({
     target.set(g.sessionId, (target.get(g.sessionId) ?? 0) + g._count._all);
   }
 
+  // У каких сессий есть запись экрана (rrweb) — для значка ▶ в карточке.
+  const recCounts = ids.length
+    ? await prisma.recordingChunk.groupBy({
+        by: ["sessionId"],
+        where: { sessionId: { in: ids } },
+        _count: { _all: true },
+      })
+    : [];
+  const recordedIds = new Set(
+    recCounts.filter((r) => r._count._all > 0).map((r) => r.sessionId),
+  );
+
   // Топы ошибок и медленных запросов за день: берём события-ошибки и медленные запросы
   // сессий и сворачиваем их (см. topErrors / topSlowRequests в src/lib/topIssues.ts).
   // Сортировка по времени убыв. — чтобы для перехода бралась самая свежая сессия.
@@ -189,6 +201,8 @@ export default async function LoggingPage({
     durationMs: lastSeenAt.getTime() - startedAt.getTime(),
     // Страна пользователя по IP: берём первый определённый код среди сессий группы.
     country: list.find((s) => s.country)?.country ?? null,
+    // Есть ли у группы хотя бы одна сессия с записью экрана — значок ▶ в карточке.
+    hasRec: list.some((s) => recordedIds.has(s.id)),
     errors: list.reduce((n, s) => n + (errorCount.get(s.id) ?? 0), 0),
     slow: list.reduce((n, s) => n + (slowCount.get(s.id) ?? 0), 0),
     reports: list.reduce((n, s) => n + (reportCount.get(s.id) ?? 0), 0),
@@ -345,6 +359,25 @@ export default async function LoggingPage({
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-3 text-sm font-semibold">
+                {g.hasRec && (
+                  <span
+                    className="flex items-center text-brand"
+                    title="Есть запись сессии"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-3.5 w-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                  </span>
+                )}
                 {g.reports > 0 && (
                   <span
                     className="flex items-center gap-1 text-violet-600"

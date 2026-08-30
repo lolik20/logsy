@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUserId, isAdmin } from "@/lib/session";
@@ -43,12 +42,15 @@ export default async function SessionReplayPage({
 
   return (
     <div>
-      <Link
+      {/* Обычный <a>, а не <Link>: маршрут logging/[sessionId] перехватывается
+          модалкой при мягкой навигации, а отсюда нужно попасть на полную
+          страницу сессии с лентой событий. */}
+      <a
         href={`/dashboard/projects/${session.project.id}/logging/${session.id}`}
         className="text-sm text-slate-500 hover:text-brand"
       >
         ← К сессии
-      </Link>
+      </a>
 
       <h1 className="mt-2 text-2xl font-bold">Запись экрана</h1>
       <p className="text-sm text-slate-500">
